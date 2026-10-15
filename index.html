@@ -263,7 +263,7 @@ tr.flagged td{background:var(--warn-bg)}
     <div id="upload" class="upload">
       <div class="sec-head">
         <h2 style="font-size:18px">Load today's exports</h2>
-        <span class="note">Files are read in your browser. Save data keeps a copy in this browser only. Nothing leaves this page unless you press Save for team, which stores the report only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
+        <span class="note">Files are read in your browser. Save data keeps a copy in this browser only. Nothing leaves this page unless you press Save for team, which stores the report data only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
       </div>
       <div class="drops">
         <div class="drop-col">
@@ -1020,10 +1020,10 @@ function renderHeader(){
   renderDatePicker();
   var sl = document.getElementById("source-line"); sl.textContent = "";
   if (state.source === "upload") sl.appendChild(el("span", {cls: "tag upload", text: "Your upload · not saved for team"}));
-  if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team report"}));
+  if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team data" + (state.team && state.team.name ? " · " + state.team.name : "")}));
   if (state.source === "saved") sl.appendChild(el("span", {cls: "tag saved", title: state.savedInfo ? "Saved " + new Date(state.savedInfo.savedAt).toLocaleString("en-IN") : null,
     text: "Saved data" + (state.savedInfo ? " · " + state.savedInfo.name : "")}));
-  if (state.source === "upload" && saved.ok) sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: toggleSaved}, "Save this data in the browser"));
+  if (state.source === "upload" && (saved.ok || team.kind)) sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: toggleSaved}, "Not saved yet: save this data"));
   var f = state.source === "team" && state.team ? state.team.files : state.files;
   {
     if (f && f.meta) sl.appendChild(el("span", {title: (f.meta.list || [f.meta.name]).join("\n"), text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)" + (f.meta.list && f.meta.list.length > 1 ? " — " + f.meta.list.join(", ") : "")}));
@@ -1036,17 +1036,17 @@ function renderHeader(){
     chips.appendChild(el("button", {cls: "chip", type: "button", "aria-pressed": state.brand === b ? "true" : "false", onclick: function(){ state.brand = b; state.limit = {}; render(); }},
       b === "All" ? "All brands" : b, el("span", {cls: "c", text: (b === "All" ? tot : (per[b] || 0)).toLocaleString("en-IN")}))); });
   document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
-  document.getElementById("save-wrap").hidden = !(state.caps.db && state.canSave && (state.source === "upload" || state.source === "saved"));
-  document.getElementById("btn-saved").hidden = !saved.ok;
+  document.getElementById("save-wrap").hidden = !(state.raw && (teamCanWrite() || team.status === "locked"));
+  document.getElementById("btn-saved").hidden = !(saved.ok || team.kind);
 }
 function renderEmpty(){
   document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
   var sl = document.getElementById("source-line"); sl.textContent = "";
   sl.appendChild(el("span", {cls: "tag", text: "No data loaded"}));
-  sl.appendChild(el("span", {text: state.caps.db ? "Load today's exports, or wait a moment if your team has saved a report." : "Load today's Meta and TeleCRM exports to build the report."}));
+  sl.appendChild(el("span", {text: team.status === "locked" ? "Load today's exports, or enter the team passcode under Saved data to open team data." : team.kind ? "Load today's exports, or open data your team has saved." : "Load today's Meta and TeleCRM exports to build the report."}));
   document.getElementById("brand-chips").textContent = ""; document.getElementById("dp").textContent = "";
   document.getElementById("btn-xlsx").hidden = true; document.getElementById("save-wrap").hidden = true;
-  document.getElementById("btn-saved").hidden = !(saved.ok && saved.list.length);
+  document.getElementById("btn-saved").hidden = !((saved.ok && saved.list.length) || team.kind);
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"); v.textContent = "";
   var step = function(n, t, d){ return el("div", {cls: "kpi"}, el("div", {cls: "eyebrow", text: "Step " + n}), el("div", {cls: "v", style: "font-size:20px", text: t}), el("div", {cls: "s", text: d})); };
@@ -1059,7 +1059,8 @@ function renderEmpty(){
       step(4, "Pick dates and brands", "Use the date picker and brand chips to view any day, week or month."),
       step(5, "Share", "Download Excel, or Save for team so your manager sees the same report.")),
     el("div", {cls: "actions"}, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Load exports"),
-      saved.ok && saved.list.length ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open saved data (" + saved.list.length + ")") : null)));
+      (saved.ok && saved.list.length) || team.list.length ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open saved data (" + (saved.list.length + team.list.length) + ")")
+        : team.status === "locked" ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open team data") : null)));
 }
 function render(){
   if (!state.R){ renderEmpty(); return; }
@@ -1646,12 +1647,15 @@ function toggleSaved(){
   var x = document.getElementById("saved");
   if (!x.hidden){ x.hidden = true; return; }
   saved.confirmDel = null;
-  refreshSaved().then(function(){ renderSavedPanel(); x.hidden = false; document.getElementById("export").hidden = true; document.getElementById("upload").hidden = true; x.scrollIntoView({block: "nearest"}); });
+  saved.confirmDel = null; team.confirmDel = null;
+  Promise.all([refreshSaved(), refreshTeam()]).then(function(){ renderSavedPanel(); x.hidden = false; document.getElementById("export").hidden = true; document.getElementById("upload").hidden = true; x.scrollIntoView({block: "nearest"}); });
 }
 function renderSavedPanel(){
   var x = document.getElementById("saved"); x.textContent = "";
   x.appendChild(el("div", {cls: "sec-head"}, el("h2", {style: "font-size:18px", text: "Saved data"}),
-    el("span", {cls: "note", text: "Kept in this browser on this device, so you don't have to upload the exports again. Only the columns the report reads are kept: campaigns, spend, results, dates, lead IDs, statuses, owners and call times. No names, phone numbers or emails. Not shared with anyone."})));
+    el("span", {cls: "note", text: "Save the loaded exports so nobody has to upload them again. Only the columns the report reads are kept: campaigns, spend, results, dates, lead IDs, statuses, owners and call times. No names, phone numbers or emails."})));
+  if (team.kind) renderTeamSection(x);
+  var outer = x; x = el("div", {cls: "group"}, el("div", {cls: "sec-head"}, el("h3", {text: "This browser only"}), el("span", {cls: "note", text: "Private to you on this device. Not shared."}))); outer.appendChild(x);
   if (!saved.ok){ x.appendChild(el("div", {cls: "banner warn", text: "This browser doesn't allow saving data here (private window or blocked site data). Use Download Excel instead."})); return; }
   if (state.raw){
     var inp = el("input", {type: "text", id: "sv-name", value: state.source === "saved" && state.savedInfo ? state.savedInfo.name : suggestName(), "aria-label": "Name for this data", maxlength: "120"});
@@ -1713,80 +1717,228 @@ function leanData(raw, S){
       if (!out.some(function(v){ return String(v).trim() !== ""; })) out[0] = "-"; crm.push(out); } }
   return {meta: meta, crm: crm};
 }
-function compactR(R){ var o = Object.assign({}, R); o.needsCallCapped = R.needsCall.length > 4000; o.needsCall = R.needsCall.slice(0, 4000); o.unmatched = R.unmatched.slice(0, 1500); return o; }
-function confirmSave(){
-  var w = document.getElementById("save-wrap"); w.textContent = "";
-  w.appendChild(el("span", {cls: "confirm"}, el("span", {text: "Replace the team report with this upload?"}),
-    el("button", {cls: "btn", type: "button", id: "btn-save-yes", onclick: doSave}, "Save"),
-    el("button", {cls: "btn ghost", type: "button", id: "btn-save-no", onclick: resetSaveBtn}, "Cancel")));
+/* ================= team saves (shared with the team) =================
+   Two back ends, same features: the Claude page uses its shared store (db);
+   the Vercel site uses /api/team (Vercel Blob, protected by a team passcode). */
+var team = {kind: null, status: "off", role: null, list: [], err: "", confirmDel: null, busy: false};
+var TEAM_KEY = "ebg-lead-dash-team-key";
+function teamCanWrite(){ return team.status === "ready" && (team.kind === "claude" ? state.canSave : team.role === "admin"); }
+/* gzip when the browser can (5-10x smaller), plain JSON otherwise */
+function packText(str){
+  if (typeof CompressionStream === "undefined") return Promise.resolve({enc: "json", bytes: new TextEncoder().encode(str)});
+  return new Response(new Blob([str]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer().then(function(b){ return {enc: "gz", bytes: new Uint8Array(b)}; });
 }
-function resetSaveBtn(){ var w = document.getElementById("save-wrap"); w.textContent = ""; w.appendChild(el("button", {cls: "btn ghost", id: "btn-save", type: "button", onclick: confirmSave}, "Save for team")); }
-function doSave(){
-  var db = state.caps.db; if (!db || !state.R) return;
-  var w = document.getElementById("save-wrap"); w.textContent = ""; w.appendChild(el("span", {cls: "small", text: "Saving…"}));
-  var savedAt = new Date().toISOString(), ver = Date.now().toString(36);
+function unpackText(bytes, enc){
+  if (enc !== "gz") return Promise.resolve(new TextDecoder().decode(bytes));
+  if (typeof DecompressionStream === "undefined") return Promise.reject(new Error("This browser can't open compressed team data. Update the browser."));
+  return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+}
+function bytesToB64(u8){ var s = "", CH = 0x8000; for (var i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return btoa(s); }
+function b64ToBytes(b64){ var s = atob(b64), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+function teamPayload(){
   var lean = leanData(state.raw, state.settings);
-  var payload = JSON.stringify({v: 2, savedAt: savedAt, files: state.files, settings: state.settings, meta: encodeAOA(lean.meta), crm: encodeAOA(lean.crm)});
-  var parts = []; for (var i = 0; i < payload.length; i += CHUNK) parts.push(payload.slice(i, i + CHUNK));
-  var prev = null, chain = db.doc("report/current").get().then(function(s){ prev = s.exists ? s.data() : null; });
-  parts.forEach(function(p, i){ chain = chain.then(function(){ return db.doc("report_chunks/" + ver + "-" + i).set({ver: ver, i: i, s: p}); }); });
-  chain.then(function(){ return db.doc("report/current").set({ver: ver, n: parts.length, savedAt: savedAt, files: state.files}); })
-    .then(function(){ state.lastSavedVer = ver; state.source = "team"; state.team = {savedAt: savedAt, files: state.files, ver: ver};
-      if (prev && prev.ver && prev.ver !== ver){ var c2 = Promise.resolve(); for (var j = 0; j < (prev.n || 0); j++) (function(j){ c2 = c2.then(function(){ return db.doc("report_chunks/" + prev.ver + "-" + j).delete().catch(function(){}); }); })(j); }
-      resetSaveBtn(); render(); toast("Saved. Anyone you share this page with now sees this report."); })
-    .catch(function(e){ resetSaveBtn(); render();
-      toast(e && e.code === "invalid_argument" ? "Only editors of this page can save the team report." : e && e.code === "quota_exceeded" ? "The page's storage is full. Ask the owner to clear old reports." : "Could not save: " + (e && e.message || "try again")); });
+  var info = {files: state.files, metaRows: lean.meta.length - 1, crmRows: lean.crm.length - 1,
+              avail: state.R ? {min: state.R.avail.min, max: state.R.avail.max} : null};
+  return packText(JSON.stringify({v: 3, settings: state.settings, meta: encodeAOA(lean.meta), crm: encodeAOA(lean.crm)}))
+    .then(function(p){ info.enc = p.enc; info.bytes = p.bytes.length; return {info: info, bytes: p.bytes}; });
 }
-function loadTeam(cur){
+function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+/* ---- Claude page driver ---- */
+var PART = 190000;
+var claudeTeam = {
+  list: function(){ return state.caps.db.collection("team_sets").get().then(function(q){ return q.docs.map(function(d){ return d.data(); }); }); },
+  save: function(name, pk){
+    var db = state.caps.db, id = newId(), b64 = bytesToB64(pk.bytes), parts = [];
+    for (var i = 0; i < b64.length; i += PART) parts.push(b64.slice(i, i + PART));
+    var old = team.list.filter(function(d){ return d.name.toLowerCase() === name.toLowerCase(); });
+    var meta = Object.assign({}, pk.info, {id: id, name: name, savedAt: new Date().toISOString(), n: parts.length});
+    var chain = Promise.resolve();
+    parts.forEach(function(p, k){ chain = chain.then(function(){ return db.doc("team_parts/" + id + "-" + k).set({id: id, i: k, s: p}); }); });
+    return chain.then(function(){ return db.doc("team_sets/" + id).set(meta); })
+      .then(function(){ return db.doc("report/current").set({id: id, name: name, savedAt: meta.savedAt}); })
+      .then(function(){ var c = Promise.resolve(); old.forEach(function(o){ c = c.then(function(){ return claudeTeam.remove(o.id, o.n); }); }); return c; })
+      .then(function(){ return meta; });
+  },
+  get: function(meta){
+    var db = state.caps.db, parts = [], chain = Promise.resolve();
+    for (var i = 0; i < meta.n; i++) (function(k){ chain = chain.then(function(){ return db.doc("team_parts/" + meta.id + "-" + k).get().then(function(s){ if (!s.exists) throw new Error("part " + k + " missing"); parts.push(s.data().s); }); }); })(i);
+    return chain.then(function(){ return b64ToBytes(parts.join("")); });
+  },
+  remove: function(id, n){
+    var db = state.caps.db, chain = db.doc("team_sets/" + id).delete();
+    for (var i = 0; i < (n || 0); i++) (function(k){ chain = chain.then(function(){ return db.doc("team_parts/" + id + "-" + k).delete().catch(function(){}); }); })(i);
+    return chain;
+  }
+};
+/* ---- Vercel site driver ---- */
+function teamKey(){ try { return localStorage.getItem(TEAM_KEY) || ""; } catch (e){ return ""; } }
+function apiFetch(path, opt){
+  opt = opt || {}; opt.headers = Object.assign({"x-team-key": teamKey()}, opt.headers || {}); opt.cache = "no-store";
+  return fetch("/api/team" + (path || ""), opt).then(function(r){
+    if (r.ok) return r;
+    return r.json().catch(function(){ return {}; }).then(function(j){ var e = new Error(j.error || ("Server error " + r.status)); e.status = r.status; e.setup = j.setup; throw e; }); });
+}
+var vercelTeam = {
+  list: function(){ return apiFetch("").then(function(r){ return r.json(); }).then(function(j){ team.role = j.role; return j.datasets || []; }); },
+  save: function(name, pk){
+    var old = team.list.filter(function(d){ return d.name.toLowerCase() === name.toLowerCase(); })[0];
+    var meta = Object.assign({}, pk.info, {name: name, replaceId: old ? old.id : ""});
+    var hdr = btoa(unescape(encodeURIComponent(JSON.stringify(meta))));
+    return apiFetch("", {method: "POST", headers: {"content-type": "application/octet-stream", "x-meta": hdr}, body: pk.bytes}).then(function(r){ return r.json(); });
+  },
+  get: function(meta){ return apiFetch("?id=" + encodeURIComponent(meta.id)).then(function(r){ return r.arrayBuffer(); }).then(function(b){ return new Uint8Array(b); }); },
+  remove: function(id){ return apiFetch("?id=" + encodeURIComponent(id), {method: "DELETE"}); }
+};
+function teamDriver(){ return team.kind === "claude" ? claudeTeam : vercelTeam; }
+function refreshTeam(){
+  if (team.status !== "ready") return Promise.resolve(team.list);
+  return teamDriver().list().then(function(l){ team.list = l.sort(function(a, b){ return b.savedAt < a.savedAt ? -1 : 1; }); team.err = ""; return team.list; })
+    .catch(function(e){ if (e.status === 401){ team.status = "locked"; team.err = "The team passcode has changed. Enter the new one."; } else team.err = e.message; return team.list; });
+}
+/* Vercel: is there an API, is it set up, is our passcode right? */
+function connectVercel(){
+  team.kind = "vercel"; team.status = "checking";
+  return apiFetch("?ping=1").then(function(r){ return r.json(); }).then(function(j){ team.status = "ready"; team.role = j.role; team.err = ""; return refreshTeam(); })
+    .catch(function(e){
+      if (e.status === 404 || !e.status){ team.status = "off"; team.kind = null; }
+      else if (e.status === 503 || e.setup === false) team.status = "setup";
+      else if (e.status === 401){ team.status = "locked"; team.err = teamKey() ? "That passcode didn't work." : ""; }
+      else { team.status = "error"; team.err = e.message; }
+      return [];
+    });
+}
+function saveForTeam(name){
+  name = clean(name) || suggestName();
+  if (!state.raw) return Promise.reject(new Error("Load the exports first"));
+  return teamPayload().then(function(pk){ return teamDriver().save(name, pk); })
+    .then(function(meta){ state.source = "team"; state.team = {id: meta.id, name: meta.name, savedAt: meta.savedAt, files: state.files}; state.lastSavedVer = meta.id; return refreshTeam().then(function(){ return meta; }); });
+}
+function openTeamDataset(meta, quiet){
+  return teamDriver().get(meta).then(function(bytes){ return unpackText(bytes, meta.enc); }).then(function(txt){
+    var obj = JSON.parse(txt);
+    state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)};
+    if (obj.settings) state.settings = Object.assign(clone(DEFAULT_SETTINGS), obj.settings);
+    state.files = meta.files || {}; state.source = "team"; state.team = {id: meta.id, name: meta.name, savedAt: meta.savedAt, files: meta.files}; state.savedInfo = null;
+    state.metaFiles = []; state.pending = {meta: null, crm: null}; renderMetaList();
+    document.getElementById("st-crm").textContent = ""; document.getElementById("drop-crm").classList.remove("ok");
+    state.brand = "All"; state.limit = {}; rebuild();
+    ["upload", "saved", "export"].forEach(function(p){ document.getElementById(p).hidden = true; });
+    document.getElementById("team-banner").hidden = true;
+    render(); if (!quiet) toast("Opened team data: " + meta.name);
+  });
+}
+function deleteTeamDataset(meta){ return teamDriver().remove(meta.id, meta.n).then(function(){ return refreshTeam(); }); }
+/* a newer team save than what's on screen: open it, or offer it when the viewer is on their own data */
+function offerTeam(meta){
+  if (!meta || (state.team && state.team.id === meta.id)) return;
+  if (state.source === "none") { openTeamDataset(meta, true).then(function(){ toast("Opened the latest team data: " + meta.name); }).catch(function(e){ console.warn(e); }); return; }
+  if (state.lastSavedVer === meta.id) return;
+  var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner"; b.textContent = "";
+  b.appendChild(el("span", {text: "Team data “" + meta.name + "” saved " + new Date(meta.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " is available." + (state.source === "team" ? "" : " You are looking at your own data.")}));
+  b.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ b.hidden = true; openTeamDataset(meta).catch(function(e){ toast("Could not open: " + e.message); }); }}, "Show team data"));
+}
+/* legacy single team report saved by the earlier version of this page */
+function loadLegacyTeam(cur){
   var db = state.caps.db, parts = [], chain = Promise.resolve();
-  for (var i = 0; i < cur.n; i++) (function(i){ chain = chain.then(function(){ return db.doc("report_chunks/" + cur.ver + "-" + i).get().then(function(s){ if (!s.exists) throw new Error("part " + i + " missing"); parts.push(s.data().s); }); }); })(i);
-  return chain.then(function(){ var obj = JSON.parse(parts.join("")); return obj; });
+  for (var i = 0; i < cur.n; i++) (function(k){ chain = chain.then(function(){ return db.doc("report_chunks/" + cur.ver + "-" + k).get().then(function(s){ if (!s.exists) throw new Error("part " + k + " missing"); parts.push(s.data().s); }); }); })(i);
+  return chain.then(function(){ var obj = JSON.parse(parts.join("")); if (!(obj.v >= 2)) throw new Error("old format");
+    state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)}; if (obj.settings) state.settings = Object.assign(clone(DEFAULT_SETTINGS), obj.settings);
+    state.files = obj.files || {}; state.source = "team"; state.team = {id: cur.ver, name: "Team report", savedAt: obj.savedAt, files: obj.files};
+    state.brand = "All"; state.limit = {}; rebuild(); render(); });
 }
 function onTeamDoc(snap){
   if (!snap.exists) return;
-  var cur = snap.data(); if (!cur || !cur.ver) return;
-  if (state.team && state.team.ver === cur.ver) return;
-  if ((state.source === "upload" || state.source === "saved") && state.lastSavedVer !== cur.ver){
-    var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner"; b.textContent = "";
-    b.appendChild(el("span", {text: "A team report saved " + new Date(cur.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " is available. You are looking at your own upload."}));
-    b.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ b.hidden = true; applyTeam(cur); }}, "Show team report"));
+  var cur = snap.data(); if (!cur) return;
+  if (cur.id){ refreshTeam().then(function(){ var meta = team.list.filter(function(d){ return d.id === cur.id; })[0] || team.list[0]; offerTeam(meta); if (!document.getElementById("saved").hidden) renderSavedPanel(); }); return; }
+  if (cur.ver && state.source === "none") loadLegacyTeam(cur).catch(function(e){ console.warn(e); });
+}
+function renderTeamSection(x){
+  var box = el("div", {cls: "group team-box"}), head = el("div", {cls: "sec-head"}, el("h3", {text: "Team data"}),
+    el("span", {cls: "note", text: team.kind === "claude" ? "Shared with everyone who can open this page." : "Shared with everyone who has the team passcode for this site."}));
+  box.appendChild(head); x.appendChild(box);
+  if (team.status === "checking"){ box.appendChild(el("div", {cls: "small", text: "Connecting…"})); return; }
+  if (team.status === "setup"){ box.appendChild(el("div", {cls: "banner warn", text: "Team saving isn't switched on for this site yet. In Vercel: Storage › Create › Blob, connect it to this project, then add a TEAM_PASSCODE environment variable and redeploy. Steps are in the README."})); return; }
+  if (team.status === "error"){ box.appendChild(el("div", {cls: "banner warn", text: "Team data is unavailable right now: " + team.err})); return; }
+  if (team.status === "locked"){
+    var pin = el("input", {type: "password", id: "tm-key", autocomplete: "current-password", "aria-label": "Team passcode", placeholder: "Team passcode"});
+    var go = function(){ try { localStorage.setItem(TEAM_KEY, pin.value.trim()); } catch (e) {} connectVercel().then(function(){ renderSavedPanel(); renderHeaderSafe();
+      if (team.status === "ready"){ toast(team.role === "admin" ? "Connected: you can save for the team" : "Connected: you can open team data"); if (state.source === "none" && team.list.length) offerTeam(team.list[0]); } }); };
+    pin.addEventListener("keydown", function(e){ if (e.key === "Enter") go(); });
+    box.appendChild(el("div", {cls: "save-row"}, el("div", {cls: "field"}, el("label", {"for": "tm-key", text: "Enter the team passcode to open or save team data"}), pin),
+      el("button", {cls: "btn", type: "button", id: "tm-go", onclick: go}, "Connect"), team.err ? el("span", {cls: "small", style: "color:var(--bad)", text: team.err}) : null));
     return; }
-  applyTeam(cur);
+  if (team.err) box.appendChild(el("div", {cls: "banner warn", text: team.err}));
+  if (state.raw && teamCanWrite()){
+    var inp = el("input", {type: "text", id: "tm-name", maxlength: "120", "aria-label": "Name for the team copy", value: state.source === "team" && state.team && state.team.name ? state.team.name : suggestName()});
+    var doIt = function(){ var b = document.getElementById("tm-save"), st = document.getElementById("tm-status"); b.disabled = true; st.textContent = "Saving…";
+      saveForTeam(inp.value).then(function(meta){ renderSavedPanel(); render(); toast("Saved for the team: " + meta.name + ". Everyone opening the page now sees it."); })
+        .catch(function(e){ b.disabled = false; st.textContent = "";
+          toast(e && e.code === "invalid_argument" ? "Only editors of this page can save for the team." : e && e.code === "quota_exceeded" ? "Team storage is full. Delete an older team save and try again." : e && e.status === 413 ? "This data is too large for one team save. Save a shorter date range." : e && e.status === 403 ? "Your passcode can open team data but not save it. Use the admin passcode." : "Could not save: " + (e && e.message || "try again")); }); };
+    inp.addEventListener("keydown", function(e){ if (e.key === "Enter") doIt(); });
+    box.appendChild(el("div", {cls: "save-row"},
+      el("div", {cls: "field"}, el("label", {"for": "tm-name", text: "Save the data that's loaded now for the team as"}), inp),
+      el("button", {cls: "btn", type: "button", id: "tm-save", onclick: doIt}, "Save for team"),
+      el("span", {cls: "small", id: "tm-status", "aria-live": "polite", text: "The newest team save opens for everyone. Same name replaces it."})));
+  } else if (!teamCanWrite()) box.appendChild(el("div", {cls: "small", text: team.kind === "claude" ? "View only: editors of this page can save team data." : "View only: saving needs the admin passcode."}));
+  if (!team.list.length){ box.appendChild(el("div", {cls: "empty", text: "No team data saved yet."})); }
+  else {
+    var tb = el("tbody");
+    team.list.forEach(function(d, i){
+      var cur = state.source === "team" && state.team && state.team.id === d.id;
+      var acts = team.confirmDel === d.id
+        ? el("span", {cls: "confirm"}, el("span", {text: "Delete for everyone?"}),
+            el("button", {cls: "btn", type: "button", onclick: function(){ deleteTeamDataset(d).then(function(){ team.confirmDel = null; renderSavedPanel(); toast("Deleted team data: " + d.name); }).catch(function(e){ toast("Could not delete: " + e.message); }); }}, "Delete"),
+            el("button", {cls: "btn ghost", type: "button", onclick: function(){ team.confirmDel = null; renderSavedPanel(); }}, "Keep"))
+        : el("span", {cls: "confirm"},
+            el("button", {cls: "btn" + (cur ? " ghost" : ""), type: "button", onclick: function(){ openTeamDataset(d).catch(function(e){ toast("Could not open: " + e.message); }); }}, cur ? "Reopen" : "Open"),
+            teamCanWrite() ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ team.confirmDel = d.id; renderSavedPanel(); }}, "Delete") : null);
+      tb.appendChild(el("tr", null,
+        el("td", {cls: "name"}, el("span", {text: d.name}), i === 0 ? el("span", {cls: "pill mut", style: "margin-left:8px", text: "Latest"}) : null, cur ? el("span", {cls: "pill good", style: "margin-left:6px", text: "Open now"}) : null),
+        el("td", {cls: "nowrap", text: new Date(d.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}),
+        el("td", {cls: "nowrap", text: d.avail && d.avail.min !== null ? spanText({from: d.avail.min, to: d.avail.max}) : "—"}),
+        el("td", {cls: "r num nowrap", text: fInt(d.metaRows)}), el("td", {cls: "r num nowrap", text: fInt(d.crmRows)}),
+        el("td", {cls: "small", text: d.files && d.files.meta ? (d.files.meta.list || [d.files.meta.name]).join(", ") + (d.files.crm ? " · " + d.files.crm.name : "") : ""}),
+        el("td", {cls: "nowrap"}, acts)));
+    });
+    box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:none"}, el("table", null,
+      el("thead", null, el("tr", null, ["Name", "Saved", "Data dates", "Meta rows", "CRM rows", "Files", ""].map(function(h, i){ return el("th", {cls: i === 3 || i === 4 ? "r" : "", scope: "col", style: "cursor:default", text: h}); }))), tb)));
+  }
+  if (team.kind === "vercel") box.appendChild(el("div", null, el("button", {cls: "linkbtn", type: "button", onclick: function(){ try { localStorage.removeItem(TEAM_KEY); } catch (e) {} team.status = "locked"; team.role = null; team.list = []; team.err = ""; renderSavedPanel(); renderHeaderSafe(); }}, "Use a different passcode")));
 }
-function applyTeam(cur){
-  loadTeam(cur).then(function(obj){
-    document.getElementById("upload").hidden = true;
-    state.team = {savedAt: obj.savedAt, files: obj.files, ver: cur.ver}; state.source = "team"; state.files = obj.files || state.files;
-    if (obj.settings) state.settings = Object.assign(clone(DEFAULT_SETTINGS), obj.settings);
-    if (obj.v >= 2){ state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)}; rebuild(); } else { state.R = obj.R; state.raw = null; }
-    state.brand = "All"; state.limit = {}; render();
-  }).catch(function(e){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The saved team report could not be opened (" + e.message + "). Load the exports to build a fresh report."; });
-}
+function renderHeaderSafe(){ if (state.R) renderHeader(); }
+function openSaveForTeam(){ var x = document.getElementById("saved"); if (x.hidden) toggleSaved(); else renderSavedPanel(); setTimeout(function(){ var n = document.getElementById("tm-name") || document.getElementById("tm-key"); if (n) n.focus(); }, 60); }
+document.getElementById("btn-save").addEventListener("click", openSaveForTeam);
 
 /* ================= boot ================= */
 state.settings = loadSettings();
 try { var t0 = localStorage.getItem("ebg-lead-dash-tab"); if (t0) state.tab = t0; var r0 = JSON.parse(localStorage.getItem("ebg-lead-dash-range") || "null"); if (r0 && r0.preset) state.range = r0; } catch (e) {}
-document.getElementById("btn-save").addEventListener("click", confirmSave);
 function boot(){
   if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Check your connection and reload the page."; }
   render();
-  refreshSaved().then(function(list){
-    if (list.length && autoLoadOn() && state.source === "none" && typeof XLSX !== "undefined") return openDataset(list[0].id, true).then(function(){ toast("Opened your saved data: " + list[0].name); });
-    render();
-  }).catch(function(e){ console.warn(e); render(); });
-  if (!(window.claude && window.claude.use) && typeof XLSX !== "undefined"){
-    state.caps.downloads = {save: function(o){ var a = document.createElement("a"), url = URL.createObjectURL(new Blob([o.data], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
-      a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); return Promise.resolve({status: "saved"}); }};
-    render();
-  }
+  var teamInit;
   if (window.claude && window.claude.use){
     window.claude.use("downloads").then(function(d){ state.caps.downloads = d; render(); }).catch(function(){});
-    Promise.all([window.claude.use("db"), window.claude.use("user")]).then(function(r){
+    teamInit = Promise.all([window.claude.use("db"), window.claude.use("user")]).then(function(r){
       state.caps.db = r[0]; state.caps.user = r[1];
-      var u = r[1]; (u ? u.canEdit() : Promise.resolve(false)).then(function(ce){ state.canSave = !!ce; render(); }).catch(function(){ state.canSave = false; });
-      if (r[0]) r[0].doc("report/current").onSnapshot(onTeamDoc, function(){});
-    }).catch(function(){});
+      var ce = r[1] ? r[1].canEdit().catch(function(){ return false; }) : Promise.resolve(false);
+      return ce.then(function(c){ state.canSave = !!c; if (!r[0]) return []; team.kind = "claude"; team.status = "ready"; return refreshTeam(); });
+    }).catch(function(){ return []; });
+  } else {
+    if (typeof XLSX !== "undefined") state.caps.downloads = {save: function(o){ var a = document.createElement("a"), url = URL.createObjectURL(new Blob([o.data], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+      a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); return Promise.resolve({status: "saved"}); }};
+    teamInit = /^https?:$/.test(location.protocol) ? connectVercel() : Promise.resolve([]);
   }
+  /* open whichever is newer: the latest team save, or this browser's latest save */
+  Promise.all([refreshSaved(), teamInit]).then(function(r){
+    var loc = autoLoadOn() ? r[0][0] : null, tm = team.status === "ready" ? team.list[0] : null;
+    if (state.source === "none" && typeof XLSX !== "undefined"){
+      if (tm && (!loc || tm.savedAt >= loc.savedAt)) return openTeamDataset(tm, true).then(function(){ toast("Opened the latest team data: " + tm.name); });
+      if (loc) return openDataset(loc.id, true).then(function(){ toast("Opened your saved data: " + loc.name); if (tm) offerTeam(tm); });
+    }
+    render();
+  }).catch(function(e){ console.warn(e); render(); })
+  .then(function(){ team.booted = true; if (state.caps.db) state.caps.db.doc("report/current").onSnapshot(function(snap){ if (team.booted) onTeamDoc(snap); }, function(){}); });
 }
 boot();
 </script>

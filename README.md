@@ -33,8 +33,21 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 - If the Meta export isn't split by day, spend and Leads in UI show **N/A** for date ranges narrower than the export, with a notice.
 
 ## Saving data and exporting
-- **Saved data** keeps the loaded exports in this browser (IndexedDB), so you don't upload them again. Name each save, open or delete any of them, and optionally open the latest one automatically. Only the report columns are kept; no names, phone numbers or emails.
+- **Save for team** stores the loaded data so everyone on the team opens the same report without uploading anything. The newest team save opens automatically for everyone. Name each save; saving with an existing name replaces it.
+- **Saved data › This browser only** keeps a private copy in this browser (IndexedDB), so you don't upload them again. Name each save, open or delete any of them, and optionally open the latest one automatically. Only the report columns are kept; no names, phone numbers or emails.
 - **Download Excel** opens export options: all brands or the selected brand, and which sheets to include. The workbook is formatted: title and period line on each sheet, frozen bold header, filters, ₹ / % / count formats, totals, flagged cells, and TAT in minutes plus readable hours.
 
 ## Hosting
-`index.html` is self-contained (it loads SheetJS 0.18.5 from cdnjs and fonts from Google Fonts). It works from GitHub Pages or any static host. **Download Excel** saves every view to an .xlsx file. The *Save for team* button only appears when the page runs as a Claude artifact.
+`index.html` is self-contained (SheetJS 0.18.5 and ExcelJS 4.4.0 from cdnjs, fonts from Google Fonts). Team saving uses `api/team.js`, a Vercel function backed by Vercel Blob.
+
+### Switch on team saving in Vercel (one time)
+1. Open the project in Vercel › **Storage** › **Create** › **Blob**, name it (e.g. `ebg-team-data`) and **connect it to this project**. This adds `BLOB_READ_WRITE_TOKEN` automatically.
+2. Project › **Settings** › **Environment Variables**, add:
+   - `TEAM_PASSCODE`: the passcode teammates type to open team data.
+   - `TEAM_ADMIN_PASSCODE` (optional): a second passcode needed to save or delete team data. Without it, `TEAM_PASSCODE` can also save.
+3. **Deployments** › redeploy the latest deployment.
+4. Open the site › **Saved data** › enter the passcode once per browser.
+
+Team data is sent to the browser only through `/api/team` after the passcode is checked; blob URLs are random and never exposed. Each save is gzip-compressed (about 60 KB per 5,000 CRM leads; the limit is 4 MB compressed per save). Change a passcode any time in Vercel and redeploy; teammates are asked for the new one.
+
+On the Claude artifact, team saving uses the page's built-in shared storage instead: editors save, everyone the page is shared with can open.
