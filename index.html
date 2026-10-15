@@ -217,6 +217,9 @@ td.nowrap{white-space:nowrap}
 .field textarea{min-height:150px;font-size:12.5px;line-height:1.5;resize:vertical}
 .toggle{display:flex;gap:10px;align-items:flex-start;font-size:13px}
 .toggle input{margin-top:3px}
+td.inc{width:1%;text-align:center} td.inc input{width:16px;height:16px;cursor:pointer;accent-color:var(--accent,#c8102e)}
+tr.flagged td{background:var(--warn-bg)}
+.excl-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
 .group{border:1px solid var(--line);padding:16px;display:grid;gap:14px;min-width:0;background:var(--panel)}
 .group h3{font-size:15px;font-weight:500}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--btn-bg);color:var(--btn-fg);padding:10px 16px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
@@ -229,8 +232,7 @@ td.nowrap{white-space:nowrap}
 }
 @media (prefers-reduced-motion:no-preference){ .tab,.chip,.btn{transition:opacity .15s, background-color .15s} }
 </style>
-</head>
-<body>
+
 <header class="top">
   <div class="wrap">
     <div class="title-block">
@@ -308,6 +310,7 @@ var DEFAULT_SETTINGS = {
   optSource: false, optDates: false, optDedupe: false, showOther: false, from: "", to: "",
   metaSources: ["Facebook","Instagram"],
   qlPos: QL_POS_DEF.slice(), qlNeg: QL_NEG_DEF.slice(), qlOverride: {},
+  excludedCampaigns: [], includedCampaigns: [], autoExcludeNonLead: true,
   cols: {
     meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
     crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name"}
@@ -420,6 +423,10 @@ function classifyStatus(status, S){
   for (k = 0; k < S.qlPos.length; k++) if (S.qlPos[k] && l.indexOf(S.qlPos[k].toLowerCase()) >= 0) return {ql: true, reason: "Buying intent: " + S.qlPos[k]};
   return {ql: false, reason: "No buying intent yet (early stage)"};
 }
+function campKey(name){ return clean(name).toLowerCase(); }
+function isLeadIndicator(v){ return String(v).toLowerCase().indexOf("lead") >= 0; }
+function prettyIndicator(v){ var s = String(v).replace(/^actions:/i, "").replace(/^offsite_conversion\.fb_pixel_/i, "").replace(/^onsite_conversion\./i, "").replace(/^omni_/i, "").replace(/[_.]+/g, " ").trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : String(v); }
 function levelKey(camp, adset, ad, lvl){ var k = camp.toLowerCase(); if (lvl >= 2) k += "|" + adset.toLowerCase(); if (lvl >= 3) k += "|" + ad.toLowerCase(); return k; }
 function newAcc(o){ o.crm = 0; o.ql = 0; o.ts = 0; o.called = 0; o.win = 0; o.elig = 0; o.pend = 0; return o; }
 function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null){ o.ts += L.tat; o.called++; } if (L.sla === "Within SLA") o.win++; if (L.sla !== "Invalid timestamp") o.elig++; if (L.sla === "Pending") o.pend++; }
@@ -443,7 +450,10 @@ function processData(metaAOA, crmAOA, S, range){
   var missing = [];
   /* ---------- Meta (columns found by name, any order) ---------- */
   var cm = S.cols.meta, metaAds = {}, metaOrder = [], metaRows = 0, metaResults = 0, dupRows = 0, nonLeadRows = 0, starts = [], ends = [], seen = {};
-  var resultsCol = "", metaLevel = 3, currency = "₹", usedCols = {};
+  var resultsCol = "", metaLevel = 3, currency = "₹", usedCols = {}, campInfo = {}, campInfoOrder = [];
+  var exSet = {}, inSet = {}; (S.excludedCampaigns || []).forEach(function(n){ exSet[campKey(n)] = 1; }); (S.includedCampaigns || []).forEach(function(n){ inSet[campKey(n)] = 1; });
+  var infoOf = function(name, brand){ var ck = campKey(name), o = campInfo[ck];
+    if (!o){ o = campInfo[ck] = {key: ck, campaign: clean(name), brand: brand, ind: {}, leadRes: 0, otherRes: 0, spend: 0, ui: 0, crm: 0, inMeta: false}; campInfoOrder.push(ck); } return o; };
   var mh = findMetaHeader(metaAOA || [], cm);
   if (mh < 0) missing.push("Meta: a Campaign name column");
   else {
@@ -467,7 +477,11 @@ function processData(metaAOA, crmAOA, S, range){
       if (range && sD !== null){ inc = sD >= range.from && eD <= range.to; part = !inc && sD <= range.to && eD >= range.from; }
       var sk = key + "#" + (isNum(st) ? dayOf(st) : "x") + "#" + (isNum(en) ? dayOf(en) : "x"); seen[sk] = (seen[sk] || 0) + 1; if (seen[sk] > 1) dupRows++;
       var sp = c.spend >= 0 ? num(r[c.spend]) : 0, ui = c.lead >= 0 ? num(r[c.lead]) : 0;
-      if (c.lead === c.results && c.indicator >= 0 && ui > 0 && !blank(r[c.indicator]) && String(r[c.indicator]).toLowerCase().indexOf("lead") < 0) nonLeadRows++;
+      var ci = infoOf(camp, brandOf(camp)); ci.inMeta = true;
+      if (c.lead === c.results && c.indicator >= 0 && ui > 0 && !blank(r[c.indicator])){
+        var indv = clean(r[c.indicator]);
+        if (isLeadIndicator(indv)) ci.leadRes += ui; else { nonLeadRows++; ci.otherRes += ui; ci.ind[prettyIndicator(indv)] = 1; } }
+      if (inc){ ci.spend += sp; ci.ui += ui; }
       metaRows++;
       var a = metaAds[key];
       if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, brand: brandOf(camp)}); metaOrder.push(key); }
@@ -475,13 +489,24 @@ function processData(metaAOA, crmAOA, S, range){
       else if (part){ a.partial = true; partialRows++; }
     }
   }
+  /* ---------- campaign exclusion: manual list, plus campaigns whose Meta result is not a lead ---------- */
+  var excl = {};
+  (S.excludedCampaigns || []).forEach(function(n){ if (clean(n)) infoOf(n, brandOf(n)); });
+  campInfoOrder.forEach(function(ck){ var o = campInfo[ck];
+    o.nonLead = o.otherRes > 0 && o.leadRes === 0;
+    o.auto = !!(S.autoExcludeNonLead && o.nonLead && !inSet[ck]);
+    o.manual = !!exSet[ck];
+    if (o.manual || o.auto) excl[ck] = 1; });
+  var exUi = 0, exSpend = 0, exMetaRows = 0;
+  metaOrder = metaOrder.filter(function(k){ var a = metaAds[k], ck = campKey(a.campaign);
+    if (!excl[ck]) return true; exUi += a.ui; exSpend += a.spend; exMetaRows += a.rowsIn || 0; return false; });
   var metaStart = starts.length ? Math.min.apply(null, starts) : null, metaEnd = ends.length ? Math.max.apply(null, ends) : null;
   var fromD = S.from ? parseDT(S.from) : null, toD = S.to ? parseDT(S.to) : null;
   var effFrom = isNum(fromD) ? dayOf(fromD) : (metaStart !== null ? metaStart : -1e9);
   var effTo = isNum(toD) ? dayOf(toD) : (metaEnd !== null ? metaEnd : 1e9);
   /* ---------- CRM ---------- */
   var cc = S.cols.crm, ch = findHeaderRow(crmAOA || [], cc.id), leads = [], statusFirst = [], statusSeen = {};
-  var cnt = {outsideSel: 0, pasted: 0, nonMeta: 0, outRange: 0, dupExtra: 0, noId: 0, badCreated: 0, noCampCounted: 0, unmatchedCounted: 0};
+  var cnt = {excluded: 0, outsideSel: 0, pasted: 0, nonMeta: 0, outRange: 0, dupExtra: 0, noId: 0, badCreated: 0, noCampCounted: 0, unmatchedCounted: 0};
   var crmOnly = {}, crmOnlyOrder = [], unmatched = [], noCampByBrand = {};
   if (ch < 0) missing.push("TeleCRM: " + cc.id);
   else {
@@ -517,6 +542,7 @@ function processData(metaAOA, crmAOA, S, range){
                        : "~nocamp|" + brand.toLowerCase() + "|" + (source || "(blank source)").toLowerCase();
       var matched = !!(camp2 && metaAds[key2]);
       if (!counted) continue;
+      if (camp2 && excl[campKey(camp2)]){ cnt.excluded++; infoOf(camp2, brand).crm++; continue; }
       if (status) statusSeen[status]++;
       var cls = status ? classifyStatus(status, S) : {ql: false};
       var tat = null, sla;
@@ -576,10 +602,19 @@ function processData(metaAOA, crmAOA, S, range){
     if (a.brand === "Unmapped") unmappedAds++; });
   var pendingShown = 0; leads.forEach(function(L){ if (L.shown && L.sla === "Pending") pendingShown++; });
   var rulesOff = !S.optSource && !S.optDates && !S.optDedupe;
+  var fmtN = function(x){ return Math.round(x).toLocaleString("en-IN"); };
+  var exclList = campInfoOrder.map(function(ck){ var o = campInfo[ck];
+    return {key: ck, campaign: o.campaign, brand: o.brand, excluded: !!excl[ck], manual: o.manual, auto: o.auto, nonLead: !!o.nonLead, forcedIn: !!(o.nonLead && inSet[ck]),
+            indicators: Object.keys(o.ind), inMeta: o.inMeta, spend: o.inMeta ? o.spend : null, ui: o.inMeta ? o.ui : null, crm: o.crm}; })
+    .filter(function(x){ return x.excluded || x.nonLead; });
+  var nonLeadIncluded = exclList.filter(function(x){ return x.nonLead && !x.excluded; }).length;
+  var campFlags = {}; exclList.forEach(function(x){ campFlags[x.key] = x; });
   var checks = [
     {k: "pasted", label: "CRM rows pasted (excluding header)", n: cnt.pasted, kind: "info"},
-    {k: "inReport", label: "Leads in CRM in this report (listed brands)", n: sumShownCrm, kind: rulesOff && sumShownCrm + sumHiddenCrm + cnt.outsideSel !== cnt.pasted ? "bad" : "ok",
-     detail: rulesOff ? "In report + left out" + (range ? " + outside the selected dates" : "") + " should equal rows pasted: " + sumShownCrm + " + " + sumHiddenCrm + (range ? " + " + cnt.outsideSel : "") + " = " + (sumShownCrm + sumHiddenCrm + cnt.outsideSel) : "Counting rules are on, so some rows are filtered."},
+    {k: "inReport", label: "Leads in CRM in this report (listed brands)", n: sumShownCrm, kind: rulesOff && sumShownCrm + sumHiddenCrm + cnt.outsideSel + cnt.excluded !== cnt.pasted ? "bad" : "ok",
+     detail: rulesOff ? "In report + left out" + (cnt.excluded ? " + excluded campaigns" : "") + (range ? " + outside the selected dates" : "") + " should equal rows pasted: " + sumShownCrm + " + " + sumHiddenCrm + (cnt.excluded ? " + " + cnt.excluded : "") + (range ? " + " + cnt.outsideSel : "") + " = " + (sumShownCrm + sumHiddenCrm + cnt.excluded + cnt.outsideSel) : "Counting rules are on, so some rows are filtered."},
+    {k: "excluded", label: "Excluded campaigns (not counted anywhere)", n: exclList.filter(function(x){ return x.excluded; }).length, kind: "info",
+     detail: exclList.some(function(x){ return x.excluded; }) ? "Left out: " + fmtN(exUi) + " Meta results, spend " + fmtN(Math.round(exSpend)) + ", " + fmtN(cnt.excluded) + " CRM leads. Manage them on the Campaigns tab." : "None. Untick a campaign on the Campaigns tab to leave it out."},
     {k: "outsideSel", label: "CRM rows outside the selected dates (or with no readable date)", n: cnt.outsideSel, kind: "info"},
     {k: "partial", label: "Meta rows not split by day for the selected dates", n: partialRows, kind: partialRows ? "warn" : "ok",
      detail: partialRows ? "Their spend and Leads in UI show as N/A. Export from Meta with Breakdown › By time › Day to view any date range." : ""},
@@ -588,8 +623,9 @@ function processData(metaAOA, crmAOA, S, range){
      detail: [["Campaign", "campaign"], ["Ad set", "adset"], ["Ad", "ad"], ["Spend", "spend"], ["Leads in UI", "lead"], ["Date from", "start"], ["Date to", "end"]]
        .map(function(x){ return x[0] + " = " + (usedCols[x[1]] ? "“" + usedCols[x[1]] + "”" : "not in export"); }).join(" · ") + (metaLevel < 3 ? ". No ad-level columns, so TeleCRM leads are matched at " + ["", "campaign", "ad set"][metaLevel] + " level." : "")},
     {k: "metaSum", label: "Meta " + (resultsCol || "Results") + " summed from export", n: metaResults, kind: "info"},
-    {k: "nonLead", label: "Meta rows whose result is not a lead (Result indicator)", n: nonLeadRows, kind: nonLeadRows ? "warn" : "ok", detail: "These rows count conversions other than leads; check the export's Results column."},
-    {k: "uiReport", label: "Leads in UI in this report (listed brands)", n: sumShownUi, kind: Math.abs(sumShownUi + sumHiddenUi - metaResults) > 0.001 ? "bad" : "ok"},
+    {k: "nonLead", label: "Meta rows whose result is not a lead (Result indicator)", n: nonLeadRows, kind: nonLeadIncluded ? "warn" : "ok",
+     detail: nonLeadRows ? (nonLeadIncluded ? nonLeadIncluded + " campaign(s) with non-lead results are still counted. Exclude them on the Campaigns tab." : "All campaigns with non-lead results (landing page views, link clicks…) are excluded.") : "Every result counted is a lead."},
+    {k: "uiReport", label: "Leads in UI in this report (listed brands)", n: sumShownUi, kind: Math.abs(sumShownUi + sumHiddenUi + exUi - metaResults) > 0.001 ? "bad" : "ok"},
     {k: "leftOutUi", label: "Meta results from other / unlisted brands (left out)", n: sumHiddenUi, kind: sumHiddenUi ? "warn" : "ok"},
     {k: "unmatched", label: "CRM leads with a campaign not in the Meta export", n: cnt.unmatchedCounted, kind: cnt.unmatchedCounted ? "warn" : "ok", detail: "Listed below. Usually another ad account, dates outside the export, or a renamed ad."},
     {k: "nocamp", label: "CRM leads with no Facebook campaign (Website, WhatsApp…)", n: cnt.noCampCounted, kind: cnt.noCampCounted ? "warn" : "ok", detail: "Shown as “(No campaign) — source” rows under their CRM brand."},
@@ -612,7 +648,7 @@ function processData(metaAOA, crmAOA, S, range){
           partialRows: partialRows, metaRowsIn: metaRowsIn,
           period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
           resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
-          checks: checks, statuses: statuses, needsCall: needsCall, lite: lite, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
+          checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, needsCall: needsCall, lite: lite, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
           slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform};
 }
 // ENGINE END
@@ -668,6 +704,8 @@ function remarks(r, level){
   if (level === "ad"){ if (r.src === "C") out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Ad not in Meta export (other ad account, outside export dates, or renamed)."); }
   else if (!r.metaAds) out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Not in Meta export (other ad account, outside export dates, or renamed).");
   else if (r.crmOnly > 0) out.push(r.crmOnly + " CRM lead(s) from ads not in the Meta export.");
+  var fl = R.campFlags && r.campaign ? R.campFlags[campKey(r.campaign)] : null;
+  if (fl && fl.nonLead && !fl.excluded) out.push("Meta result here is " + (fl.indicators.join(", ") || "not a lead") + ", not leads. Untick to exclude.");
   if (r.brand === "Unmapped") out.push("Add a brand keyword in Settings.");
   if (isNum(r.diff)){ if (r.diff > 0) out.push(r.diff + " lead(s) in Meta but not in CRM."); else if (r.diff < 0) out.push((-r.diff) + " more lead(s) in CRM than Meta shows."); }
   if (isNum(r.spend) && r.spend > 0 && r.ui === 0) out.push("Spend with zero leads.");
@@ -712,7 +750,7 @@ function table(id, cols, rows, opts){
         render(); }}, c.label, s ? el("span", {cls: "arr", text: s}) : null); })));
   var tb = el("tbody");
   function rowEl(r, isTotal, prev){
-    var tr = el("tr", {cls: isTotal ? "total" : (opts.brandRule && prev && prev.brand !== r.brand && !srt ? "brand-start" : "")});
+    var tr = el("tr", {cls: isTotal ? "total" : ((opts.brandRule && prev && prev.brand !== r.brand && !srt ? "brand-start" : "") + (opts.rowCls ? " " + (opts.rowCls(r) || "") : "")).trim()});
     cols.forEach(function(c){
       var v = c.get ? c.get(r, isTotal) : r[c.k], txt = isTotal && c.totalText !== undefined ? c.totalText : (FMT[c.t] || FMT.text)(v);
       var fl = !isTotal && c.flag ? c.flag(r) : null;
@@ -759,6 +797,11 @@ function viewOverview(){
   var sec = el("section", {cls: "panel"});
   sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (state.brand === "All" ? "All listed brands" : state.brand) + " · " + rangeText(true)}),
     el("span", {cls: "note", text: "Blended figures are totals ÷ totals. Leads in UI = sum of Meta " + (R.resultsCol || "Results") + "; Leads in CRM = TeleCRM rows."})));
+  var exList = (R.excluded || []).filter(function(x){ return x.excluded && brandOK(x.brand); });
+  if (exList.length) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: exList.length + " campaign" + (exList.length > 1 ? "s" : "") + " excluded (" +
+      fINR(exList.reduce(function(s, x){ return s + (x.spend || 0); }, 0)) + " spend, " + fInt(exList.reduce(function(s, x){ return s + (x.ui || 0); }, 0)) + " non-lead results, " +
+      fInt(exList.reduce(function(s, x){ return s + x.crm; }, 0)) + " CRM leads left out)."}),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "campaigns"; render(); var e = document.querySelector(".excl-head"); if (e) e.scrollIntoView({block: "start"}); }}, "Review")));
   sec.appendChild(el("div", {cls: "kpis"},
     kpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows"),
     kpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results")),
@@ -805,6 +848,12 @@ function viewLevel(level){
   if (level === "campaign") lead.push({k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"});
   if (level === "adset") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "nAds", label: "Ads", t: "int"});
   if (level === "ad") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "ad", label: "Ad name", t: "text", cls: "name"});
+  var editable = !!state.raw;
+  if (level === "campaign") lead.unshift({k: "inc", label: "Count", t: "text", nosort: true, cls: "inc", get: function(){ return ""; }, totalText: "", render: function(r){
+    if (r.nocamp || !editable) return document.createTextNode(r.nocamp ? "" : "✓");
+    var cb = el("input", {type: "checkbox", checked: true, "aria-label": "Count " + r.campaign + " (untick to exclude)", title: "Untick to exclude this campaign from every total"});
+    cb.addEventListener("change", function(){ if (!cb.checked) setCampaignExcluded(r.campaign, true); });
+    return cb; }});
   var cols = lead.concat(metricCols(level === "ad" ? "ad" : "agg"));
   var T = sumRows(rows); T.brand = "TOTAL (" + rows.length + " rows)"; T.campaign = ""; T.adset = ""; T.ad = "";
   var title = {campaign: "Campaign level", adset: "Ad set level", ad: "Ad level"}[level];
@@ -812,8 +861,38 @@ function viewLevel(level){
     el("div", {cls: "sec-head"}, el("h2", {text: title}), el("span", {cls: "note", text: "Sorted by brand, then spend. Click a column to sort. The total row follows the brand filter and search."})),
     el("div", {cls: "tbl-tools"}, searchBox(id, "Search " + (level === "ad" ? "campaign, ad set or ad" : level === "adset" ? "campaign or ad set" : "campaign")),
       el("span", {cls: "small", text: rows.length.toLocaleString("en-IN") + " " + (level === "ad" ? "ads" : level === "adset" ? "ad sets" : "campaigns")})),
-    table(id, cols, rows, {total: T, brandRule: true}));
+    table(id, cols, rows, {total: T, brandRule: true, rowCls: level === "campaign" ? function(r){ var f = R.campFlags && R.campFlags[campKey(r.campaign)]; return f && f.nonLead && !f.excluded ? "flagged" : ""; } : null}));
+  if (level === "campaign") sec.appendChild(excludedSection());
   return sec;
+}
+function setCampaignExcluded(name, ex){
+  var S = state.settings, k = campKey(name);
+  S.excludedCampaigns = (S.excludedCampaigns || []).filter(function(n){ return campKey(n) !== k; });
+  S.includedCampaigns = (S.includedCampaigns || []).filter(function(n){ return campKey(n) !== k; });
+  var fl = state.R && state.R.campFlags ? state.R.campFlags[k] : null;
+  if (ex){ if (!(fl && fl.nonLead && S.autoExcludeNonLead)) S.excludedCampaigns.push(clean(name)); }
+  else if (fl && fl.nonLead && S.autoExcludeNonLead) S.includedCampaigns.push(clean(name));
+  storeSettings(); recompute();
+  toast((ex ? "Excluded: " : "Counted again: ") + clean(name));
+}
+function excludedSection(){
+  var R = state.R, editable = !!state.raw, list = (R.excluded || []).filter(function(x){ return brandOK(x.brand) || !x.inMeta; });
+  var exN = list.filter(function(x){ return x.excluded; }).length, flagN = list.length - exN;
+  var why = function(x){ var ind = x.indicators.length ? x.indicators.join(", ") : "";
+    if (x.excluded) return x.manual ? "Excluded by you" + (ind ? " · result is " + ind : "") : "Auto: Meta result is " + (ind || "not a lead");
+    return "Counted by you, but Meta result is " + (ind || "not a lead"); };
+  var cols = [{k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign name", t: "text", cls: "name"},
+    {k: "why", label: "Why", t: "text", get: why},
+    {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Meta results", t: "int"}, {k: "crm", label: "CRM leads", t: "int"},
+    {k: "act", label: "", t: "text", nosort: true, get: function(){ return ""; }, render: function(x){
+      if (!editable) return el("span", {cls: "pill " + (x.excluded ? "mut" : "warn"), text: x.excluded ? "Excluded" : "Counted"});
+      return el("button", {cls: "btn ghost", type: "button", onclick: function(){ setCampaignExcluded(x.campaign, !x.excluded); }}, x.excluded ? "Include again" : "Exclude"); }}];
+  var note = "Excluded campaigns are left out of every tab, total and the Excel file: their spend, Meta results and CRM leads. " +
+    (state.settings.autoExcludeNonLead ? "Campaigns whose Meta Result indicator isn't a lead (landing page views, link clicks…) are excluded automatically." : "Automatic exclusion is off in Settings.") +
+    (editable ? "" : " Load the exports to change exclusions.");
+  return el("div", null,
+    el("div", {cls: "sec-head excl-head"}, el("h2", {text: "Excluded campaigns" + (exN ? " (" + exN + ")" : "") + (flagN ? " · " + flagN + " to review" : "")}), el("span", {cls: "note", text: note})),
+    table("excl", cols, list, {empty: "No campaigns excluded. Untick a campaign above to leave it out of the report."}));
 }
 function viewTAT(){
   var R = state.R, lite = R.lite.filter(function(x){ return brandOK(x[0]); });
@@ -897,6 +976,9 @@ function viewSettings(){
       el("div", {cls: "group"}, el("h3", {text: "Brands"}),
         txt("s-brands", "Brands in report order (one per line)", S.brands.join("\n")),
         tog("s-other", "Also show campaigns and leads from other brands", S.showOther)),
+      el("div", {cls: "group"}, el("h3", {text: "Excluded campaigns"}),
+        tog("s-autoex", "Automatically exclude campaigns whose Meta result isn't a lead (landing page views, link clicks…)", S.autoExcludeNonLead !== false),
+        txt("s-excl", "Always exclude these campaigns (one per line)", (S.excludedCampaigns || []).join("\n"), "Exact campaign names, ignoring case. You can also untick campaigns on the Campaigns tab.")),
       el("div", {cls: "group"}, el("h3", {text: "Brand keywords"}),
         txt("s-kw", "keyword = Brand (first match from the top wins)", S.keywords.map(function(k){ return k[0] + " = " + k[1]; }).join("\n"), "Matched anywhere in the campaign name, ignoring case. Keep “Shayreen” above “Natuf”.")),
       el("div", {cls: "group"}, el("h3", {text: "Counting rules (default: count every CRM row)"}),
@@ -921,6 +1003,7 @@ function applySettings(){
   S.slaMin = Math.max(1, Number(v("s-sla")) || 30); S.slaTarget = Math.min(1, Math.max(0, (Number(v("s-slat")) || 80) / 100)); S.diffAlert = Math.max(0, (Number(v("s-diff")) || 10) / 100);
   S.platform = v("s-plat").trim() || "Meta Ads"; S.brands = lines("s-brands"); S.showOther = c("s-other");
   S.keywords = lines("s-kw").map(function(l){ var p = l.split("="); return [p[0].trim(), (p.slice(1).join("=") || "").trim()]; }).filter(function(k){ return k[0] && k[1]; });
+  S.autoExcludeNonLead = c("s-autoex"); S.excludedCampaigns = lines("s-excl");
   S.optSource = c("s-osrc"); S.optDates = c("s-odate"); S.optDedupe = c("s-odup"); S.from = v("s-from"); S.to = v("s-to");
   S.metaSources = v("s-src").split(",").map(function(s){ return s.trim(); }).filter(Boolean);
   S.qlNeg = lines("s-neg").map(function(s){ return s.toLowerCase(); }); S.qlPos = lines("s-pos").map(function(s){ return s.toLowerCase(); });
@@ -1225,6 +1308,8 @@ function downloadExcel(){
   add("Ad sets", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "nAds", label: "Ads", t: "int"}].concat(mc("agg")), R.adsets));
   add("Ads", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "ad", label: "Ad", t: "text"}].concat(mc("ad")), R.ads));
   add("Leads needing a call", [["Lead id", "Created", "Brand", "Campaign", "Ad", "Owner", "First call", "TAT (min)", "SLA status", "Lead status"]].concat(R.needsCall.map(function(x){ return [x.id, fTime(x.created), x.brand, x.campaign, x.ad, x.owner, x.fc ? fTime(x.fc) : "", isNum(x.tat) ? x.tat : "", x.sla, x.status]; })));
+  if ((R.excluded || []).length) add("Excluded campaigns", [["Brand", "Campaign", "Status", "Meta result type", "Amount spent", "Meta results", "CRM leads"]].concat(R.excluded.map(function(x){
+    return [x.brand, x.campaign, x.excluded ? (x.manual ? "Excluded by you" : "Auto-excluded") : "Counted (review)", x.indicators.join(", "), isNum(x.spend) ? Math.round(x.spend * 100) / 100 : "", isNum(x.ui) ? x.ui : "", x.crm]; })));
   add("Data checks", [["Check", "Value", "Note"]].concat(R.checks.map(function(c){ return [c.label, c.n, c.detail || ""]; })));
   add("Unmatched CRM leads", [["Lead id", "Created", "Brand", "Campaign", "Ad set", "Ad", "Reason"]].concat(R.unmatched.map(function(u){ return [u.id, fTime(u.created), u.brand, u.campaign, u.adset, u.ad, u.reason]; })));
   var out = XLSX.write(wb, {bookType: "xlsx", type: "array"});

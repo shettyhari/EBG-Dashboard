@@ -29,6 +29,7 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 - CRM leads match Meta by Facebook Campaign + Ad Set + Ad name (or at ad set / campaign level when the Meta export has no ad columns). Unmatched leads keep their own rows; nothing is guessed.
 - **QL** is decided by status intent: rejection words first (not interested, lost, junk…), then buying-intent words (details shared, interested, site visit, booked…).
 - **TAT** = Created On → First Attempted Call. SLA % = within ÷ (within + delayed + pending).
+- **Excluded campaigns:** untick a campaign on the Campaigns tab to leave its spend, Meta results and CRM leads out of every total. Campaigns whose Meta *Result indicator* isn't a lead (landing page views, link clicks…) are excluded automatically; use *Include again* to count one anyway. Exclusions are remembered in the browser and saved with the team report.
 - If the Meta export isn't split by day, spend and Leads in UI show **N/A** for date ranges narrower than the export, with a notice.
 
 ## Hosting
