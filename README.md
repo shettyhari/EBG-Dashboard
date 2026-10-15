@@ -7,11 +7,11 @@ Adhira & Appa · Acer · Carlton · Natuf · Tarzan · Shayreen by Natuf · Bonu
 A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa, `Shayreen` → Shayreen by Natuf, checked before `Natuf`). Edit brands and keywords under **Settings**.
 
 ## Daily use
-1. **Meta Ads Manager** → export the ads report (CSV or XLSX). Any column order works; the page finds the columns by name:
+1. **Meta Ads Manager** → export the ads report (CSV or XLSX) — one per brand or one for everything; add as many as you like and they are combined. Any column order works; the page finds the columns by name:
    Campaign name · Ad set name · Ad name · Amount spent (any currency) · **Results** (or Leads if there is no Results column) · Reporting starts/ends or Day.
    Add *Breakdown › By time › Day* if you want to filter Meta spend and results by date.
 2. **TeleCRM** → export leads for the same dates (all columns are fine).
-3. Open the dashboard → **Load exports** → drop both files.
+3. Open the dashboard → **Load exports** → drop all Meta reports in the first box and the TeleCRM export in the second. Add or remove Meta files any time; the same file added twice is skipped.
 4. Pick dates with the date picker (Today, Yesterday, Last 7/14/28/30 days, This/Last week, This/Last month, Maximum or a custom range) and a brand with the chips.
 
 ## What it shows

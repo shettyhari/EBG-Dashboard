@@ -124,6 +124,14 @@ header.top .wrap{padding-block:28px 22px;display:flex;flex-wrap:wrap;gap:20px 32
 /* upload */
 .upload{border:1px solid var(--line);background:var(--panel);padding:18px;display:grid;gap:14px}
 .drops{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.drop-col{display:grid;gap:8px;align-content:start;min-width:0}
+.flist{list-style:none;margin:0;padding:0;display:grid;gap:0;border-top:1px solid var(--line)}
+.flist:empty{display:none}
+.flist li{display:flex;gap:10px;align-items:baseline;justify-content:space-between;padding:7px 2px;border-bottom:1px solid var(--line);font-size:12.5px;min-width:0}
+.flist .fn{overflow-wrap:anywhere;min-width:0}
+.flist .fm{color:var(--muted);font-size:11.5px}
+.flist .warnline{color:var(--warn)}
+.flist button{flex:0 0 auto}
 .drop{border:1px dashed var(--slate);padding:18px;display:grid;gap:6px;cursor:pointer;min-width:0;background:var(--bg)}
 .drop.over{background:var(--row-hover);border-style:solid}
 .drop.ok{border-style:solid;border-color:var(--good)}
@@ -247,13 +255,16 @@ td.nowrap{white-space:nowrap}
         <span class="note">Files are read in your browser. Nothing leaves this page unless you press Save for team, which stores the report only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
       </div>
       <div class="drops">
+        <div class="drop-col">
         <label class="drop" id="drop-meta" for="file-meta">
-          <span class="eyebrow">File 1</span>
-          <h3>Meta Ads export</h3>
-          <span class="meta">Ads Manager › Ad level; add Breakdown › By time › Day to filter spend by date. Any column layout: the page finds Campaign, Ad set, Ad, Amount spent, Results (or Leads) and dates by name. Ad, ad set or campaign level; daily breakdown is fine. CSV or XLSX.</span>
+          <span class="eyebrow">Files 1+ · one or many</span>
+          <h3>Meta Ads exports</h3>
+          <span class="meta">Add one report per brand, or one for everything. Drop several at once or add more later; they are combined. Any column layout: the page finds Campaign, Ad set, Ad, Amount spent, Results (or Leads) and dates by name. Add Breakdown › By time › Day to filter spend by date. CSV or XLSX.</span>
           <span class="state" id="st-meta"></span><span class="err" id="er-meta"></span>
-          <input type="file" id="file-meta" accept=".csv,.xlsx,.xls,.txt" hidden>
+          <input type="file" id="file-meta" accept=".csv,.xlsx,.xls,.txt" multiple hidden>
         </label>
+        <ul class="flist" id="list-meta" aria-label="Meta files added"></ul>
+        </div>
         <label class="drop" id="drop-crm" for="file-crm">
           <span class="eyebrow">File 2</span>
           <h3>TeleCRM export</h3>
@@ -262,7 +273,7 @@ td.nowrap{white-space:nowrap}
           <input type="file" id="file-crm" accept=".csv,.xlsx,.xls,.txt" hidden>
         </label>
       </div>
-      <div class="small">Drop both files, or click each box. The report rebuilds as soon as both are loaded.</div>
+      <div class="small">Add one or more Meta reports and the TeleCRM export. The report builds once both sides are in, and rebuilds whenever you add or remove a file.</div>
     </div>
     <div class="source-line" id="source-line"></div>
     <div class="filters"><div class="chips" id="brand-chips" role="group" aria-label="Brand filter"></div><div class="dp" id="dp"></div></div>
@@ -322,6 +333,32 @@ function parseDT(v){
   if (m) return mkUTC(+m[1], +m[2], +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
   if (/^\d+(\.\d+)?$/.test(s)) return parseDT(Number(s));
   return NaN;
+}
+/* CSV reader: separator taken from the header line only (comma, tab or semicolon — never "|", which campaign names use) */
+function parseCSV(text){
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  var firstLine = "", q = false, i, ch;
+  for (i = 0; i < text.length; i++){ ch = text[i]; if (ch === '"') q = !q; else if (!q && (ch === "\n" || ch === "\r")){ if (firstLine.trim()) break; firstLine = ""; continue; } firstLine += ch; }
+  var best = ",", bestN = -1;
+  [",", "\t", ";"].forEach(function(d){ var n = 0, qq = false; for (var k = 0; k < firstLine.length; k++){ var c = firstLine[k]; if (c === '"') qq = !qq; else if (!qq && c === d) n++; } if (n > bestN){ bestN = n; best = d; } });
+  var rows = [], row = [], field = "", inQ = false;
+  for (i = 0; i < text.length; i++){
+    ch = text[i];
+    if (inQ){ if (ch === '"'){ if (text[i + 1] === '"'){ field += '"'; i++; } else inQ = false; } else field += ch; continue; }
+    if (ch === '"'){ inQ = true; continue; }
+    if (ch === best){ row.push(field); field = ""; continue; }
+    if (ch === "\r"){ if (text[i + 1] === "\n") i++; row.push(field); rows.push(row); row = []; field = ""; continue; }
+    if (ch === "\n"){ row.push(field); rows.push(row); row = []; field = ""; continue; }
+    field += ch;
+  }
+  if (field !== "" || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(function(r){ return r.some(function(v){ return String(v).trim() !== ""; }); });
+}
+function decodeText(buf){
+  var b = new Uint8Array(buf);
+  if (b[0] === 0xFF && b[1] === 0xFE) return new TextDecoder("utf-16le").decode(b.subarray(2));
+  if (b[0] === 0xFE && b[1] === 0xFF) return new TextDecoder("utf-16be").decode(b.subarray(2));
+  return new TextDecoder("utf-8").decode(b);
 }
 function dayOf(t){ return Math.floor(t / 86400000); }
 function findCol(hdr, name, prefix){
@@ -582,7 +619,7 @@ function processData(metaAOA, crmAOA, S, range){
 
 /* ================= state ================= */
 var LS_KEY = "ebg-lead-dash-settings-v1";
-var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, source: "none", R: null, team: null,
+var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, metaFiles: [], source: "none", R: null, team: null,
              tab: "overview", brand: "All", range: {preset: "max"}, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false};
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
@@ -901,7 +938,7 @@ function renderHeader(){
   if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team report"}));
   var f = state.source === "team" && state.team ? state.team.files : state.files;
   {
-    if (f && f.meta) sl.appendChild(el("span", {text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)"}));
+    if (f && f.meta) sl.appendChild(el("span", {title: (f.meta.list || [f.meta.name]).join("\n"), text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)" + (f.meta.list && f.meta.list.length > 1 ? " — " + f.meta.list.join(", ") : "")}));
     if (f && f.crm) sl.appendChild(el("span", {text: "TeleCRM: " + f.crm.name + " (" + f.crm.rows.toLocaleString("en-IN") + " rows)"}));
     if (state.source === "team" && state.team) sl.appendChild(el("span", {text: "Saved " + new Date(state.team.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}));
   }
@@ -926,9 +963,9 @@ function renderEmpty(){
   v.appendChild(el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: "No report yet"}), el("span", {cls: "note", text: "Your numbers stay in this browser until you choose Save for team."})),
     el("div", {cls: "kpis"},
-      step(1, "Export from Meta", "Ads report, CSV or XLSX. Any column order. Add Breakdown › By time › Day to filter spend by date."),
+      step(1, "Export from Meta", "One ads report per brand, or one for all. CSV or XLSX, any column order. Add Breakdown › By time › Day to filter spend by date."),
       step(2, "Export from TeleCRM", "Leads for the same dates. All columns are fine."),
-      step(3, "Load both files", "Drop them in the two boxes above. The report builds as soon as both are in."),
+      step(3, "Load the files", "Drop all Meta reports in the first box and the TeleCRM export in the second. The report builds as soon as both are in."),
       step(4, "Pick dates and brands", "Use the date picker and brand chips to view any day, week or month."),
       step(5, "Share", "Download Excel, or Save for team so your manager sees the same report.")),
     el("div", null, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Load exports"))));
@@ -1054,11 +1091,101 @@ document.addEventListener("mousedown", function(e){ if (state.dp && !e.target.cl
 /* ================= file loading ================= */
 function readTable(file){
   return file.arrayBuffer().then(function(buf){
-    if (typeof XLSX === "undefined") throw new Error("The spreadsheet reader did not load. Check your connection and reload the page.");
     var isText = /\.(csv|txt|tsv)$/i.test(file.name);
+    if (isText) return [{name: file.name, aoa: parseCSV(decodeText(buf))}];
+    if (typeof XLSX === "undefined") throw new Error("The spreadsheet reader did not load. Check your connection and reload the page.");
     var wb = XLSX.read(new Uint8Array(buf), {type: "array", raw: isText, cellDates: false, dense: true});
     return wb.SheetNames.map(function(n){ return {name: n, aoa: XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: "", blankrows: false})}; });
   });
+}
+/* each Meta file can have its own columns: reduce it to campaign / ad set / ad / spend / results / dates first */
+function normaliseMeta(aoa, hi, S){
+  var H = aoa[hi], c = detectMetaColumns(H, S.cols.meta);
+  var level = c.ad >= 0 ? (c.adset >= 0 ? 3 : 1) : (c.adset >= 0 ? 2 : 1);
+  var cur = c.spend >= 0 ? String(H[c.spend]).match(/\(([A-Za-z]{3})\)/) : null;
+  var rows = [], from = null, to = null, g = function(r, i){ return i >= 0 ? r[i] : ""; };
+  for (var i = hi + 1; i < aoa.length; i++){
+    var r = aoa[i] || []; if (!clean(r[c.campaign])) continue;
+    var st = g(r, c.start), en = c.end >= 0 ? r[c.end] : st;
+    var a = parseDT(st), b = parseDT(en);
+    if (isNum(a)){ a = dayOf(a); from = from === null ? a : Math.min(from, a); } if (isNum(b)){ b = dayOf(b); to = to === null ? b : Math.max(to, b); }
+    rows.push([r[c.campaign], g(r, c.adset), g(r, c.ad), g(r, c.spend), g(r, c.lead), st, en, c.lead === c.results ? g(r, c.indicator) : ""]);
+  }
+  return {rows: rows, level: level, currency: cur ? cur[1].toUpperCase() : "", missing: (c.spend < 0 ? ["Amount spent"] : []).concat(c.lead < 0 ? ["Results / Leads"] : []),
+          leadCol: c.lead >= 0 ? String(H[c.lead]).trim() : "", from: from, to: to,
+          campaigns: rows.reduce(function(m, r){ m[clean(r[0]).toLowerCase()] = 1; return m; }, {})};
+}
+function combineMeta(files){
+  var level = Math.min.apply(null, files.map(function(f){ return f.level; })), curs = {}, out;
+  files.forEach(function(f){ if (f.currency) curs[f.currency] = 1; });
+  var code = Object.keys(curs)[0] || "";
+  var head = ["Campaign name"].concat(level >= 2 ? ["Ad set name"] : []).concat(level >= 3 ? ["Ad name"] : [])
+    .concat(["Amount spent" + (code ? " (" + code + ")" : ""), "Results", "Reporting starts", "Reporting ends", "Result indicator"]);
+  out = [head];
+  files.forEach(function(f){ f.rows.forEach(function(r){ out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]])); }); });
+  return {aoa: out, level: level, currencies: Object.keys(curs)};
+}
+function renderMetaList(){
+  var ul = document.getElementById("list-meta"); ul.textContent = "";
+  var lv = ["", "Campaign", "Ad set", "Ad"], files = state.metaFiles;
+  files.forEach(function(f, i){
+    var span = f.from !== null ? spanText({from: f.from, to: f.to === null ? f.from : f.to}) : "no dates";
+    var shared = files.filter(function(o, j){ return j !== i && Object.keys(f.campaigns).some(function(k){ return o.campaigns[k]; }); }).length;
+    ul.appendChild(el("li", null,
+      el("span", {cls: "fn"}, el("span", {text: f.name}), el("br"),
+        el("span", {cls: "fm", text: f.rows.length.toLocaleString("en-IN") + " rows · " + Object.keys(f.campaigns).length + (Object.keys(f.campaigns).length === 1 ? " campaign · " : " campaigns · ") + lv[f.level] + " level · " + span + (f.leadCol ? " · leads from “" + f.leadCol + "”" : "")}),
+        f.missing.length ? el("span", {cls: "fm warnline", text: " · missing " + f.missing.join(", ")}) : null,
+        shared ? el("span", {cls: "fm warnline", text: " · shares campaigns with another file; check it isn't the same data twice"}) : null),
+      el("button", {cls: "linkbtn", type: "button", "aria-label": "Remove " + f.name, onclick: function(){ state.metaFiles.splice(i, 1); renderMetaList(); tryBuild(true); }}, "Remove")));
+  });
+  var st = document.getElementById("st-meta"), drop = document.getElementById("drop-meta");
+  if (files.length){
+    var lvls = {}; files.forEach(function(f){ lvls[f.level] = 1; });
+    var tot = files.reduce(function(s, f){ return s + f.rows.length; }, 0);
+    st.textContent = "✓ " + files.length + " file" + (files.length > 1 ? "s" : "") + " · " + tot.toLocaleString("en-IN") + " rows" +
+      (Object.keys(lvls).length > 1 ? " · mixed levels, matched at " + lv[Math.min.apply(null, files.map(function(f){ return f.level; }))].toLowerCase() + " level" : "") + ". Drop more to add.";
+    drop.classList.add("ok");
+  } else { st.textContent = ""; drop.classList.remove("ok"); }
+}
+function tryBuild(fromList){
+  var crm = state.pending.crm;
+  if (!state.metaFiles.length){
+    if (state.source === "upload"){ state.R = null; state.raw = null; state.source = "none"; render(); }
+    return;
+  }
+  if (!crm) return;
+  var first = state.source !== "upload", comb = combineMeta(state.metaFiles);
+  document.getElementById("team-banner").hidden = true;
+  state.raw = {meta: comb.aoa, crm: crm.aoa};
+  var mrows = comb.aoa.length - 1;
+  state.files = {meta: {name: state.metaFiles.length === 1 ? state.metaFiles[0].name : state.metaFiles.length + " Meta files", rows: mrows,
+                        list: state.metaFiles.map(function(f){ return f.name; })}, crm: {name: crm.name, rows: crm.rows}};
+  state.source = "upload"; state.limit = {}; if (first) state.brand = "All";
+  rebuild();
+  if (first) document.getElementById("upload").hidden = true;
+  render();
+  toast(fromList ? "Report rebuilt with " + state.metaFiles.length + " Meta file" + (state.metaFiles.length > 1 ? "s" : "") : (first ? "Report built from your exports" : "Report updated"));
+  if (comb.currencies.length > 1) toast("Meta files use different currencies (" + comb.currencies.join(", ") + "). Spend is added as-is.");
+}
+function addMetaFiles(files){
+  var er = document.getElementById("er-meta"), st = document.getElementById("st-meta"); er.textContent = "";
+  var list = Array.prototype.slice.call(files), errs = [], added = 0;
+  st.textContent = "Reading " + list.length + " file" + (list.length > 1 ? "s" : "") + "…";
+  var chain = Promise.resolve();
+  list.forEach(function(file){
+    chain = chain.then(function(){
+      var sig = file.name + "|" + file.size + "|" + file.lastModified;
+      if (state.metaFiles.some(function(f){ return f.sig === sig; })){ errs.push(file.name + " is already added, so it was skipped."); return; }
+      return readTable(file).then(function(sheets){
+        var found = pickSheet(sheets, "meta", state.settings);
+        if (!found){ errs.push(file.name + ": no Campaign name column found. Is this a Meta Ads export?"); return; }
+        var n = normaliseMeta(found.aoa, found.header, state.settings); n.name = file.name; n.sig = sig;
+        if (!n.rows.length){ errs.push(file.name + ": no campaign rows found."); return; }
+        state.metaFiles.push(n); added++;
+      }).catch(function(e){ errs.push("Could not read " + file.name + ": " + e.message); });
+    });
+  });
+  chain.then(function(){ er.textContent = errs.join(" "); renderMetaList(); if (added) tryBuild(false); });
 }
 function setFile(kind, file){
   var st = document.getElementById("st-" + kind), er = document.getElementById("er-" + kind), drop = document.getElementById("drop-" + kind);
@@ -1070,23 +1197,16 @@ function setFile(kind, file){
         : "No “" + S.cols.crm.id + "” column found in " + file.name + ". Is this the TeleCRM export? Column names can be changed in Settings."; return; }
     var aoa = found.aoa, hi = found.header;
     state.pending[kind] = {aoa: aoa, name: file.name, rows: Math.max(0, aoa.length - hi - 1)};
-    drop.classList.add("ok"); st.textContent = "✓ " + file.name + " · " + state.pending[kind].rows.toLocaleString("en-IN") + " rows";
-    if (state.pending.meta && state.pending.crm){
-      document.getElementById("team-banner").hidden = true;
-      state.raw = {meta: state.pending.meta.aoa, crm: state.pending.crm.aoa};
-      state.files = {meta: {name: state.pending.meta.name, rows: state.pending.meta.rows}, crm: {name: state.pending.crm.name, rows: state.pending.crm.rows}};
-      state.source = "upload"; state.brand = "All"; state.limit = {};
-      rebuild();
-      document.getElementById("upload").hidden = true; render(); toast("Report built from your exports");
-    }
+    drop.classList.add("ok"); st.textContent = "✓ " + file.name + " · " + state.pending[kind].rows.toLocaleString("en-IN") + " rows" + (state.metaFiles.length ? "" : ". Now add the Meta export(s).");
+    tryBuild(false);
   }).catch(function(e){ st.textContent = ""; er.textContent = "Could not read " + file.name + ": " + e.message; });
 }
 ["meta", "crm"].forEach(function(kind){
   var inp = document.getElementById("file-" + kind), drop = document.getElementById("drop-" + kind);
-  inp.addEventListener("change", function(){ if (inp.files && inp.files[0]) setFile(kind, inp.files[0]); inp.value = ""; });
+  inp.addEventListener("change", function(){ if (inp.files && inp.files.length){ if (kind === "meta") addMetaFiles(inp.files); else setFile(kind, inp.files[0]); } inp.value = ""; });
   drop.addEventListener("dragover", function(e){ e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", function(){ drop.classList.remove("over"); });
-  drop.addEventListener("drop", function(e){ e.preventDefault(); drop.classList.remove("over"); var f = e.dataTransfer.files; if (f && f[0]) setFile(kind, f[0]); });
+  drop.addEventListener("drop", function(e){ e.preventDefault(); drop.classList.remove("over"); var f = e.dataTransfer.files; if (f && f.length){ if (kind === "meta") addMetaFiles(f); else setFile(kind, f[0]); } });
 });
 document.getElementById("btn-load").addEventListener("click", function(){ var u = document.getElementById("upload"); u.hidden = !u.hidden; if (!u.hidden) u.scrollIntoView({block: "nearest"}); });
 document.getElementById("tablist").addEventListener("click", function(e){ var t = e.target.closest(".tab"); if (!t) return; state.tab = t.dataset.tab; try { localStorage.setItem("ebg-lead-dash-tab", state.tab); } catch (x) {} render(); });
