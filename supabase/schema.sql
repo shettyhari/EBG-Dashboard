@@ -13,12 +13,15 @@ create table if not exists public.team_members (
 );
 
 -- the signed-in user's role, or null when they are not on the team
-create or replace function public.team_role() returns text
+-- kept in a private schema so it is not callable through the API
+create schema if not exists private;
+grant usage on schema private to authenticated;
+create or replace function private.team_role() returns text
 language sql stable security definer set search_path = public as $$
   select role from public.team_members where email = lower(coalesce(auth.jwt() ->> 'email', ''))
 $$;
-revoke all on function public.team_role() from public;
-grant execute on function public.team_role() to authenticated;
+revoke all on function private.team_role() from public;
+grant execute on function private.team_role() to authenticated;
 
 -- ---------------------------------------------------------------
 -- Uploads: one row per "Add to database"
@@ -118,19 +121,19 @@ begin
     execute format('drop policy if exists team_insert on public.%I', t);
     execute format('drop policy if exists team_update on public.%I', t);
     execute format('drop policy if exists team_delete on public.%I', t);
-    execute format('create policy team_read on public.%I for select to authenticated using (public.team_role() is not null)', t);
-    execute format('create policy team_insert on public.%I for insert to authenticated with check (public.team_role() in (''admin'', ''editor''))', t);
-    execute format('create policy team_update on public.%I for update to authenticated using (public.team_role() in (''admin'', ''editor'')) with check (public.team_role() in (''admin'', ''editor''))', t);
-    execute format('create policy team_delete on public.%I for delete to authenticated using (public.team_role() = ''admin'')', t);
+    execute format('create policy team_read on public.%I for select to authenticated using ((select private.team_role()) is not null)', t);
+    execute format('create policy team_insert on public.%I for insert to authenticated with check ((select private.team_role()) in (''admin'', ''editor''))', t);
+    execute format('create policy team_update on public.%I for update to authenticated using ((select private.team_role()) in (''admin'', ''editor'')) with check ((select private.team_role()) in (''admin'', ''editor''))', t);
+    execute format('create policy team_delete on public.%I for delete to authenticated using ((select private.team_role()) = ''admin'')', t);
   end loop;
 end $$;
 
 drop policy if exists members_read on public.team_members;
 drop policy if exists members_admin on public.team_members;
 create policy members_read on public.team_members for select to authenticated
-  using (public.team_role() is not null or email = lower(coalesce(auth.jwt() ->> 'email', '')));
+  using ((select private.team_role()) is not null or email = lower(coalesce(auth.jwt() ->> 'email', '')));
 create policy members_admin on public.team_members for all to authenticated
-  using (public.team_role() = 'admin') with check (public.team_role() = 'admin');
+  using ((select private.team_role()) = 'admin') with check ((select private.team_role()) = 'admin');
 
 grant select, insert, update, delete on public.team_members, public.uploads, public.meta_ad_rows, public.crm_leads, public.team_settings to authenticated;
 grant select on public.data_days to authenticated;

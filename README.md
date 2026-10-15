@@ -47,14 +47,10 @@ When Supabase is connected, the Vercel site keeps one shared database of every u
 - **Logins**: each person signs in with their own email and password. Roles: *viewer* (sees data), *editor* (adds uploads, changes shared settings), *admin* (also removes uploads and manages members). People not on the team see nothing, even with an account.
 - Stored per lead: lead id, created time, source, campaign / ad set / ad, status, CRM brand, owner, first call time, plus the report brand, QL flag and TAT. **No names, phone numbers or emails.**
 
-### Set up (one time, about 10 minutes)
-1. **Create the project**: supabase.com › New project › Region **Mumbai (ap-south-1)** › set a database password.
-2. **Create the tables**: SQL Editor › New query › paste all of [`supabase/schema.sql`](supabase/schema.sql) › Run. Then edit and run the *FIRST ADMIN* line with your own email (lowercase).
-3. **Sign-in settings**: Authentication › Sign In / Providers › Email: keep Email enabled and turn **off "Confirm email"** (access is controlled by the team list, so confirmation emails aren't needed and Supabase's free email limit stays out of the way).
-4. **Connect Vercel**: Supabase › Project Settings › API (Data API): copy the **Project URL** and the **anon / publishable** key. In Vercel › Settings › Environment Variables add `SUPABASE_URL` and `SUPABASE_ANON_KEY`, then redeploy. Never use the `service_role` / secret key here.
-5. Open the site › **Saved data** › **Create an account** with the same email as the first admin › add teammates under **Team members**; they create their accounts with those emails.
+### Status
+Connected to Supabase project `oggmosadlkarwlurxdjk` (tables, row level security, views and the first admin are set up; `api/config.js` points the site at it). To use another project, set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in Vercel.
 
-When Supabase is connected it replaces the passcode team saves on the Vercel site. *This browser only* saves and Excel downloads keep working. The Claude artifact can't reach outside services, so it keeps its own team saves.
+To rebuild from scratch on a new project: run [`supabase/schema.sql`](supabase/schema.sql) in the SQL Editor, then the *FIRST ADMIN* line with your email. In Authentication › Sign In / Providers › Email, turning off **Confirm email** lets teammates sign in right after creating their account.
 
 ### Looker Studio (optional)
 Run the *OPTIONAL: read-only login for Looker Studio* block at the end of `schema.sql` (set a password first). In Looker Studio › Add data › **PostgreSQL**: host and port from Supabase › Connect › **Session pooler**, database `postgres`, user `looker_reader.<project-ref>`, your password, tick **Enable SSL**. Use the views `v_brand_daily`, `v_meta_daily`, `v_crm_leads`.
