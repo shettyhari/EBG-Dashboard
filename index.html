@@ -62,7 +62,6 @@ header.top .wrap{padding-block:28px 22px;display:flex;flex-wrap:wrap;gap:20px 32
 .band .wrap{padding-block:14px;display:grid;gap:12px}
 .source-line{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:12.5px;color:var(--muted)}
 .tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--line);background:var(--panel);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg)}
-.tag.sample{border-color:var(--warn);color:var(--warn)}
 .tag.team{border-color:var(--good);color:var(--good)}
 .tag.upload{border-color:var(--ink);color:var(--ink)}
 .chips{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
@@ -242,7 +241,7 @@ td.nowrap{white-space:nowrap}
 <div class="band">
   <div class="wrap">
     <div id="team-banner" class="banner" hidden></div>
-    <div id="upload" class="upload" hidden>
+    <div id="upload" class="upload">
       <div class="sec-head">
         <h2 style="font-size:18px">Load today's exports</h2>
         <span class="note">Files are read in your browser. Nothing leaves this page unless you press Save for team, which stores the report only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
@@ -251,7 +250,7 @@ td.nowrap{white-space:nowrap}
         <label class="drop" id="drop-meta" for="file-meta">
           <span class="eyebrow">File 1</span>
           <h3>Meta Ads export</h3>
-          <span class="meta">Ads Manager › Ad level, no breakdown. Any column layout: the page finds Campaign, Ad set, Ad, Amount spent, Results (or Leads) and dates by name. Ad, ad set or campaign level; daily breakdown is fine. CSV or XLSX.</span>
+          <span class="meta">Ads Manager › Ad level; add Breakdown › By time › Day to filter spend by date. Any column layout: the page finds Campaign, Ad set, Ad, Amount spent, Results (or Leads) and dates by name. Ad, ad set or campaign level; daily breakdown is fine. CSV or XLSX.</span>
           <span class="state" id="st-meta"></span><span class="err" id="er-meta"></span>
           <input type="file" id="file-meta" accept=".csv,.xlsx,.xls,.txt" hidden>
         </label>
@@ -263,7 +262,7 @@ td.nowrap{white-space:nowrap}
           <input type="file" id="file-crm" accept=".csv,.xlsx,.xls,.txt" hidden>
         </label>
       </div>
-      <div class="small">Drop both files, or click each box. The report rebuilds as soon as both are loaded. <button type="button" class="linkbtn" id="btn-sample">Show sample data instead</button></div>
+      <div class="small">Drop both files, or click each box. The report rebuilds as soon as both are loaded.</div>
     </div>
     <div class="source-line" id="source-line"></div>
     <div class="filters"><div class="chips" id="brand-chips" role="group" aria-label="Brand filter"></div><div class="dp" id="dp"></div></div>
@@ -581,54 +580,9 @@ function processData(metaAOA, crmAOA, S, range){
 }
 // ENGINE END
 
-/* ================= sample data (fictional, clearly labelled) ================= */
-function makeSample(){
-  var seed = 20261015; function rnd(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
-  var pick = function(a){ return a[Math.floor(rnd() * a.length)]; };
-  var plan = [
-    ["AAC | Leads | Unit Franchise | India | Oct26 | V1", [["AAC | Broad | Tier1 + Growth | Oct26", ["AAC | Static | Own A Cafe | V1", "AAC | Reel | Founder Story | V2"]], ["AAC | Investors | South | Oct26", ["AAC | Static | Start Your Cafe | V1"]]]],
-    ["ACER | Master Distributor | India | Leads | Oct26", [["ACER | Dealers | KA-TN-KL", ["ACER | Reel | EV Network | V1", "ACER | Static | Margins | V2"]]]],
-    ["Carlton | Leads | Franchise | Oct26", [["Carlton | Broad | India", ["Carlton | Video | Store Walkthrough | V1"]]]],
-    ["NATUF | Leads | Cafe Franchise | Oct26", [["NATUF | Investors | Metro", ["NATUF | Static | Menu | V2", "NATUF | Reel | Kitchen | V1"]]]],
-    ["Tarzan_Pods_Oct26", [["Tarzan_Pods_Oct26_ad set1", ["Tarzan_Pods_Hindi_Ad1", "Tarzan_Pods_English_Ad2"]]]],
-    ["Shayreen by NATUF | Leads | Oct26", [["Shayreen | Broad | Tier1", ["Shayreen | Reel | Launch | V1"]]]],
-    ["Bonumcha | Leads | Kiosk | Oct26", [["Bonumcha | Students + Parents", ["Bonumcha | Static | Kiosk Model | V1"]]]],
-    ["Chhota Bheem | Franchise | Leads | Oct26", [["CB | Parents | Tier2", ["CB | Static | Kids Zone | V1", "CB | Reel | Play Area | V2"]]]],
-    ["EBG Rental | Leads | Fleet | Oct26", [["Rental | Gig Riders | Hyd", ["Rental | Static | Weekly Plan | V1"]]]],
-    ["Other Brand | Leads | Test | Oct26", [["Other | Broad", ["Other | Static | V1"]]]]
-  ];
-  var meta = [["Reporting starts", "Reporting ends", "Campaign name", "Ad set name", "Ad name", "Amount spent (INR)", "Results", "Result indicator"]];
-  var owners = ["Sales Rep A", "Sales Rep B", "Sales Rep C", "Sales Rep D", "Sales Rep E", "-"];
-  var statuses = ["New Lead", "Attempt 1", "Attempt 2", "Connected", "Details Shared", "Interested", "Site Visit Scheduled", "Nurture", "Not Interested", "Lost", "Junk"];
-  var crm = [["Status", "Assignee name", "Lead Source", "Facebook Ad Set Name", "Facebook Ad", "Facebook Campaign Name", "Brand", "Lead Id", "Created On", "First Attempted Call", "Lead id"]];
-  var n = 0;
-  function pad(x){ return (x < 10 ? "0" : "") + x; }
-  function stamp(d, mins){ var t = Date.UTC(2026, 9, d, 9, 0) + mins * 60000, x = new Date(t);
-    return pad(x.getUTCDate()) + "/" + pad(x.getUTCMonth() + 1) + "/" + x.getUTCFullYear() + " " + pad(x.getUTCHours()) + ":" + pad(x.getUTCMinutes()) + ":00"; }
-  function lead(camp, adset, ad, src, brand, day){
-    n++; var d = day || 1 + Math.floor(rnd() * 14), m0 = Math.floor(rnd() * 720), r = rnd();
-    var fc = r < 0.16 ? "-" : stamp(d, m0 + (r < 0.6 ? 2 + Math.floor(rnd() * 28) : 31 + Math.floor(rnd() * 150)));
-    crm.push([pick(statuses), pick(owners), src, adset || "_", ad || "_", camp || "_", brand, "_", stamp(d, m0), fc, "S" + (100000 + n).toString(36).toUpperCase() + n]);
-  }
-  plan.forEach(function(p){
-    p[1].forEach(function(as){ as[1].forEach(function(ad){
-      var cpl = 380 + rnd() * 700;
-      for (var d = 1; d <= 14; d++){
-        var res = Math.floor(rnd() * 9), spend = Math.round((res + rnd()) * cpl), day = "2026-10-" + pad(d);
-        meta.push([day, day, p[0], as[0], ad, spend.toFixed(2), String(res), "actions:onsite_conversion.lead_grouped"]);
-        var k = Math.max(0, res - (rnd() < 0.3 ? 1 : 0) + (rnd() < 0.08 ? 1 : 0));
-        for (var i = 0; i < k; i++) lead(p[0], as[0], ad, rnd() < 0.85 ? "Facebook" : "Instagram", "EBG", d);
-      }
-    }); });
-  });
-  for (var w = 0; w < 60; w++) lead(null, null, null, w % 2 ? "Website" : "Whatsapp Cloud API", pick(["Adhira & Appa Coffee", "Natuf", "Carlton"]));
-  for (var u = 0; u < 9; u++) lead("AAC | Leads | Unit Franchise | India | Sep26 | V3", "AAC | Broad | Sep", "AAC | Static | Old Creative | V1", "Facebook", "EBG");
-  return {meta: meta, crm: crm};
-}
-
 /* ================= state ================= */
 var LS_KEY = "ebg-lead-dash-settings-v1";
-var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, source: "sample", R: null, team: null,
+var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, source: "none", R: null, team: null,
              tab: "overview", brand: "All", range: {preset: "max"}, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false};
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
@@ -943,12 +897,10 @@ function renderHeader(){
   document.getElementById("period").textContent = "Showing " + rangeText(false) + " · Meta export " + fDay(p.metaStart) + " – " + fDay(p.metaEnd) + " · Leads in UI vs TeleCRM";
   renderDatePicker();
   var sl = document.getElementById("source-line"); sl.textContent = "";
-  if (state.source === "sample") sl.appendChild(el("span", {cls: "tag sample", text: "Sample data"}));
   if (state.source === "upload") sl.appendChild(el("span", {cls: "tag upload", text: "Your upload · not saved for team"}));
   if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team report"}));
   var f = state.source === "team" && state.team ? state.team.files : state.files;
-  if (state.source === "sample") sl.appendChild(el("span", {text: "Fictional numbers so you can see the layout. Press Load exports to use your Meta and TeleCRM files."}));
-  else {
+  {
     if (f && f.meta) sl.appendChild(el("span", {text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)"}));
     if (f && f.crm) sl.appendChild(el("span", {text: "TeleCRM: " + f.crm.name + " (" + f.crm.rows.toLocaleString("en-IN") + " rows)"}));
     if (state.source === "team" && state.team) sl.appendChild(el("span", {text: "Saved " + new Date(state.team.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}));
@@ -961,8 +913,28 @@ function renderHeader(){
   document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
   document.getElementById("save-wrap").hidden = !(state.caps.db && state.canSave && state.source === "upload");
 }
+function renderEmpty(){
+  document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
+  var sl = document.getElementById("source-line"); sl.textContent = "";
+  sl.appendChild(el("span", {cls: "tag", text: "No data loaded"}));
+  sl.appendChild(el("span", {text: state.caps.db ? "Load today's exports, or wait a moment if your team has saved a report." : "Load today's Meta and TeleCRM exports to build the report."}));
+  document.getElementById("brand-chips").textContent = ""; document.getElementById("dp").textContent = "";
+  document.getElementById("btn-xlsx").hidden = true; document.getElementById("save-wrap").hidden = true;
+  document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
+  var v = document.getElementById("view"); v.textContent = "";
+  var step = function(n, t, d){ return el("div", {cls: "kpi"}, el("div", {cls: "eyebrow", text: "Step " + n}), el("div", {cls: "v", style: "font-size:20px", text: t}), el("div", {cls: "s", text: d})); };
+  v.appendChild(el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "No report yet"}), el("span", {cls: "note", text: "Your numbers stay in this browser until you choose Save for team."})),
+    el("div", {cls: "kpis"},
+      step(1, "Export from Meta", "Ads report, CSV or XLSX. Any column order. Add Breakdown › By time › Day to filter spend by date."),
+      step(2, "Export from TeleCRM", "Leads for the same dates. All columns are fine."),
+      step(3, "Load both files", "Drop them in the two boxes above. The report builds as soon as both are in."),
+      step(4, "Pick dates and brands", "Use the date picker and brand chips to view any day, week or month."),
+      step(5, "Share", "Download Excel, or Save for team so your manager sees the same report.")),
+    el("div", null, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Load exports"))));
+}
 function render(){
-  if (!state.R) return;
+  if (!state.R){ renderEmpty(); return; }
   CUR = state.R.currency || "₹";
   renderHeader();
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
@@ -1100,6 +1072,7 @@ function setFile(kind, file){
     state.pending[kind] = {aoa: aoa, name: file.name, rows: Math.max(0, aoa.length - hi - 1)};
     drop.classList.add("ok"); st.textContent = "✓ " + file.name + " · " + state.pending[kind].rows.toLocaleString("en-IN") + " rows";
     if (state.pending.meta && state.pending.crm){
+      document.getElementById("team-banner").hidden = true;
       state.raw = {meta: state.pending.meta.aoa, crm: state.pending.crm.aoa};
       state.files = {meta: {name: state.pending.meta.name, rows: state.pending.meta.rows}, crm: {name: state.pending.crm.name, rows: state.pending.crm.rows}};
       state.source = "upload"; state.brand = "All"; state.limit = {};
@@ -1116,10 +1089,7 @@ function setFile(kind, file){
   drop.addEventListener("drop", function(e){ e.preventDefault(); drop.classList.remove("over"); var f = e.dataTransfer.files; if (f && f[0]) setFile(kind, f[0]); });
 });
 document.getElementById("btn-load").addEventListener("click", function(){ var u = document.getElementById("upload"); u.hidden = !u.hidden; if (!u.hidden) u.scrollIntoView({block: "nearest"}); });
-document.getElementById("btn-sample").addEventListener("click", function(){ loadSample(); document.getElementById("upload").hidden = true; });
 document.getElementById("tablist").addEventListener("click", function(e){ var t = e.target.closest(".tab"); if (!t) return; state.tab = t.dataset.tab; try { localStorage.setItem("ebg-lead-dash-tab", state.tab); } catch (x) {} render(); });
-function loadSample(){ var s = makeSample(); state.raw = {meta: s.meta, crm: s.crm}; state.files = {meta: {name: "sample-meta.csv", rows: s.meta.length - 1}, crm: {name: "sample-telecrm.csv", rows: s.crm.length - 1}};
-  state.source = "sample"; state.brand = "All"; state.limit = {}; rebuild(); render(); }
 
 /* ================= Excel download ================= */
 function aoaFrom(cols, rows, level){ var head = cols.filter(function(c){ return !c.render || c.k; }).map(function(c){ return c.label; });
@@ -1206,11 +1176,12 @@ function onTeamDoc(snap){
 }
 function applyTeam(cur){
   loadTeam(cur).then(function(obj){
+    document.getElementById("upload").hidden = true;
     state.team = {savedAt: obj.savedAt, files: obj.files, ver: cur.ver}; state.source = "team"; state.files = obj.files || state.files;
     if (obj.settings) state.settings = Object.assign(clone(DEFAULT_SETTINGS), obj.settings);
     if (obj.v >= 2){ state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)}; rebuild(); } else { state.R = obj.R; state.raw = null; }
     state.brand = "All"; state.limit = {}; render();
-  }).catch(function(e){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The team report could not be opened (" + e.message + "). Showing sample data."; });
+  }).catch(function(e){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The saved team report could not be opened (" + e.message + "). Load the exports to build a fresh report."; });
 }
 
 /* ================= boot ================= */
@@ -1218,8 +1189,8 @@ state.settings = loadSettings();
 try { var t0 = localStorage.getItem("ebg-lead-dash-tab"); if (t0) state.tab = t0; var r0 = JSON.parse(localStorage.getItem("ebg-lead-dash-range") || "null"); if (r0 && r0.preset) state.range = r0; } catch (e) {}
 document.getElementById("btn-save").addEventListener("click", confirmSave);
 function boot(){
-  if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Showing sample data; reload the page to try again."; }
-  loadSample();
+  if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Check your connection and reload the page."; }
+  render();
   if (!(window.claude && window.claude.use) && typeof XLSX !== "undefined"){
     state.caps.downloads = {save: function(o){ var a = document.createElement("a"), url = URL.createObjectURL(new Blob([o.data], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
       a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); return Promise.resolve({status: "saved"}); }};
