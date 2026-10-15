@@ -1,0 +1,1240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EBG Lead Performance</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+/* Layout: white header band → warm-grey control band → tabbed report surface; square corners, hairline rules, black controls (EBG site language) */
+:root{
+  --bg:#ffffff; --band:#f4f4f2; --panel:#ffffff; --ink:#111111; --fg:#212529; --muted:#686868; --faint:#8a8a8a;
+  --line:#dddddd; --line-soft:#ececec; --slate:#586168; --slate-soft:#c9ced2;
+  --btn-bg:#000000; --btn-fg:#ffffff;
+  --good:#1f7a4a; --good-bg:#e6f2eb; --warn:#9a6a12; --warn-bg:#fbf1dd; --bad:#b42318; --bad-bg:#fbe7e5;
+  --row-hover:#f7f7f5; --brand-rule:#111111;
+  --font-display:"Inter Tight","Inter Display","Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-body:"Inter","Inter Display",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111111; --band:#1a1a1a; --panel:#151515; --ink:#f4f4f2; --fg:#e0e0e0; --muted:#a0a0a0; --faint:#7d7d7d;
+  --line:#2e2e2e; --line-soft:#242424; --slate:#a7b1b8; --slate-soft:#4a5258;
+  --btn-bg:#f4f4f2; --btn-fg:#111111;
+  --good:#6cc995; --good-bg:#16291f; --warn:#e6b45a; --warn-bg:#2d2412; --bad:#f08a7e; --bad-bg:#331a17;
+  --row-hover:#1c1c1c; --brand-rule:#f4f4f2; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#111111; --band:#1a1a1a; --panel:#151515; --ink:#f4f4f2; --fg:#e0e0e0; --muted:#a0a0a0; --faint:#7d7d7d;
+  --line:#2e2e2e; --line-soft:#242424; --slate:#a7b1b8; --slate-soft:#4a5258;
+  --btn-bg:#f4f4f2; --btn-fg:#111111;
+  --good:#6cc995; --good-bg:#16291f; --warn:#e6b45a; --warn-bg:#2d2412; --bad:#f08a7e; --bad-bg:#331a17;
+  --row-hover:#1c1c1c; --brand-rule:#f4f4f2; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1480px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--font-display);color:var(--ink);text-wrap:balance;margin:0}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.num{font-variant-numeric:tabular-nums}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+
+/* header */
+header.top{border-bottom:1px solid var(--line)}
+header.top .wrap{padding-block:28px 22px;display:flex;flex-wrap:wrap;gap:20px 32px;align-items:flex-end;justify-content:space-between}
+.title-block{min-width:0;display:grid;gap:8px}
+.title-block h1{font-size:clamp(30px,4.2vw,46px);font-weight:500;letter-spacing:-.025em;line-height:1.02}
+.period{color:var(--muted);font-size:13px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;border:.8px solid var(--btn-bg);background:var(--btn-bg);color:var(--btn-fg);padding:10px 16px;font-size:13px;letter-spacing:-.01em;cursor:pointer;border-radius:0;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--ink)}
+.btn:hover{opacity:.86}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.linkbtn{background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:13px}
+
+/* control band */
+.band{background:var(--band);border-bottom:1px solid var(--line)}
+.band .wrap{padding-block:14px;display:grid;gap:12px}
+.source-line{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:12.5px;color:var(--muted)}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--line);background:var(--panel);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg)}
+.tag.sample{border-color:var(--warn);color:var(--warn)}
+.tag.team{border-color:var(--good);color:var(--good)}
+.tag.upload{border-color:var(--ink);color:var(--ink)}
+.chips{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.chip{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);padding:7px 12px;font-size:12.5px;cursor:pointer;border-radius:0;display:inline-flex;gap:8px;align-items:center}
+.chip .c{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px}
+.chip[aria-pressed="true"]{background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg)}
+.chip[aria-pressed="true"] .c{color:inherit;opacity:.7}
+.filters{display:flex;gap:10px;align-items:center;min-width:0}
+.filters .chips{flex:1 1 auto;min-width:0}
+.dp{position:relative;flex:0 0 auto}
+.dp-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);padding:7px 12px;font-size:12.5px;cursor:pointer;border-radius:0;white-space:nowrap;max-width:min(360px,calc(100vw - 32px));overflow:hidden;text-overflow:ellipsis}
+.dp-btn[aria-expanded="true"]{border-color:var(--ink)}
+.dp-btn svg{flex:0 0 auto}
+.dp-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:min(780px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--ink);box-shadow:0 12px 32px rgba(0,0,0,.18);display:grid;grid-template-columns:210px minmax(0,1fr)}
+.dp-presets{border-right:1px solid var(--line);padding:10px 0;max-height:440px;overflow-y:auto}
+.dp-presets .eyebrow{padding:4px 16px 8px}
+.dp-opt{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:8px 16px;font-size:13px;text-align:left;cursor:pointer;color:var(--fg)}
+.dp-opt:hover{background:var(--row-hover)}
+.dp-opt .rd{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:50%;flex:0 0 auto;position:relative}
+.dp-opt[aria-checked="true"] .rd{border-color:var(--ink)}
+.dp-opt[aria-checked="true"] .rd::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--ink)}
+.dp-opt .sub{margin-left:auto;font-size:11px;color:var(--muted)}
+.dp-main{padding:14px 16px;display:grid;gap:14px;min-width:0}
+.dp-cals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.dp-cal{display:grid;gap:6px;min-width:0}
+.dp-cal-head{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13.5px;font-weight:500;color:var(--ink)}
+.dp-cal-head select{border:0;background:transparent;font-weight:500;padding:2px;cursor:pointer}
+.dp-nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:-28px;position:relative;z-index:1;pointer-events:none}
+.dp-nav button{pointer-events:auto;background:none;border:0;font-size:18px;line-height:1;padding:4px 8px;cursor:pointer;color:var(--ink)}
+.dp-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;font-variant-numeric:tabular-nums}
+.dp-grid .wd{font-size:11px;color:var(--muted);padding:4px 0}
+.dp-day{background:none;border:0;padding:7px 0 9px;font-size:13px;cursor:pointer;position:relative;color:var(--fg)}
+.dp-day.muted{color:var(--faint)}
+.dp-day.has::after{content:"";position:absolute;left:50%;bottom:3px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--slate)}
+.dp-day.inr{background:var(--band)}
+.dp-day.edge{background:var(--btn-bg);color:var(--btn-fg)}
+.dp-day.edge.has::after{background:var(--btn-fg)}
+.dp-day.today{outline:1px solid var(--slate);outline-offset:-3px}
+.dp-day:disabled{opacity:.35;cursor:default}
+.dp-inputs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+.dp-inputs input{border:1px solid var(--line);background:var(--panel);padding:7px 9px;border-radius:0;min-width:0}
+.dp-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:12px}
+.dp-foot .small{max-width:46ch}
+@media (max-width:720px){
+  .filters{flex-wrap:wrap}
+  .filters .chips{flex-basis:100%}
+  .dp{flex:1 1 100%}
+  .dp-btn{width:100%;max-width:none}
+  .dp-pop{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));width:auto;grid-template-columns:1fr;overflow-y:auto;align-content:start}
+  .dp-presets{border-right:0;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px;padding:10px;max-height:none}
+  .dp-presets .eyebrow{flex-basis:100%;padding:0 4px 4px}
+  .dp-opt{width:auto;border:1px solid var(--line);padding:6px 10px}
+  .dp-opt .sub{display:none}
+  .dp-cals{grid-template-columns:1fr}
+  .dp-cal.first{display:none}
+}
+.banner{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);background:var(--panel);font-size:13px}
+.banner.warn{border-color:var(--warn);background:var(--warn-bg)}
+
+/* upload */
+.upload{border:1px solid var(--line);background:var(--panel);padding:18px;display:grid;gap:14px}
+.drops{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.drop{border:1px dashed var(--slate);padding:18px;display:grid;gap:6px;cursor:pointer;min-width:0;background:var(--bg)}
+.drop.over{background:var(--row-hover);border-style:solid}
+.drop.ok{border-style:solid;border-color:var(--good)}
+.drop h3{font-size:16px;font-weight:500;letter-spacing:-.01em}
+.drop .meta{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.drop .state{font-size:12.5px;color:var(--good);overflow-wrap:anywhere}
+.drop .err{font-size:12.5px;color:var(--bad);overflow-wrap:anywhere}
+.small{font-size:12px;color:var(--muted)}
+
+/* tabs */
+nav.tabs{border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+nav.tabs .wrap{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tab{flex:0 0 auto;background:none;border:0;border-bottom:2px solid transparent;padding:14px 14px 12px;font-size:13.5px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+main .wrap{padding-block:24px 56px;display:grid;gap:28px}
+section.panel{display:grid;gap:22px;min-width:0}
+.wrap>*,section.panel>*,.panel>*,.band .wrap>*{min-width:0;max-width:100%}
+.sec-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.sec-head h2{font-size:22px;font-weight:500;letter-spacing:-.02em}
+.sec-head .note{font-size:12.5px;color:var(--muted);max-width:70ch}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--ink);border-left:1px solid var(--line)}
+@media (min-width:760px){.kpis{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.kpi{padding:14px 16px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;gap:6px;align-content:start;min-width:0}
+.kpi .v{font-family:var(--font-display);font-size:clamp(22px,2.4vw,28px);letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.05}
+.kpi .s{font-size:12px;color:var(--muted)}
+.kpi.bad .v{color:var(--bad)} .kpi.warn .v{color:var(--warn)} .kpi.good .v{color:var(--good)}
+
+/* charts */
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:20px}
+.chart{border:1px solid var(--line);padding:16px 18px 18px;display:grid;gap:14px;align-content:start;min-width:0;background:var(--panel)}
+.chart h3{font-size:15px;font-weight:500;letter-spacing:-.01em}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px}
+.bars{display:grid;gap:10px}
+.bar-row{display:grid;grid-template-columns:minmax(90px,150px) 1fr;gap:10px;align-items:center;min-width:0}
+.bar-row .lab{font-size:12.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-stack{display:grid;gap:3px;min-width:0}
+.bar-line{display:flex;align-items:center;gap:8px;min-width:0}
+.bar{height:10px;min-width:1px}
+.bar.s1{background:var(--ink)} .bar.s2{background:var(--slate-soft)} .bar.s3{background:var(--slate)}
+.bar-val{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.track{position:relative;height:10px;background:var(--line-soft);flex:1;min-width:0}
+.track .fill{position:absolute;inset:0 auto 0 0}
+.track .mark{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--bad)}
+.empty{color:var(--muted);font-size:13px;padding:12px 0}
+
+/* tables */
+.tbl-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.search{border:1px solid var(--line);background:var(--panel);padding:8px 10px;min-width:0;width:min(320px,100%);border-radius:0}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);background:var(--panel);max-height:72vh;overflow-y:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+thead th{position:sticky;top:0;background:var(--band);color:var(--ink);font-weight:500;font-size:11.5px;letter-spacing:.02em;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;z-index:2}
+thead th.r,td.r{text-align:right}
+thead th .arr{color:var(--muted);margin-left:4px}
+tr.total td{background:var(--row-hover);font-weight:600;color:var(--ink);position:sticky;top:33px;z-index:1;border-bottom:1px solid var(--line)}
+tbody tr:hover td{background:var(--row-hover)}
+tr.brand-start td{border-top:1.5px solid var(--brand-rule)}
+td.na{color:var(--faint)}
+td.flag-bad{background:var(--bad-bg);color:var(--bad)}
+td.flag-warn{background:var(--warn-bg);color:var(--warn)}
+td.flag-good{color:var(--good)}
+td.remarks{min-width:260px;max-width:420px;color:var(--muted);font-size:12px;white-space:normal}
+td.name{min-width:180px;max-width:340px;overflow-wrap:anywhere}
+td.nowrap{white-space:nowrap}
+.pill{display:inline-block;padding:2px 7px;font-size:11px;border:1px solid currentColor;white-space:nowrap}
+.pill.good{color:var(--good)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)} .pill.mut{color:var(--muted)}
+.more{display:flex;justify-content:center;padding:10px}
+
+/* checks */
+.checks{display:grid;gap:0;border-top:1px solid var(--ink)}
+.check{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line)}
+.check .n{font-family:var(--font-display);font-size:18px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.check .d{font-size:12px;color:var(--muted)}
+
+/* settings */
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}
+.field{display:grid;gap:6px;min-width:0}
+.field label{font-size:12px;color:var(--muted);letter-spacing:.02em}
+.field input[type=number],.field input[type=text],.field input[type=date],.field textarea,.field select{border:1px solid var(--line);background:var(--panel);padding:8px 10px;border-radius:0;width:100%}
+.field textarea{min-height:150px;font-size:12.5px;line-height:1.5;resize:vertical}
+.toggle{display:flex;gap:10px;align-items:flex-start;font-size:13px}
+.toggle input{margin-top:3px}
+.group{border:1px solid var(--line);padding:16px;display:grid;gap:14px;min-width:0;background:var(--panel)}
+.group h3{font-size:15px;font-weight:500}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--btn-bg);color:var(--btn-fg);padding:10px 16px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+.confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+@media (max-width:640px){
+  header.top .wrap{padding-block:20px 16px}
+  .bar-row{grid-template-columns:minmax(70px,110px) 1fr}
+  .check{grid-template-columns:1fr auto}
+  .check .st{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:no-preference){ .tab,.chip,.btn{transition:opacity .15s, background-color .15s} }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="title-block">
+      <div class="eyebrow">EBG Group · Performance Marketing</div>
+      <h1>Lead Performance</h1>
+      <div class="period" id="period">Meta UI vs TeleCRM · brand, campaign, ad set and ad level</div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btn-load" type="button">Load exports</button>
+      <span id="save-wrap" hidden><button class="btn ghost" id="btn-save" type="button">Save for team</button></span>
+      <button class="btn ghost" id="btn-xlsx" type="button" hidden>Download Excel</button>
+    </div>
+  </div>
+</header>
+
+<div class="band">
+  <div class="wrap">
+    <div id="team-banner" class="banner" hidden></div>
+    <div id="upload" class="upload" hidden>
+      <div class="sec-head">
+        <h2 style="font-size:18px">Load today's exports</h2>
+        <span class="note">Files are read in your browser. Nothing leaves this page unless you press Save for team, which stores the report only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
+      </div>
+      <div class="drops">
+        <label class="drop" id="drop-meta" for="file-meta">
+          <span class="eyebrow">File 1</span>
+          <h3>Meta Ads export</h3>
+          <span class="meta">Ads Manager › Ad level, no breakdown. Any column layout: the page finds Campaign, Ad set, Ad, Amount spent, Results (or Leads) and dates by name. Ad, ad set or campaign level; daily breakdown is fine. CSV or XLSX.</span>
+          <span class="state" id="st-meta"></span><span class="err" id="er-meta"></span>
+          <input type="file" id="file-meta" accept=".csv,.xlsx,.xls,.txt" hidden>
+        </label>
+        <label class="drop" id="drop-crm" for="file-crm">
+          <span class="eyebrow">File 2</span>
+          <h3>TeleCRM export</h3>
+          <span class="meta">Full lead export for the same dates (all 130+ columns are fine). Needs Lead id, Created On, Facebook Campaign / Ad Set / Ad, Status. CSV or XLSX.</span>
+          <span class="state" id="st-crm"></span><span class="err" id="er-crm"></span>
+          <input type="file" id="file-crm" accept=".csv,.xlsx,.xls,.txt" hidden>
+        </label>
+      </div>
+      <div class="small">Drop both files, or click each box. The report rebuilds as soon as both are loaded. <button type="button" class="linkbtn" id="btn-sample">Show sample data instead</button></div>
+    </div>
+    <div class="source-line" id="source-line"></div>
+    <div class="filters"><div class="chips" id="brand-chips" role="group" aria-label="Brand filter"></div><div class="dp" id="dp"></div></div>
+  </div>
+</div>
+
+<nav class="tabs" aria-label="Report sections">
+  <div class="wrap" role="tablist" id="tablist">
+    <button class="tab" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button class="tab" role="tab" data-tab="campaigns" aria-selected="false">Campaigns</button>
+    <button class="tab" role="tab" data-tab="adsets" aria-selected="false">Ad sets</button>
+    <button class="tab" role="tab" data-tab="ads" aria-selected="false">Ads</button>
+    <button class="tab" role="tab" data-tab="tat" aria-selected="false">TAT &amp; calls</button>
+    <button class="tab" role="tab" data-tab="checks" aria-selected="false">Data checks</button>
+    <button class="tab" role="tab" data-tab="ql" aria-selected="false">QL statuses</button>
+    <button class="tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>
+  </div>
+</nav>
+
+<main><div class="wrap" id="view"></div></main>
+<div id="toast" class="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ENGINE START
+var QL_POS_DEF = ["qualified","interested","details shared","shared details","site visit","visit scheduled","visit done","meeting","discussion scheduled","proposal","negotiation","token","payment","booked","booking","converted","closed won","won","hot","ready to invest","agreement"];
+var QL_NEG_DEF = ["not interested","not qualified","unqualified","disqualified","lost","junk","invalid","wrong","duplicate","spam","fake","not reachable","unreachable","no response","dnd","rejected","cold","dead","not eligible","below budget","low budget","no budget","not connected"];
+var DEFAULT_SETTINGS = {
+  brands: ["Adhira & Appa","Acer","Carlton","Natuf","Tarzan","Shayreen by Natuf","Bonumcha","Chhota Bheem","EBG Rental"],
+  keywords: [["Shayreen","Shayreen by Natuf"],["AAC","Adhira & Appa"],["Adhira","Adhira & Appa"],["ACER","Acer"],["Carlton","Carlton"],["Natuf","Natuf"],["Tarzan","Tarzan"],["Bonumcha","Bonumcha"],["Chhota Bheem","Chhota Bheem"],["Chhotabheem","Chhota Bheem"],["EBG Rental","EBG Rental"],["Rental","EBG Rental"]],
+  slaMin: 30, diffAlert: 0.10, slaTarget: 0.8, platform: "Meta Ads",
+  optSource: false, optDates: false, optDedupe: false, showOther: false, from: "", to: "",
+  metaSources: ["Facebook","Instagram"],
+  qlPos: QL_POS_DEF.slice(), qlNeg: QL_NEG_DEF.slice(), qlOverride: {},
+  cols: {
+    meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
+    crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name"}
+  }
+};
+function isNum(x){ return typeof x === "number" && isFinite(x); }
+function blank(v){ if (v === null || v === undefined) return true; var s = String(v).trim(); return s === "" || s === "-" || s === "_"; }
+function clean(v){ return blank(v) ? "" : String(v).replace(/\s+/g, " ").trim(); }
+function norm(v){ return clean(v).toLowerCase(); }
+function num(v){ if (typeof v === "number") return isFinite(v) ? v : 0; if (blank(v)) return 0; var n = Number(String(v).replace(/[₹,\s]/g, "")); return isFinite(n) ? n : 0; }
+function mkUTC(y, mo, d, h, mi, se){ h = h || 0; mi = mi || 0; se = se || 0; var t = Date.UTC(y, mo - 1, d, h, mi, se), x = new Date(t);
+  if (x.getUTCFullYear() !== y || x.getUTCMonth() !== mo - 1 || x.getUTCDate() !== d || h > 23 || mi > 59 || se > 59) return NaN; return t; }
+/* returns naive-local timestamp in ms (wall clock stored as UTC), null when blank, NaN when unreadable */
+function parseDT(v){
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number"){ if (!isFinite(v) || v <= 0) return NaN; return Math.round((v - 25569) * 86400) * 1000; }
+  if (v instanceof Date){ return isNaN(v) ? NaN : Date.UTC(v.getFullYear(), v.getMonth(), v.getDate(), v.getHours(), v.getMinutes(), v.getSeconds()); }
+  var s = String(v).trim(); if (blank(s)) return null;
+  var m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})(?:[ ,T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?)?$/);
+  if (m){ var h = +(m[4] || 0); if (m[7]){ var ap = m[7].toLowerCase(); if (ap === "pm" && h < 12) h += 12; if (ap === "am" && h === 12) h = 0; }
+    return mkUTC(+m[3], +m[2], +m[1], h, +(m[5] || 0), +(m[6] || 0)); }
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) return mkUTC(+m[1], +m[2], +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  if (/^\d+(\.\d+)?$/.test(s)) return parseDT(Number(s));
+  return NaN;
+}
+function dayOf(t){ return Math.floor(t / 86400000); }
+function findCol(hdr, name, prefix){
+  if (!name || !hdr) return -1; var n = String(name).trim(), l = n.toLowerCase(), i;
+  for (i = 0; i < hdr.length; i++) if (String(hdr[i] == null ? "" : hdr[i]).trim() === n) return i;
+  for (i = 0; i < hdr.length; i++) if (String(hdr[i] == null ? "" : hdr[i]).trim().toLowerCase() === l) return i;
+  if (prefix) for (i = 0; i < hdr.length; i++) if (String(hdr[i] == null ? "" : hdr[i]).trim().toLowerCase().indexOf(l) === 0) return i;
+  return -1;
+}
+var META_SYN = {
+  campaign: {exact: ["campaign name", "campaign"], prefix: ["campaign name"]},
+  adset: {exact: ["ad set name", "adset name", "ad set", "adset"], prefix: ["ad set name", "adset name"]},
+  ad: {exact: ["ad name", "ad"], prefix: ["ad name"]},
+  spend: {exact: ["amount spent", "spend", "cost", "amount spent (inr)"], prefix: ["amount spent", "spend (", "cost ("]},
+  results: {exact: ["results", "result"], prefix: []},
+  leads: {exact: ["leads", "on-facebook leads", "meta leads", "leads (form)", "website leads", "all leads", "lead", "form leads", "instant form leads"], prefix: ["leads (", "on-facebook leads"]},
+  start: {exact: ["day", "date", "reporting starts", "reporting start", "starts", "start date", "date start"], prefix: ["reporting starts"]},
+  end: {exact: ["reporting ends", "reporting end", "ends", "end date", "date stop"], prefix: ["reporting ends"]},
+  indicator: {exact: ["result indicator", "result type"], prefix: ["result indicator"]}
+};
+function hn(x){ return String(x == null ? "" : x).replace(/\s+/g, " ").trim().toLowerCase(); }
+/* find a Meta field: the name set in Settings first, then Meta's usual names; exact match before prefix match */
+function metaCol(H, field, setName){
+  var hs = H.map(hn), i, k, syn = META_SYN[field], ex = (setName ? [hn(setName)] : []).concat(syn.exact);
+  for (k = 0; k < ex.length; k++){ i = hs.indexOf(ex[k]); if (i >= 0) return i; }
+  var pre = (setName && (field === "spend") ? [hn(setName)] : []).concat(syn.prefix);
+  for (k = 0; k < pre.length; k++) for (i = 0; i < hs.length; i++) if (pre[k] && hs[i].indexOf(pre[k]) === 0) return i;
+  return -1;
+}
+function detectMetaColumns(H, cm){
+  var c = {}; ["campaign", "adset", "ad", "spend", "results", "leads", "start", "end", "indicator"].forEach(function(f){ c[f] = metaCol(H, f, cm && cm[f]); });
+  if (c.ad === c.adset) c.ad = -1;
+  c.lead = c.results >= 0 ? c.results : c.leads;
+  if (c.end === c.start) c.end = -1;
+  c.score = ["campaign", "adset", "ad", "spend", "lead", "start"].reduce(function(s, f){ return s + (c[f] >= 0 ? 1 : 0); }, 0);
+  return c;
+}
+function findMetaHeader(aoa, cm){
+  var best = -1, bestScore = 0;
+  for (var i = 0; i < Math.min(aoa.length, 40); i++){ var c = detectMetaColumns(aoa[i] || [], cm); if (c.campaign >= 0 && c.score > bestScore){ best = i; bestScore = c.score; } }
+  return best;
+}
+/* choose the sheet of a workbook that holds the export */
+function pickSheet(sheets, kind, S){
+  for (var i = 0; i < sheets.length; i++){
+    var hi = kind === "meta" ? findMetaHeader(sheets[i].aoa, S.cols.meta) : findHeaderRow(sheets[i].aoa, S.cols.crm.id);
+    if (hi >= 0) return {aoa: sheets[i].aoa, header: hi, sheet: sheets[i].name};
+  }
+  return null;
+}
+var CUR_SYM = {INR: "₹", USD: "$", EUR: "€", GBP: "£", AED: "AED ", SGD: "S$", AUD: "A$", CAD: "C$"};
+function findHeaderRow(aoa, name){ for (var i = 0; i < Math.min(aoa.length, 25); i++) if (findCol(aoa[i], name) >= 0) return i; return -1; }
+function classifyStatus(status, S){
+  var l = status.toLowerCase(), ov = S.qlOverride[l];
+  if (ov === "QL") return {ql: true, reason: "Manual override"};
+  if (ov === "Not QL") return {ql: false, reason: "Manual override"};
+  var k;
+  for (k = 0; k < S.qlNeg.length; k++) if (S.qlNeg[k] && l.indexOf(S.qlNeg[k].toLowerCase()) >= 0) return {ql: false, reason: "Negative intent: " + S.qlNeg[k]};
+  for (k = 0; k < S.qlPos.length; k++) if (S.qlPos[k] && l.indexOf(S.qlPos[k].toLowerCase()) >= 0) return {ql: true, reason: "Buying intent: " + S.qlPos[k]};
+  return {ql: false, reason: "No buying intent yet (early stage)"};
+}
+function levelKey(camp, adset, ad, lvl){ var k = camp.toLowerCase(); if (lvl >= 2) k += "|" + adset.toLowerCase(); if (lvl >= 3) k += "|" + ad.toLowerCase(); return k; }
+function newAcc(o){ o.crm = 0; o.ql = 0; o.ts = 0; o.called = 0; o.win = 0; o.elig = 0; o.pend = 0; return o; }
+function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null){ o.ts += L.tat; o.called++; } if (L.sla === "Within SLA") o.win++; if (L.sla !== "Invalid timestamp") o.elig++; if (L.sla === "Pending") o.pend++; }
+function derive(o){
+  o.diff = isNum(o.ui) ? o.ui - o.crm : null;
+  o.pct = isNum(o.ui) && o.ui > 0 ? o.diff / o.ui : null;
+  o.cpl = isNum(o.spend) && isNum(o.ui) && o.ui > 0 ? o.spend / o.ui : null;
+  o.cpql = isNum(o.spend) && o.ql > 0 ? o.spend / o.ql : null;
+  o.tat = o.called > 0 ? o.ts / o.called : null;
+  o.sla = o.elig > 0 ? o.win / o.elig : null;
+  return o;
+}
+/* range = {from, to} as day numbers (inclusive), or null for all dates */
+function processData(metaAOA, crmAOA, S, range){
+  var dataDays = {}, partialRows = 0, metaRowsIn = 0;
+  var listed = {}; S.brands.forEach(function(b, i){ listed[b] = i; });
+  var bidx = function(b){ return b in listed ? listed[b] : 90; };
+  var shownBrand = function(b){ return (b in listed) || S.showOther; };
+  var kws = S.keywords.filter(function(k){ return k[0] && k[1]; }).map(function(k){ return [String(k[0]).toLowerCase(), k[1]]; });
+  var brandOf = function(t){ var s = String(t || "").toLowerCase(); if (!s) return "Unmapped"; for (var i = 0; i < kws.length; i++) if (s.indexOf(kws[i][0]) >= 0) return kws[i][1]; return "Unmapped"; };
+  var missing = [];
+  /* ---------- Meta (columns found by name, any order) ---------- */
+  var cm = S.cols.meta, metaAds = {}, metaOrder = [], metaRows = 0, metaResults = 0, dupRows = 0, nonLeadRows = 0, starts = [], ends = [], seen = {};
+  var resultsCol = "", metaLevel = 3, currency = "₹", usedCols = {};
+  var mh = findMetaHeader(metaAOA || [], cm);
+  if (mh < 0) missing.push("Meta: a Campaign name column");
+  else {
+    var H = metaAOA[mh], c = detectMetaColumns(H, cm);
+    ["campaign", "adset", "ad", "spend", "lead", "start", "end", "indicator"].forEach(function(f){ if (c[f] >= 0) usedCols[f] = String(H[c[f]]).trim(); });
+    resultsCol = c.lead >= 0 ? String(H[c.lead]).trim() : "";
+    metaLevel = c.ad >= 0 ? (c.adset >= 0 ? 3 : 1) : (c.adset >= 0 ? 2 : 1);
+    if (c.ad >= 0 && c.adset < 0) metaLevel = 1;
+    var cur = c.spend >= 0 ? String(H[c.spend]).match(/\(([A-Za-z]{3})\)/) : null;
+    if (cur) currency = CUR_SYM[cur[1].toUpperCase()] || (cur[1].toUpperCase() + " ");
+    if (c.spend < 0) missing.push("Meta: an Amount spent column");
+    if (c.lead < 0) missing.push("Meta: a Results (or Leads) column");
+    for (var i = mh + 1; i < metaAOA.length; i++){
+      var r = metaAOA[i] || [], camp = clean(r[c.campaign]); if (!camp) continue;
+      var adset = metaLevel >= 2 ? clean(r[c.adset]) : "", ad = metaLevel >= 3 ? clean(r[c.ad]) : "";
+      var key = levelKey(camp, adset, ad, metaLevel);
+      var st = c.start >= 0 ? parseDT(r[c.start]) : null, en = c.end >= 0 ? parseDT(r[c.end]) : st;
+      if (isNum(st)) starts.push(dayOf(st)); if (isNum(en)) ends.push(dayOf(en));
+      var sD = isNum(st) ? dayOf(st) : null, eD = isNum(en) ? dayOf(en) : sD, inc = true, part = false;
+      if (sD !== null && eD !== null && eD - sD < 400) for (var dd = sD; dd <= eD; dd++) dataDays[dd] = 1;
+      if (range && sD !== null){ inc = sD >= range.from && eD <= range.to; part = !inc && sD <= range.to && eD >= range.from; }
+      var sk = key + "#" + (isNum(st) ? dayOf(st) : "x") + "#" + (isNum(en) ? dayOf(en) : "x"); seen[sk] = (seen[sk] || 0) + 1; if (seen[sk] > 1) dupRows++;
+      var sp = c.spend >= 0 ? num(r[c.spend]) : 0, ui = c.lead >= 0 ? num(r[c.lead]) : 0;
+      if (c.lead === c.results && c.indicator >= 0 && ui > 0 && !blank(r[c.indicator]) && String(r[c.indicator]).toLowerCase().indexOf("lead") < 0) nonLeadRows++;
+      metaRows++;
+      var a = metaAds[key];
+      if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, brand: brandOf(camp)}); metaOrder.push(key); }
+      if (inc){ a.spend += sp; a.ui += ui; a.rowsIn = (a.rowsIn || 0) + 1; metaResults += ui; metaRowsIn++; }
+      else if (part){ a.partial = true; partialRows++; }
+    }
+  }
+  var metaStart = starts.length ? Math.min.apply(null, starts) : null, metaEnd = ends.length ? Math.max.apply(null, ends) : null;
+  var fromD = S.from ? parseDT(S.from) : null, toD = S.to ? parseDT(S.to) : null;
+  var effFrom = isNum(fromD) ? dayOf(fromD) : (metaStart !== null ? metaStart : -1e9);
+  var effTo = isNum(toD) ? dayOf(toD) : (metaEnd !== null ? metaEnd : 1e9);
+  /* ---------- CRM ---------- */
+  var cc = S.cols.crm, ch = findHeaderRow(crmAOA || [], cc.id), leads = [], statusFirst = [], statusSeen = {};
+  var cnt = {outsideSel: 0, pasted: 0, nonMeta: 0, outRange: 0, dupExtra: 0, noId: 0, badCreated: 0, noCampCounted: 0, unmatchedCounted: 0};
+  var crmOnly = {}, crmOnlyOrder = [], unmatched = [], noCampByBrand = {};
+  if (ch < 0) missing.push("TeleCRM: " + cc.id);
+  else {
+    var HC = crmAOA[ch];
+    var k = {id: findCol(HC, cc.id), created: findCol(HC, cc.created), source: findCol(HC, cc.source), camp: findCol(HC, cc.campaign),
+             adset: findCol(HC, cc.adset), ad: findCol(HC, cc.ad), status: findCol(HC, cc.status), brand: findCol(HC, cc.brand),
+             fc: findCol(HC, cc.firstCall), owner: findCol(HC, cc.owner)};
+    ["created", "camp", "adset", "ad"].forEach(function(f){ if (k[f] < 0) missing.push("TeleCRM: " + cc[{created: "created", camp: "campaign", adset: "adset", ad: "ad"}[f]]); });
+    var srcSet = {}; S.metaSources.forEach(function(s){ if (s) srcSet[String(s).trim().toLowerCase()] = 1; });
+    var idFirst = {};
+    var g = function(r, ix){ return ix >= 0 ? r[ix] : ""; };
+    for (var j = ch + 1; j < crmAOA.length; j++){
+      var row = crmAOA[j] || [], has = false;
+      for (var q = 0; q < row.length; q++){ var v = row[q]; if (v !== null && v !== undefined && String(v).trim() !== ""){ has = true; break; } }
+      if (!has) continue;
+      cnt.pasted++;
+      var id = clean(g(row, k.id)), created = parseDT(g(row, k.created)), source = clean(g(row, k.source));
+      if (isNum(created)) dataDays[dayOf(created)] = 1;
+      if (range && !(isNum(created) && dayOf(created) >= range.from && dayOf(created) <= range.to)){ cnt.outsideSel++; continue; }
+      var camp2 = clean(g(row, k.camp)), adset2 = clean(g(row, k.adset)), ad2 = clean(g(row, k.ad)), status = clean(g(row, k.status));
+      var crmBrand = clean(g(row, k.brand)), fc = k.fc >= 0 ? parseDT(row[k.fc]) : null, owner = clean(g(row, k.owner)) || "(unassigned)";
+      var first = true;
+      if (id){ if (id in idFirst){ first = false; cnt.dupExtra++; } else idFirst[id] = j; } else cnt.noId++;
+      if (!isNum(created)) cnt.badCreated++;
+      var sourceOK = !source || (source.toLowerCase() in srcSet);
+      if (!sourceOK) cnt.nonMeta++;
+      var inRange = isNum(created) && dayOf(created) >= effFrom && dayOf(created) <= effTo;
+      if (isNum(created) && !inRange) cnt.outRange++;
+      var counted = (!S.optDedupe || !id || first) && (!S.optSource || sourceOK) && (!S.optDates || inRange);
+      if (status && !(status in statusSeen)){ statusSeen[status] = 0; statusFirst.push(status); }
+      var brand = camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign");
+      var key2 = camp2 ? levelKey(camp2, adset2, ad2, metaLevel)
+                       : "~nocamp|" + brand.toLowerCase() + "|" + (source || "(blank source)").toLowerCase();
+      var matched = !!(camp2 && metaAds[key2]);
+      if (!counted) continue;
+      if (status) statusSeen[status]++;
+      var cls = status ? classifyStatus(status, S) : {ql: false};
+      var tat = null, sla;
+      if (!isNum(created)) sla = "Invalid timestamp";
+      else if (fc === null) sla = "Pending";
+      else if (!isNum(fc) || fc < created) sla = "Invalid timestamp";
+      else { tat = Math.round((fc - created) / 6000) / 10; sla = tat <= S.slaMin ? "Within SLA" : "Delayed"; }
+      var L = {id: id, created: isNum(created) ? created : null, brand: brand, campaign: camp2, adset: adset2, ad: ad2, status: status, owner: owner,
+               fc: isNum(fc) ? fc : null, tat: tat, sla: sla, isQL: !!cls.ql, shown: shownBrand(brand), source: source};
+      leads.push(L);
+      if (!camp2){ cnt.noCampCounted++; noCampByBrand[brand] = (noCampByBrand[brand] || 0) + 1; }
+      var target;
+      if (matched) target = metaAds[key2];
+      else {
+        if (camp2){ cnt.unmatchedCounted++; unmatched.push({id: id, created: L.created, brand: brand, campaign: camp2, adset: adset2, ad: ad2, reason: "Ad not found in the Meta export"}); }
+        target = crmOnly[key2];
+        if (!target){ target = crmOnly[key2] = newAcc({key: key2, src: "C", nocamp: !camp2, brand: brand, spend: null, ui: null,
+            campaign: camp2 || ("(No campaign) — " + (source || "blank source")), adset: metaLevel >= 2 ? adset2 : "", ad: metaLevel >= 3 ? ad2 : ""}); crmOnlyOrder.push(key2); }
+      }
+      addLead(target, L);
+    }
+  }
+  /* ---------- ads, campaigns, ad sets ---------- */
+  var all = metaOrder.map(function(k){ return metaAds[k]; }).filter(function(a){
+      if (a.partial){ a.spend = null; a.ui = null; return true; }
+      return !range || a.rowsIn > 0 || a.crm > 0; }).concat(crmOnlyOrder.map(function(k){ return crmOnly[k]; }));
+  all.forEach(function(a, i){ a.order = i; a.bidx = bidx(a.brand); a.shown = shownBrand(a.brand); derive(a); });
+  var cmpRows = function(a, b){ return (a.bidx - b.bidx) || ((isNum(b.spend) ? Math.round(b.spend) : 0) - (isNum(a.spend) ? Math.round(a.spend) : 0)) || (a.order - b.order); };
+  var shown = all.filter(function(a){ return a.shown; });
+  function group(level){
+    var m = {}, order = [];
+    shown.forEach(function(a){
+      var key = a.brand.toLowerCase() + "|" + a.campaign.toLowerCase() + (level === "adset" ? "|" + a.adset.toLowerCase() : "");
+      var gr = m[key];
+      if (!gr){ gr = m[key] = newAcc({key: key, brand: a.brand, bidx: a.bidx, campaign: a.campaign, adset: level === "adset" ? a.adset : "",
+              spend: 0, ui: 0, metaAds: 0, nAds: 0, adsets: {}, crmOnly: 0, nocamp: !!a.nocamp}); order.push(key); }
+      gr.nAds++; gr.adsets[a.adset.toLowerCase()] = 1;
+      if (a.src === "M"){ gr.metaAds++; if (a.partial) gr.partial = true; else { gr.spend += a.spend; gr.ui += a.ui; } } else gr.crmOnly += a.crm;
+      gr.crm += a.crm; gr.ql += a.ql; gr.ts += a.ts; gr.called += a.called; gr.win += a.win; gr.elig += a.elig; gr.pend += a.pend;
+    });
+    return order.map(function(k, i){ var gr = m[k]; gr.order = i; gr.nAdsets = Object.keys(gr.adsets).length; delete gr.adsets;
+      if (!gr.metaAds || gr.partial){ gr.spend = null; gr.ui = null; } return derive(gr); }).sort(cmpRows);
+  }
+  var ads = shown.slice().sort(cmpRows);
+  var camps = group("campaign"), adsets = group("adset");
+  /* ---------- brand summary ---------- */
+  var brandList = S.brands.slice(); if (S.showOther){ brandList.push("Unmapped"); brandList.push("No campaign"); }
+  var brandRows = brandList.map(function(b){
+    var o = newAcc({brand: b, spend: 0, ui: 0, nAds: 0});
+    shown.forEach(function(a){ if (a.brand !== b) return; o.nAds++; if (a.partial) o.partial = true; if (isNum(a.spend)) o.spend += a.spend; if (isNum(a.ui)) o.ui += a.ui;
+      o.crm += a.crm; o.ql += a.ql; o.ts += a.ts; o.called += a.called; o.win += a.win; o.elig += a.elig; o.pend += a.pend; });
+    o.noCamp = noCampByBrand[b] || 0; if (o.partial){ o.spend = null; o.ui = null; } derive(o); return o;
+  });
+  /* ---------- checks ---------- */
+  var sumShownCrm = 0, sumHiddenCrm = 0, sumShownUi = 0, sumHiddenUi = 0, unmappedAds = 0;
+  all.forEach(function(a){ if (a.shown){ sumShownCrm += a.crm; if (isNum(a.ui)) sumShownUi += a.ui; } else { sumHiddenCrm += a.crm; if (isNum(a.ui)) sumHiddenUi += a.ui; }
+    if (a.brand === "Unmapped") unmappedAds++; });
+  var pendingShown = 0; leads.forEach(function(L){ if (L.shown && L.sla === "Pending") pendingShown++; });
+  var rulesOff = !S.optSource && !S.optDates && !S.optDedupe;
+  var checks = [
+    {k: "pasted", label: "CRM rows pasted (excluding header)", n: cnt.pasted, kind: "info"},
+    {k: "inReport", label: "Leads in CRM in this report (listed brands)", n: sumShownCrm, kind: rulesOff && sumShownCrm + sumHiddenCrm + cnt.outsideSel !== cnt.pasted ? "bad" : "ok",
+     detail: rulesOff ? "In report + left out" + (range ? " + outside the selected dates" : "") + " should equal rows pasted: " + sumShownCrm + " + " + sumHiddenCrm + (range ? " + " + cnt.outsideSel : "") + " = " + (sumShownCrm + sumHiddenCrm + cnt.outsideSel) : "Counting rules are on, so some rows are filtered."},
+    {k: "outsideSel", label: "CRM rows outside the selected dates (or with no readable date)", n: cnt.outsideSel, kind: "info"},
+    {k: "partial", label: "Meta rows not split by day for the selected dates", n: partialRows, kind: partialRows ? "warn" : "ok",
+     detail: partialRows ? "Their spend and Leads in UI show as N/A. Export from Meta with Breakdown › By time › Day to view any date range." : ""},
+    {k: "leftOutCrm", label: "CRM leads from other / unlisted brands (left out)", n: sumHiddenCrm, kind: sumHiddenCrm ? "warn" : "ok"},
+    {k: "metaCols", label: "Meta columns used (found by name)", n: ["", "Campaign", "Ad set", "Ad"][metaLevel] + " level", kind: missing.length ? "bad" : "info",
+     detail: [["Campaign", "campaign"], ["Ad set", "adset"], ["Ad", "ad"], ["Spend", "spend"], ["Leads in UI", "lead"], ["Date from", "start"], ["Date to", "end"]]
+       .map(function(x){ return x[0] + " = " + (usedCols[x[1]] ? "“" + usedCols[x[1]] + "”" : "not in export"); }).join(" · ") + (metaLevel < 3 ? ". No ad-level columns, so TeleCRM leads are matched at " + ["", "campaign", "ad set"][metaLevel] + " level." : "")},
+    {k: "metaSum", label: "Meta " + (resultsCol || "Results") + " summed from export", n: metaResults, kind: "info"},
+    {k: "nonLead", label: "Meta rows whose result is not a lead (Result indicator)", n: nonLeadRows, kind: nonLeadRows ? "warn" : "ok", detail: "These rows count conversions other than leads; check the export's Results column."},
+    {k: "uiReport", label: "Leads in UI in this report (listed brands)", n: sumShownUi, kind: Math.abs(sumShownUi + sumHiddenUi - metaResults) > 0.001 ? "bad" : "ok"},
+    {k: "leftOutUi", label: "Meta results from other / unlisted brands (left out)", n: sumHiddenUi, kind: sumHiddenUi ? "warn" : "ok"},
+    {k: "unmatched", label: "CRM leads with a campaign not in the Meta export", n: cnt.unmatchedCounted, kind: cnt.unmatchedCounted ? "warn" : "ok", detail: "Listed below. Usually another ad account, dates outside the export, or a renamed ad."},
+    {k: "nocamp", label: "CRM leads with no Facebook campaign (Website, WhatsApp…)", n: cnt.noCampCounted, kind: cnt.noCampCounted ? "warn" : "ok", detail: "Shown as “(No campaign) — source” rows under their CRM brand."},
+    {k: "nonMeta", label: "CRM rows from non-Meta sources", n: cnt.nonMeta, kind: cnt.nonMeta ? "warn" : "ok", detail: S.optSource ? "Excluded (counting rule on)." : "Counted (counting rule off)."},
+    {k: "outRange", label: "CRM rows created outside the report dates", n: cnt.outRange, kind: cnt.outRange ? "warn" : "ok", detail: S.optDates ? "Excluded (counting rule on)." : "Counted (counting rule off)."},
+    {k: "dup", label: "CRM rows with a duplicate Lead id (extra copies)", n: cnt.dupExtra, kind: cnt.dupExtra ? "warn" : "ok", detail: S.optDedupe ? "Extra copies excluded (counting rule on)." : "Counted (counting rule off)."},
+    {k: "bad", label: "CRM rows without Lead id or with an unreadable Created On", n: cnt.noId + cnt.badCreated, kind: cnt.noId + cnt.badCreated ? "warn" : "ok"},
+    {k: "metaDup", label: "Meta rows that look pasted twice (same ad and date)", n: dupRows, kind: dupRows ? "warn" : "ok"},
+    {k: "unmapped", label: "Ads whose campaign matches none of the brand keywords", n: unmappedAds, kind: unmappedAds ? "warn" : "ok", detail: "Add a keyword in Settings › Brand keywords."},
+    {k: "pending", label: "Leads not called yet (listed brands)", n: pendingShown, kind: pendingShown ? "warn" : "ok"},
+    {k: "levels", label: "Campaigns · ad sets · ads in the report", n: camps.length + " · " + adsets.length + " · " + ads.length, kind: "info"},
+    {k: "missing", label: "Required columns not found", n: missing.length, kind: missing.length ? "bad" : "ok", detail: missing.join(", ")}
+  ];
+  var statuses = statusFirst.map(function(s){ var c2 = classifyStatus(s, S); return {status: s, count: statusSeen[s], ql: c2.ql, reason: c2.reason, override: S.qlOverride[s.toLowerCase()] || ""}; });
+  var needsCall = [], lite = [];
+  leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla]);
+    if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, sla: L.sla, status: L.status}); });
+  var dayList = Object.keys(dataDays).map(Number).sort(function(a, b){ return a - b; });
+  return {range: range || null, avail: {min: dayList.length ? dayList[0] : null, max: dayList.length ? dayList[dayList.length - 1] : null, days: dayList},
+          partialRows: partialRows, metaRowsIn: metaRowsIn,
+          period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
+          resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
+          checks: checks, statuses: statuses, needsCall: needsCall, lite: lite, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
+          slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform};
+}
+// ENGINE END
+
+/* ================= sample data (fictional, clearly labelled) ================= */
+function makeSample(){
+  var seed = 20261015; function rnd(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+  var pick = function(a){ return a[Math.floor(rnd() * a.length)]; };
+  var plan = [
+    ["AAC | Leads | Unit Franchise | India | Oct26 | V1", [["AAC | Broad | Tier1 + Growth | Oct26", ["AAC | Static | Own A Cafe | V1", "AAC | Reel | Founder Story | V2"]], ["AAC | Investors | South | Oct26", ["AAC | Static | Start Your Cafe | V1"]]]],
+    ["ACER | Master Distributor | India | Leads | Oct26", [["ACER | Dealers | KA-TN-KL", ["ACER | Reel | EV Network | V1", "ACER | Static | Margins | V2"]]]],
+    ["Carlton | Leads | Franchise | Oct26", [["Carlton | Broad | India", ["Carlton | Video | Store Walkthrough | V1"]]]],
+    ["NATUF | Leads | Cafe Franchise | Oct26", [["NATUF | Investors | Metro", ["NATUF | Static | Menu | V2", "NATUF | Reel | Kitchen | V1"]]]],
+    ["Tarzan_Pods_Oct26", [["Tarzan_Pods_Oct26_ad set1", ["Tarzan_Pods_Hindi_Ad1", "Tarzan_Pods_English_Ad2"]]]],
+    ["Shayreen by NATUF | Leads | Oct26", [["Shayreen | Broad | Tier1", ["Shayreen | Reel | Launch | V1"]]]],
+    ["Bonumcha | Leads | Kiosk | Oct26", [["Bonumcha | Students + Parents", ["Bonumcha | Static | Kiosk Model | V1"]]]],
+    ["Chhota Bheem | Franchise | Leads | Oct26", [["CB | Parents | Tier2", ["CB | Static | Kids Zone | V1", "CB | Reel | Play Area | V2"]]]],
+    ["EBG Rental | Leads | Fleet | Oct26", [["Rental | Gig Riders | Hyd", ["Rental | Static | Weekly Plan | V1"]]]],
+    ["Other Brand | Leads | Test | Oct26", [["Other | Broad", ["Other | Static | V1"]]]]
+  ];
+  var meta = [["Reporting starts", "Reporting ends", "Campaign name", "Ad set name", "Ad name", "Amount spent (INR)", "Results", "Result indicator"]];
+  var owners = ["Sales Rep A", "Sales Rep B", "Sales Rep C", "Sales Rep D", "Sales Rep E", "-"];
+  var statuses = ["New Lead", "Attempt 1", "Attempt 2", "Connected", "Details Shared", "Interested", "Site Visit Scheduled", "Nurture", "Not Interested", "Lost", "Junk"];
+  var crm = [["Status", "Assignee name", "Lead Source", "Facebook Ad Set Name", "Facebook Ad", "Facebook Campaign Name", "Brand", "Lead Id", "Created On", "First Attempted Call", "Lead id"]];
+  var n = 0;
+  function pad(x){ return (x < 10 ? "0" : "") + x; }
+  function stamp(d, mins){ var t = Date.UTC(2026, 9, d, 9, 0) + mins * 60000, x = new Date(t);
+    return pad(x.getUTCDate()) + "/" + pad(x.getUTCMonth() + 1) + "/" + x.getUTCFullYear() + " " + pad(x.getUTCHours()) + ":" + pad(x.getUTCMinutes()) + ":00"; }
+  function lead(camp, adset, ad, src, brand, day){
+    n++; var d = day || 1 + Math.floor(rnd() * 14), m0 = Math.floor(rnd() * 720), r = rnd();
+    var fc = r < 0.16 ? "-" : stamp(d, m0 + (r < 0.6 ? 2 + Math.floor(rnd() * 28) : 31 + Math.floor(rnd() * 150)));
+    crm.push([pick(statuses), pick(owners), src, adset || "_", ad || "_", camp || "_", brand, "_", stamp(d, m0), fc, "S" + (100000 + n).toString(36).toUpperCase() + n]);
+  }
+  plan.forEach(function(p){
+    p[1].forEach(function(as){ as[1].forEach(function(ad){
+      var cpl = 380 + rnd() * 700;
+      for (var d = 1; d <= 14; d++){
+        var res = Math.floor(rnd() * 9), spend = Math.round((res + rnd()) * cpl), day = "2026-10-" + pad(d);
+        meta.push([day, day, p[0], as[0], ad, spend.toFixed(2), String(res), "actions:onsite_conversion.lead_grouped"]);
+        var k = Math.max(0, res - (rnd() < 0.3 ? 1 : 0) + (rnd() < 0.08 ? 1 : 0));
+        for (var i = 0; i < k; i++) lead(p[0], as[0], ad, rnd() < 0.85 ? "Facebook" : "Instagram", "EBG", d);
+      }
+    }); });
+  });
+  for (var w = 0; w < 60; w++) lead(null, null, null, w % 2 ? "Website" : "Whatsapp Cloud API", pick(["Adhira & Appa Coffee", "Natuf", "Carlton"]));
+  for (var u = 0; u < 9; u++) lead("AAC | Leads | Unit Franchise | India | Sep26 | V3", "AAC | Broad | Sep", "AAC | Static | Old Creative | V1", "Facebook", "EBG");
+  return {meta: meta, crm: crm};
+}
+
+/* ================= state ================= */
+var LS_KEY = "ebg-lead-dash-settings-v1";
+var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, source: "sample", R: null, team: null,
+             tab: "overview", brand: "All", range: {preset: "max"}, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false};
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
+  var d = clone(DEFAULT_SETTINGS); if (!s) return d;
+  for (var k in d) if (k in s) d[k] = s[k];
+  d.cols.meta = Object.assign(clone(DEFAULT_SETTINGS.cols.meta), (s.cols || {}).meta || {}); d.cols.crm = Object.assign(clone(DEFAULT_SETTINGS.cols.crm), (s.cols || {}).crm || {});
+  return d; }
+function storeSettings(){ try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch (e) {} }
+
+/* ================= formatting ================= */
+var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fDay(d){ if (d === null || d === undefined) return "—"; var x = new Date(d * 86400000); return x.getUTCDate() + " " + MON[x.getUTCMonth()] + " " + x.getUTCFullYear(); }
+function fTime(t){ if (!isNum(t)) return ""; var x = new Date(t); var h = x.getUTCHours(), m = x.getUTCMinutes(); return x.getUTCDate() + " " + MON[x.getUTCMonth()] + ", " + (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m; }
+function fInt(v){ return isNum(v) ? Math.round(v).toLocaleString("en-IN") : "N/A"; }
+var CUR = "₹";
+function fINR(v){ return isNum(v) ? (v < 0 ? "-" : "") + CUR + Math.abs(Math.round(v)).toLocaleString("en-IN") : "N/A"; }
+function fPct(v){ return isNum(v) ? (v * 100).toFixed(1) + "%" : "N/A"; }
+function fMin(v){ return isNum(v) ? v.toFixed(1) + " min" : "N/A"; }
+function fShortINR(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v); if (CUR !== "₹") return fINR(v); if (a >= 1e7) return "₹" + (v / 1e7).toFixed(2) + " Cr"; if (a >= 1e5) return "₹" + (v / 1e5).toFixed(2) + " L"; return fINR(v); }
+var FMT = {int: fInt, inr: fINR, pct: fPct, min: function(v){ return isNum(v) ? v.toFixed(1) : "N/A"; }, text: function(v){ return v == null ? "" : String(v); }};
+
+/* ================= DOM helpers ================= */
+function el(tag, attrs){ var e = document.createElement(tag); if (attrs) for (var k in attrs){ var v = attrs[k];
+    if (k === "text") e.textContent = v; else if (k === "cls") e.className = v; else if (k.indexOf("on") === 0) e.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v === true ? "" : v); }
+  for (var i = 2; i < arguments.length; i++){ var c = arguments[i]; if (c === null || c === undefined || c === false) continue;
+    if (Array.isArray(c)) c.forEach(function(x){ if (x) e.appendChild(typeof x === "string" ? document.createTextNode(x) : x); });
+    else e.appendChild(typeof c === "string" ? document.createTextNode(c) : c); }
+  return e; }
+function toast(msg){ var t = document.getElementById("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(function(){ t.hidden = true; }, 3200); }
+
+/* ================= derived views ================= */
+function brandOK(b){ return state.brand === "All" || b === state.brand; }
+function sumRows(rows){
+  var o = newAcc({spend: 0, ui: 0, nAds: 0, nAdsets: 0, metaAds: 0}); var anyMeta = false;
+  var partial = false;
+  rows.forEach(function(r){ if (r.partial) partial = true; if (isNum(r.spend)){ o.spend += r.spend; anyMeta = true; } if (isNum(r.ui)) o.ui += r.ui;
+    o.crm += r.crm; o.ql += r.ql; o.ts += r.ts; o.called += r.called; o.win += r.win; o.elig += r.elig; o.pend += r.pend;
+    o.nAds += r.nAds || 0; o.nAdsets += r.nAdsets || 0; });
+  if (partial || (!anyMeta && rows.length && rows.every(function(r){ return !isNum(r.ui); }))){ o.spend = null; o.ui = null; o.partial = partial; }
+  return derive(o);
+}
+function remarks(r, level){
+  var R = state.R, out = [];
+  if (r.partial) out.push("Meta export isn't split by day, so spend and Leads in UI aren't available for these dates.");
+  if (level === "ad"){ if (r.src === "C") out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Ad not in Meta export (other ad account, outside export dates, or renamed)."); }
+  else if (!r.metaAds) out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Not in Meta export (other ad account, outside export dates, or renamed).");
+  else if (r.crmOnly > 0) out.push(r.crmOnly + " CRM lead(s) from ads not in the Meta export.");
+  if (r.brand === "Unmapped") out.push("Add a brand keyword in Settings.");
+  if (isNum(r.diff)){ if (r.diff > 0) out.push(r.diff + " lead(s) in Meta but not in CRM."); else if (r.diff < 0) out.push((-r.diff) + " more lead(s) in CRM than Meta shows."); }
+  if (isNum(r.spend) && r.spend > 0 && r.ui === 0) out.push("Spend with zero leads.");
+  if (r.crm > 0 && r.ql === 0) out.push("No QLs yet.");
+  if (r.pend > 0) out.push(r.pend + " lead(s) not called yet.");
+  if (isNum(r.tat) && r.tat > R.slaMin) out.push("Slow first call (avg " + Math.round(r.tat) + " min).");
+  return out.join(" ");
+}
+function metricCols(level){
+  var R = state.R;
+  return [
+    {k: "crm", label: "Leads in CRM", t: "int"},
+    {k: "ui", label: "Leads in UI", t: "int"},
+    {k: "diff", label: "Lead difference (UI − CRM)", t: "int"},
+    {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
+    {k: "platform", label: "Ad platform", t: "text", get: function(r){ return r.nocamp ? "—" : R.platform; }, nosort: true},
+    {k: "cpl", label: "CPL", t: "inr"},
+    {k: "ql", label: "Qualified leads", t: "int"},
+    {k: "cpql", label: "CPQL", t: "inr"},
+    {k: "spend", label: "Amount spent", t: "inr"},
+    {k: "tat", label: "Avg first call TAT (min)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }},
+    {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }},
+    {k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}
+  ];
+}
+
+/* ================= generic table ================= */
+function table(id, cols, rows, opts){
+  opts = opts || {};
+  var srt = state.sort[id], data = rows.slice();
+  if (srt){ var col = cols.filter(function(c){ return c.k === srt.k; })[0];
+    if (col){ var gv = col.get || function(r){ return r[col.k]; };
+      data.sort(function(a, b){ var x = gv(a), y = gv(b), nx = isNum(x), ny = isNum(y);
+        if (nx && ny) return srt.dir * (x - y); if (nx) return -1; if (ny) return 1; return srt.dir * String(x || "").localeCompare(String(y || "")); }); } }
+  var lim = state.limit[id] || 300, shown = data.slice(0, lim);
+  var thead = el("thead", null, el("tr", null, cols.map(function(c){
+    var isNumCol = c.t !== "text", s = srt && srt.k === c.k ? (srt.dir > 0 ? "↑" : "↓") : "";
+    return el("th", {cls: isNumCol ? "r" : "", scope: "col", "aria-sort": srt && srt.k === c.k ? (srt.dir > 0 ? "ascending" : "descending") : null,
+      onclick: c.nosort ? null : function(){ var cur = state.sort[id];
+        if (!cur || cur.k !== c.k) state.sort[id] = {k: c.k, dir: c.t === "text" ? 1 : -1}; else if (cur.dir === (c.t === "text" ? 1 : -1)) cur.dir = -cur.dir; else delete state.sort[id];
+        render(); }}, c.label, s ? el("span", {cls: "arr", text: s}) : null); })));
+  var tb = el("tbody");
+  function rowEl(r, isTotal, prev){
+    var tr = el("tr", {cls: isTotal ? "total" : (opts.brandRule && prev && prev.brand !== r.brand && !srt ? "brand-start" : "")});
+    cols.forEach(function(c){
+      var v = c.get ? c.get(r, isTotal) : r[c.k], txt = isTotal && c.totalText !== undefined ? c.totalText : (FMT[c.t] || FMT.text)(v);
+      var fl = !isTotal && c.flag ? c.flag(r) : null;
+      var cls = [c.t !== "text" ? "r num nowrap" : "", c.cls || "", (v === null || v === undefined || txt === "N/A") && c.t !== "text" ? "na" : "", fl ? "flag-" + fl : ""].join(" ").trim();
+      var td = el("td", {cls: cls}); if (c.render && !isTotal) td.appendChild(c.render(r)); else td.textContent = txt; tr.appendChild(td); });
+    return tr; }
+  if (opts.total) tb.appendChild(rowEl(opts.total, true));
+  shown.forEach(function(r, i){ tb.appendChild(rowEl(r, false, i ? shown[i - 1] : null)); });
+  var wrap = el("div", null, el("div", {cls: "tbl-wrap"}, el("table", null, thead, tb)));
+  if (!data.length) wrap.appendChild(el("div", {cls: "empty", text: opts.empty || "Nothing to show for this filter."}));
+  if (data.length > lim) wrap.appendChild(el("div", {cls: "more"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.limit[id] = lim + 500; render(); }},
+    "Show " + Math.min(500, data.length - lim) + " more of " + (data.length - lim).toLocaleString("en-IN"))));
+  return wrap;
+}
+function searchBox(id, ph){
+  var inp = el("input", {cls: "search", type: "search", id: "q-" + id, placeholder: ph, "aria-label": ph, value: state.q[id] || ""});
+  inp.addEventListener("input", function(){ state.q[id] = inp.value; clearTimeout(searchBox._t); searchBox._t = setTimeout(function(){ render(); var x = document.getElementById("q-" + id); if (x){ x.focus(); x.setSelectionRange(x.value.length, x.value.length); } }, 180); });
+  return inp; }
+function matchQ(id, r, fields){ var q = (state.q[id] || "").trim().toLowerCase(); if (!q) return true; return fields.some(function(f){ return String(r[f] || "").toLowerCase().indexOf(q) >= 0; }); }
+
+/* ================= charts (HTML bars, one scale per chart) ================= */
+function barChart(title, items, series, opts){
+  opts = opts || {};
+  var max = 0; items.forEach(function(it){ series.forEach(function(s){ var v = it[s.k]; if (isNum(v) && v > max) max = v; }); });
+  if (opts.max) max = opts.max;
+  var box = el("div", {cls: "chart"}, el("h3", {text: title}),
+    series.length > 1 || opts.legend ? el("div", {cls: "legend"}, series.map(function(s){ return el("span", null, el("i", {cls: "bar " + s.cls}), s.label); }).concat(opts.legendExtra || [])) : null);
+  if (!items.length){ box.appendChild(el("div", {cls: "empty", text: "No data for this filter."})); return box; }
+  var bars = el("div", {cls: "bars"});
+  items.forEach(function(it){
+    var stack = el("div", {cls: "bar-stack"});
+    series.forEach(function(s){ var v = it[s.k], w = isNum(v) && max > 0 ? Math.max(0.4, v / max * 100) : 0;
+      var track = el("div", {cls: "track"}, el("div", {cls: "fill bar " + s.cls, style: "width:" + w + "%"}));
+      if (opts.mark !== undefined) track.appendChild(el("div", {cls: "mark", style: "left:" + (opts.mark / max * 100) + "%", title: "Target"}));
+      stack.appendChild(el("div", {cls: "bar-line"}, track, el("span", {cls: "bar-val", text: s.fmt(v)}))); });
+    bars.appendChild(el("div", {cls: "bar-row"}, el("div", {cls: "lab", title: it.label, text: it.label}), stack)); });
+  box.appendChild(bars); return box;
+}
+
+/* ================= views ================= */
+function kpi(label, value, sub, tone){ return el("div", {cls: "kpi " + (tone || "")}, el("div", {cls: "eyebrow", text: label}), el("div", {cls: "v", text: value}), sub ? el("div", {cls: "s", text: sub}) : null); }
+function viewOverview(){
+  var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows);
+  var sec = el("section", {cls: "panel"});
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (state.brand === "All" ? "All listed brands" : state.brand) + " · " + rangeText(true)}),
+    el("span", {cls: "note", text: "Blended figures are totals ÷ totals. Leads in UI = sum of Meta " + (R.resultsCol || "Results") + "; Leads in CRM = TeleCRM rows."})));
+  sec.appendChild(el("div", {cls: "kpis"},
+    kpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows"),
+    kpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results")),
+    kpi("Leads in CRM", fInt(T.crm), "TeleCRM"),
+    kpi("Lead difference", isNum(T.pct) ? fPct(T.pct) : "N/A", isNum(T.diff) ? (T.diff > 0 ? T.diff + " missing in CRM" : (-T.diff) + " extra in CRM") : "", isNum(T.pct) && Math.abs(T.pct) > R.diffAlert ? "bad" : ""),
+    kpi("CPL", fINR(T.cpl), "Spend ÷ UI leads"),
+    kpi("Qualified leads", fInt(T.ql), isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""),
+    kpi("CPQL", fINR(T.cpql), "Spend ÷ QLs"),
+    kpi("Avg first call", fMin(T.tat), T.called + " leads called", isNum(T.tat) && T.tat > R.slaMin ? "bad" : ""),
+    kpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : ""),
+    kpi("Calls pending", fInt(T.pend), "not called yet", T.pend ? "warn" : "")));
+  /* brand summary */
+  var br = R.brandRows.filter(function(b){ return brandOK(b.brand); });
+  var bcols = [{k: "brand", label: "Brand", t: "text", cls: "name"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
+    {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
+    {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"},
+    {k: "noCamp", label: "CRM leads with no campaign", t: "int"},
+    {k: "tat", label: "Avg first call TAT (min)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }},
+    {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }}];
+  var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
+  if (!br.some(function(b){ return isNum(b.ui) && b.ui > 0; })) { /* keep zeros */ }
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Brand summary"})));
+  sec.appendChild(table("brands", bcols, br, {total: state.brand === "All" ? bt : null}));
+  /* charts: by brand (All) or by campaign (one brand) */
+  var items;
+  if (state.brand === "All") items = R.brandRows.filter(function(b){ return b.crm || b.ui; }).map(function(b){ return Object.assign({label: b.brand}, b); });
+  else items = R.camps.filter(function(c){ return c.brand === state.brand; }).slice(0, 12).map(function(c){ return Object.assign({label: c.campaign}, c); });
+  var by = state.brand === "All" ? "by brand" : "by campaign";
+  sec.appendChild(el("div", {cls: "charts"},
+    barChart("Leads in UI vs CRM " + by, items, [{k: "ui", label: "Leads in UI (Meta)", cls: "s1", fmt: fInt}, {k: "crm", label: "Leads in CRM", cls: "s2", fmt: fInt}]),
+    barChart("CPL and CPQL " + by, items, [{k: "cpl", label: "CPL", cls: "s1", fmt: fINR}, {k: "cpql", label: "CPQL", cls: "s3", fmt: fINR}]),
+    barChart("First-call SLA " + by, items, [{k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", cls: "s3", fmt: fPct}], {max: 1, mark: R.slaTarget, legend: true,
+      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "Target " + Math.round(R.slaTarget * 100) + "%")]}),
+    barChart("Avg first call TAT " + by, items, [{k: "tat", label: "Minutes from lead created to first call", cls: "s1", fmt: fMin}], {legend: true, mark: R.slaMin,
+      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + R.slaMin + " min")]})));
+  return sec;
+}
+function viewLevel(level){
+  var R = state.R, id = level, src = level === "campaign" ? R.camps : level === "adset" ? R.adsets : R.ads;
+  var nameF = level === "campaign" ? ["campaign"] : level === "adset" ? ["campaign", "adset"] : ["campaign", "adset", "ad"];
+  var rows = src.filter(function(r){ return brandOK(r.brand) && matchQ(id, r, nameF); });
+  var lead = [{k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign name", t: "text", cls: "name"}];
+  if (level === "campaign") lead.push({k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"});
+  if (level === "adset") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "nAds", label: "Ads", t: "int"});
+  if (level === "ad") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "ad", label: "Ad name", t: "text", cls: "name"});
+  var cols = lead.concat(metricCols(level === "ad" ? "ad" : "agg"));
+  var T = sumRows(rows); T.brand = "TOTAL (" + rows.length + " rows)"; T.campaign = ""; T.adset = ""; T.ad = "";
+  var title = {campaign: "Campaign level", adset: "Ad set level", ad: "Ad level"}[level];
+  var sec = el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: title}), el("span", {cls: "note", text: "Sorted by brand, then spend. Click a column to sort. The total row follows the brand filter and search."})),
+    el("div", {cls: "tbl-tools"}, searchBox(id, "Search " + (level === "ad" ? "campaign, ad set or ad" : level === "adset" ? "campaign or ad set" : "campaign")),
+      el("span", {cls: "small", text: rows.length.toLocaleString("en-IN") + " " + (level === "ad" ? "ads" : level === "adset" ? "ad sets" : "campaigns")})),
+    table(id, cols, rows, {total: T, brandRule: true}));
+  return sec;
+}
+function viewTAT(){
+  var R = state.R, lite = R.lite.filter(function(x){ return brandOK(x[0]); });
+  var by = {}, order = [];
+  lite.forEach(function(x){ var o = by[x[1]]; if (!o){ o = by[x[1]] = {owner: x[1], leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; order.push(x[1]); }
+    o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; } if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending") o.pend++; else o.inv++; });
+  var owners = order.map(function(k){ var o = by[k]; o.tat = o.called ? o.ts / o.called : null; o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; })
+    .sort(function(a, b){ return b.leads - a.leads; });
+  var T = {owner: "TOTAL", leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; owners.forEach(function(o){ ["leads", "called", "ts", "win", "del", "pend", "inv"].forEach(function(k){ T[k] += o[k]; }); });
+  T.tat = T.called ? T.ts / T.called : null; T.sla = T.win + T.del + T.pend ? T.win / (T.win + T.del + T.pend) : null;
+  var ocols = [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name"}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Called", t: "int"},
+    {k: "tat", label: "Avg first call TAT (min)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "win", label: "Within SLA", t: "int"}, {k: "del", label: "Delayed", t: "int"}, {k: "pend", label: "Pending", t: "int", flag: function(r){ return r.pend ? "warn" : null; }},
+    {k: "inv", label: "Invalid timestamp", t: "int"}, {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}];
+  var list = R.needsCall.filter(function(x){ return brandOK(x.brand) && (state.callFilter === "All" || x.sla === state.callFilter) && matchQ("calls", x, ["id", "owner", "campaign", "ad", "status"]); });
+  var counts = {All: 0, Pending: 0, Delayed: 0, "Invalid timestamp": 0}; R.needsCall.forEach(function(x){ if (!brandOK(x.brand)) return; counts.All++; counts[x.sla]++; });
+  var lcols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap"}, {k: "created", label: "Created", t: "text", cls: "nowrap", get: function(r){ return fTime(r.created); }},
+    {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "ad", label: "Ad", t: "text", cls: "name"},
+    {k: "owner", label: "Owner", t: "text", cls: "nowrap"}, {k: "fc", label: "First call", t: "text", cls: "nowrap", get: function(r){ return r.fc ? fTime(r.fc) : "—"; }},
+    {k: "tat", label: "TAT (min)", t: "min"},
+    {k: "sla", label: "SLA status", t: "text", render: function(r){ return el("span", {cls: "pill " + (r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : "mut"), text: r.sla}); }},
+    {k: "status", label: "Lead status", t: "text", cls: "nowrap"}];
+  var filt = el("div", {cls: "chips"}, ["All", "Pending", "Delayed", "Invalid timestamp"].map(function(f){
+    return el("button", {cls: "chip", type: "button", "aria-pressed": state.callFilter === f ? "true" : "false", onclick: function(){ state.callFilter = f; state.limit.calls = 300; render(); }},
+      f === "All" ? "All needing a call" : f, el("span", {cls: "c", text: (counts[f] || 0).toLocaleString("en-IN")})); }));
+  return el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "First-call TAT by owner"}), el("span", {cls: "note", text: "TAT = TeleCRM Created On → First Attempted Call. SLA % = within ÷ (within + delayed + pending), so leads not yet called count against the SLA."})),
+    table("owners", ocols, owners, {total: T}),
+    el("div", {cls: "sec-head"}, el("h2", {text: "Leads needing a call"}), el("span", {cls: "note", text: "Pending, delayed or with unreadable call times." + (R.needsCallCapped ? " Saved team reports keep the first " + R.needsCall.length.toLocaleString("en-IN") + "." : "")})),
+    el("div", {cls: "tbl-tools"}, filt, searchBox("calls", "Search lead id, owner, campaign or status")),
+    table("calls", lcols, list, {empty: "No leads need a call for this filter."}));
+}
+function viewChecks(){
+  var R = state.R, box = el("div", {cls: "checks"});
+  R.checks.forEach(function(c){ var tone = c.kind === "bad" ? "bad" : c.kind === "warn" ? "warn" : c.kind === "ok" ? "good" : "mut";
+    var word = c.kind === "bad" ? "Fix" : c.kind === "warn" ? "Review" : c.kind === "ok" ? "OK" : "Info";
+    box.appendChild(el("div", {cls: "check"}, el("div", null, el("div", {text: c.label}), c.detail ? el("div", {cls: "d", text: c.detail}) : null),
+      el("div", {cls: "n", text: typeof c.n === "number" ? c.n.toLocaleString("en-IN") : String(c.n)}), el("span", {cls: "st pill " + tone, text: word}))); });
+  var ucols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap"}, {k: "created", label: "Created", t: "text", cls: "nowrap", get: function(r){ return fTime(r.created); }},
+    {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "adset", label: "Ad set", t: "text", cls: "name"},
+    {k: "ad", label: "Ad", t: "text", cls: "name"}, {k: "reason", label: "Reason", t: "text"}];
+  var un = R.unmatched.filter(function(u){ return brandOK(u.brand) && matchQ("unm", u, ["id", "campaign", "adset", "ad"]); });
+  return el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "Data checks"}), el("span", {cls: "note", text: "Run on every load. With counting rules off, leads in the report plus leads left out must equal the CRM rows pasted."})),
+    box,
+    el("div", {cls: "sec-head"}, el("h2", {text: "CRM leads not matched to a Meta ad"}), el("span", {cls: "note", text: "Matched on Facebook Campaign + Ad Set + Ad name. These keep their own rows; nothing is guessed onto another ad."})),
+    el("div", {cls: "tbl-tools"}, searchBox("unm", "Search lead id, campaign or ad")),
+    table("unm", ucols, un, {empty: "Every CRM lead with a campaign matched a Meta ad."}));
+}
+function viewQL(){
+  var R = state.R, editable = !!state.raw;
+  var cols = [{k: "status", label: "Status in CRM", t: "text", cls: "name"}, {k: "count", label: "Leads", t: "int"},
+    {k: "ql", label: "Counts as", t: "text", get: function(r){ return r.ql ? "QL" : "Not QL"; }, render: function(r){ return el("span", {cls: "pill " + (r.ql ? "good" : "mut"), text: r.ql ? "QL" : "Not QL"}); }},
+    {k: "reason", label: "Why", t: "text"},
+    {k: "override", label: "Override", t: "text", nosort: true, render: function(r){
+      var s = el("select", {id: "ov-" + r.status.replace(/[^a-z0-9]/gi, "_"), "aria-label": "Override for " + r.status, disabled: editable ? null : true}, ["", "QL", "Not QL"].map(function(o){
+        return el("option", {value: o, selected: (r.override || "") === o ? true : null, text: o === "" ? "Automatic" : o}); }));
+      s.addEventListener("change", function(){ var k = r.status.toLowerCase(); if (s.value) state.settings.qlOverride[k] = s.value; else delete state.settings.qlOverride[k]; storeSettings(); recompute(); });
+      return s; }}];
+  return el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "Which CRM statuses count as qualified"}),
+      el("span", {cls: "note", text: "Decided by intent: rejection words are checked first (not interested, lost, junk…), then buying-intent words (details shared, interested, site visit, booked…). Early stages like New Lead or Attempt 1 are not QL. Override any status here." + (editable ? "" : " Load the exports to change overrides.")})),
+    table("ql", cols, R.statuses, {empty: "No statuses in the CRM data."}));
+}
+function viewSettings(){
+  var S = state.settings, editable = !!state.raw;
+  function numField(id, label, val, step, hint){ return el("div", {cls: "field"}, el("label", {"for": id, text: label}), el("input", {type: "number", id: id, value: val, step: step || "1", min: "0"}), hint ? el("span", {cls: "small", text: hint}) : null); }
+  function txt(id, label, val, hint){ return el("div", {cls: "field"}, el("label", {"for": id, text: label}), el("textarea", {id: id, spellcheck: "false"}, val), hint ? el("span", {cls: "small", text: hint}) : null); }
+  function tog(id, label, on){ return el("label", {cls: "toggle", "for": id}, el("input", {type: "checkbox", id: id, checked: on ? true : null}), el("span", {text: label})); }
+  var colFields = [];
+  ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ colFields.push(el("div", {cls: "field"}, el("label", {"for": "col-" + src + "-" + k, text: (src === "meta" ? "Meta · " : "TeleCRM · ") + k}),
+    el("input", {type: "text", id: "col-" + src + "-" + k, value: S.cols[src][k]}))); }); });
+  var form = el("div", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "Settings"}), el("span", {cls: "note", text: "Saved in this browser. Save for team also stores them with the report." + (editable ? "" : " Load the exports to apply changes to a saved report.")})),
+    el("div", {cls: "form"},
+      el("div", {cls: "group"}, el("h3", {text: "Targets"}),
+        numField("s-sla", "First-call SLA (minutes)", S.slaMin, "1"),
+        numField("s-slat", "SLA compliance target (%)", Math.round(S.slaTarget * 100), "1", "Below this, SLA cells turn amber."),
+        numField("s-diff", "Flag lead difference above (%)", Math.round(S.diffAlert * 100), "1"),
+        el("div", {cls: "field"}, el("label", {"for": "s-plat", text: "Ad platform label"}), el("input", {type: "text", id: "s-plat", value: S.platform}))),
+      el("div", {cls: "group"}, el("h3", {text: "Brands"}),
+        txt("s-brands", "Brands in report order (one per line)", S.brands.join("\n")),
+        tog("s-other", "Also show campaigns and leads from other brands", S.showOther)),
+      el("div", {cls: "group"}, el("h3", {text: "Brand keywords"}),
+        txt("s-kw", "keyword = Brand (first match from the top wins)", S.keywords.map(function(k){ return k[0] + " = " + k[1]; }).join("\n"), "Matched anywhere in the campaign name, ignoring case. Keep “Shayreen” above “Natuf”.")),
+      el("div", {cls: "group"}, el("h3", {text: "Counting rules (default: count every CRM row)"}),
+        tog("s-osrc", "Count only Meta-source leads (sources below)", S.optSource),
+        el("div", {cls: "field"}, el("label", {"for": "s-src", text: "Meta lead sources (comma-separated)"}), el("input", {type: "text", id: "s-src", value: S.metaSources.join(", ")})),
+        tog("s-odate", "Count only leads created within the report dates", S.optDates),
+        el("div", {cls: "field"}, el("label", {"for": "s-from", text: "Report from (blank = Meta export start)"}), el("input", {type: "date", id: "s-from", value: S.from || ""})),
+        el("div", {cls: "field"}, el("label", {"for": "s-to", text: "Report to (blank = Meta export end)"}), el("input", {type: "date", id: "s-to", value: S.to || ""})),
+        tog("s-odup", "Count a duplicated Lead id only once (first row kept)", S.optDedupe)),
+      el("div", {cls: "group"}, el("h3", {text: "Qualified-lead intent words"}),
+        txt("s-neg", "Not QL words (checked first)", S.qlNeg.join("\n")),
+        txt("s-pos", "QL words (buying intent)", S.qlPos.join("\n"))),
+      el("div", {cls: "group"}, el("h3", {text: "Export column names"}), el("span", {cls: "small", text: "Meta columns are also found automatically under Meta's usual names (Results or Leads, Amount spent in any currency, Day or Reporting starts), in any order. Use these only if your export names a column differently."}), colFields)),
+    el("div", {cls: "actions"},
+      el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
+      el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
+  return form;
+}
+function applySettings(){
+  var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };
+  var lines = function(id){ return v(id).split(/\n/).map(function(s){ return s.trim(); }).filter(Boolean); };
+  S.slaMin = Math.max(1, Number(v("s-sla")) || 30); S.slaTarget = Math.min(1, Math.max(0, (Number(v("s-slat")) || 80) / 100)); S.diffAlert = Math.max(0, (Number(v("s-diff")) || 10) / 100);
+  S.platform = v("s-plat").trim() || "Meta Ads"; S.brands = lines("s-brands"); S.showOther = c("s-other");
+  S.keywords = lines("s-kw").map(function(l){ var p = l.split("="); return [p[0].trim(), (p.slice(1).join("=") || "").trim()]; }).filter(function(k){ return k[0] && k[1]; });
+  S.optSource = c("s-osrc"); S.optDates = c("s-odate"); S.optDedupe = c("s-odup"); S.from = v("s-from"); S.to = v("s-to");
+  S.metaSources = v("s-src").split(",").map(function(s){ return s.trim(); }).filter(Boolean);
+  S.qlNeg = lines("s-neg").map(function(s){ return s.toLowerCase(); }); S.qlPos = lines("s-pos").map(function(s){ return s.toLowerCase(); });
+  ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ var x = v("col-" + src + "-" + k).trim(); if (x) S.cols[src][k] = x; }); });
+  storeSettings(); recompute(); toast(state.raw ? "Report rebuilt with the new settings" : "Settings saved");
+}
+
+/* ================= shell rendering ================= */
+function renderHeader(){
+  var R = state.R, p = R.period;
+  document.getElementById("period").textContent = "Showing " + rangeText(false) + " · Meta export " + fDay(p.metaStart) + " – " + fDay(p.metaEnd) + " · Leads in UI vs TeleCRM";
+  renderDatePicker();
+  var sl = document.getElementById("source-line"); sl.textContent = "";
+  if (state.source === "sample") sl.appendChild(el("span", {cls: "tag sample", text: "Sample data"}));
+  if (state.source === "upload") sl.appendChild(el("span", {cls: "tag upload", text: "Your upload · not saved for team"}));
+  if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team report"}));
+  var f = state.source === "team" && state.team ? state.team.files : state.files;
+  if (state.source === "sample") sl.appendChild(el("span", {text: "Fictional numbers so you can see the layout. Press Load exports to use your Meta and TeleCRM files."}));
+  else {
+    if (f && f.meta) sl.appendChild(el("span", {text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)"}));
+    if (f && f.crm) sl.appendChild(el("span", {text: "TeleCRM: " + f.crm.name + " (" + f.crm.rows.toLocaleString("en-IN") + " rows)"}));
+    if (state.source === "team" && state.team) sl.appendChild(el("span", {text: "Saved " + new Date(state.team.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}));
+  }
+  var chips = document.getElementById("brand-chips"); chips.textContent = "";
+  var tot = 0, per = {}; R.ads.forEach(function(a){ per[a.brand] = (per[a.brand] || 0) + a.crm; tot += a.crm; });
+  ["All"].concat(R.brandRows.map(function(b){ return b.brand; })).forEach(function(b){
+    chips.appendChild(el("button", {cls: "chip", type: "button", "aria-pressed": state.brand === b ? "true" : "false", onclick: function(){ state.brand = b; state.limit = {}; render(); }},
+      b === "All" ? "All brands" : b, el("span", {cls: "c", text: (b === "All" ? tot : (per[b] || 0)).toLocaleString("en-IN")}))); });
+  document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
+  document.getElementById("save-wrap").hidden = !(state.caps.db && state.canSave && state.source === "upload");
+}
+function render(){
+  if (!state.R) return;
+  CUR = state.R.currency || "₹";
+  renderHeader();
+  document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
+  var v = document.getElementById("view"), y = window.scrollY; v.textContent = "";
+  if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
+    "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
+  var map = {overview: viewOverview, campaigns: function(){ return viewLevel("campaign"); }, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); },
+             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings};
+  try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
+  window.scrollTo(0, y);
+}
+function recompute(){
+  if (state.raw){ rebuild(); }
+  render();
+}
+
+/* ================= date range ================= */
+var PRESETS = [["today", "Today"], ["yesterday", "Yesterday"], ["today_yesterday", "Today and yesterday"], ["last7", "Last 7 days"], ["last14", "Last 14 days"],
+  ["last28", "Last 28 days"], ["last30", "Last 30 days"], ["this_week", "This week"], ["last_week", "Last week"], ["this_month", "This month"], ["last_month", "Last month"], ["max", "Maximum"]];
+var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function todayDay(){ var d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); }
+function ymd(day){ var x = new Date(day * 86400000); return {y: x.getUTCFullYear(), m: x.getUTCMonth(), d: x.getUTCDate(), w: x.getUTCDay()}; }
+function dayFrom(y, m, d){ return Math.floor(Date.UTC(y, m, d) / 86400000); }
+function presetRange(k){
+  var t = todayDay(), w = ymd(t).w, a = ymd(t);
+  switch (k){
+    case "today": return {from: t, to: t};
+    case "yesterday": return {from: t - 1, to: t - 1};
+    case "today_yesterday": return {from: t - 1, to: t};
+    case "last7": return {from: t - 7, to: t - 1};
+    case "last14": return {from: t - 14, to: t - 1};
+    case "last28": return {from: t - 28, to: t - 1};
+    case "last30": return {from: t - 30, to: t - 1};
+    case "this_week": return {from: t - w, to: t};
+    case "last_week": return {from: t - w - 7, to: t - w - 1};
+    case "this_month": return {from: dayFrom(a.y, a.m, 1), to: t};
+    case "last_month": return {from: dayFrom(a.y, a.m - 1, 1), to: dayFrom(a.y, a.m, 1) - 1};
+    default: return null;
+  }
+}
+function rangeOf(sel){ return sel.preset === "custom" ? {from: Math.min(sel.from, sel.to), to: Math.max(sel.from, sel.to)} : presetRange(sel.preset); }
+function spanText(r){ if (!r) return ""; var a = ymd(r.from), b = ymd(r.to);
+  if (r.from === r.to) return a.d + " " + MON[a.m] + " " + a.y;
+  return a.d + (a.m !== b.m || a.y !== b.y ? " " + MON[a.m] : "") + (a.y !== b.y ? " " + a.y : "") + " – " + b.d + " " + MON[b.m] + " " + b.y; }
+function rangeText(short){
+  var sel = state.range, r = rangeOf(sel), name = sel.preset === "custom" ? "Custom" : PRESETS.filter(function(p){ return p[0] === sel.preset; })[0][1];
+  if (!r){ var av = state.R && state.R.avail; return name + (av && av.min !== null ? ": " + spanText({from: av.min, to: av.max}) : ""); }
+  return (short && sel.preset === "custom" ? "" : name + ": ") + spanText(r);
+}
+function rebuild(){ state.R = processData(state.raw.meta, state.raw.crm, state.settings, rangeOf(state.range)); }
+function setRange(sel){ state.range = sel; try { localStorage.setItem("ebg-lead-dash-range", JSON.stringify(sel)); } catch (e) {}
+  state.dp = null; state.limit = {};
+  if (state.raw) rebuild(); render(); }
+var CAL_ICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6h13M5 1v3M11 1v3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>';
+function renderDatePicker(){
+  var host = document.getElementById("dp"); host.textContent = "";
+  var btn = el("button", {cls: "dp-btn", type: "button", id: "dp-btn", "aria-haspopup": "dialog", "aria-expanded": state.dp ? "true" : "false",
+    onclick: function(){ if (state.dp){ state.dp = null; } else { var r = rangeOf(state.range) || (state.R.avail.min !== null ? {from: state.R.avail.min, to: state.R.avail.max} : {from: todayDay(), to: todayDay()});
+      var v = ymd(r.to); state.dp = {preset: state.range.preset, from: r.from, to: r.to, pick: 0, view: dayFrom(v.y, v.m - 1, 1)}; } renderDatePicker(); }});
+  btn.innerHTML = CAL_ICON; btn.appendChild(el("span", {text: rangeText(false)})); btn.appendChild(el("span", {"aria-hidden": "true", text: "▾"}));
+  host.appendChild(btn);
+  if (!state.dp) return;
+  var D = state.dp, av = state.R.avail, has = {}; (av.days || []).forEach(function(d){ has[d] = 1; });
+  var today = todayDay(), maxDay = Math.max(today, av.max || today);
+  var pop = el("div", {cls: "dp-pop", role: "dialog", "aria-label": "Choose dates"});
+  var pres = el("div", {cls: "dp-presets", role: "radiogroup", "aria-label": "Date presets"}, el("div", {cls: "eyebrow", text: "Date range"}));
+  PRESETS.concat([["custom", "Custom"]]).forEach(function(p){
+    var r = p[0] === "custom" ? null : presetRange(p[0]);
+    pres.appendChild(el("button", {cls: "dp-opt", type: "button", role: "radio", title: r ? spanText(r) : (p[0] === "max" && av.min !== null ? spanText({from: av.min, to: av.max}) : null), "aria-checked": D.preset === p[0] ? "true" : "false", onclick: function(){
+        if (p[0] === "custom"){ D.preset = "custom"; } else if (p[0] === "max"){ D.preset = "max"; if (av.min !== null){ D.from = av.min; D.to = av.max; } }
+        else { D.preset = p[0]; D.from = r.from; D.to = r.to; } var v = ymd(D.to); D.view = dayFrom(v.y, v.m - 1, 1); D.pick = 0; renderDatePicker(); }},
+      el("span", {cls: "rd"}), el("span", {text: p[1]}))); });
+  pop.appendChild(pres);
+  function month(first, cls){
+    var f = ymd(first), cal = el("div", {cls: "dp-cal " + (cls || "")});
+    var ms = el("select", {"aria-label": "Month", id: "dp-m-" + (cls || "a")}, MONTHS.map(function(n, i){ return el("option", {value: i, selected: i === f.m ? true : null, text: n.slice(0, 3)}); }));
+    var ys = el("select", {"aria-label": "Year", id: "dp-y-" + (cls || "a")}, [f.y - 2, f.y - 1, f.y, f.y + 1].map(function(y){ return el("option", {value: y, selected: y === f.y ? true : null, text: String(y)}); }));
+    var off = cls === "second" ? 1 : 0;
+    var jump = function(){ D.view = dayFrom(+ys.value, +ms.value - off, 1); renderDatePicker(); };
+    ms.addEventListener("change", jump); ys.addEventListener("change", jump);
+    cal.appendChild(el("div", {cls: "dp-cal-head"}, ms, ys));
+    var g = el("div", {cls: "dp-grid"}); DOW.forEach(function(w){ g.appendChild(el("div", {cls: "wd", text: w})); });
+    for (var b = 0; b < f.w; b++) g.appendChild(el("span"));
+    var nDays = new Date(Date.UTC(f.y, f.m + 1, 0)).getUTCDate();
+    for (var d = 1; d <= nDays; d++){ (function(day, label){
+      var lo = Math.min(D.from, D.to), hi = Math.max(D.from, D.to);
+      var c = ["dp-day"]; if (!has[day]) c.push("muted"); else c.push("has"); if (day >= lo && day <= hi) c.push(day === lo || day === hi ? "edge" : "inr"); if (day === today) c.push("today");
+      g.appendChild(el("button", {cls: c.join(" "), type: "button", disabled: day > maxDay ? true : null, "aria-label": spanText({from: day, to: day}) + (has[day] ? ", has data" : ""),
+        "aria-pressed": day >= lo && day <= hi ? "true" : "false", onclick: function(){
+          D.preset = "custom";
+          if (D.pick === 0){ D.from = day; D.to = day; D.pick = 1; } else { if (day < D.from){ D.to = D.from; D.from = day; } else D.to = day; D.pick = 0; }
+          renderDatePicker(); }}, label)); })(dayFrom(f.y, f.m, d), String(d)); }
+    cal.appendChild(g); return cal;
+  }
+  var v = ymd(D.view), second = dayFrom(v.y, v.m + 1, 1);
+  var nav = el("div", {cls: "dp-nav"},
+    el("button", {type: "button", "aria-label": "Previous month", onclick: function(){ D.view = dayFrom(v.y, v.m - 1, 1); renderDatePicker(); }}, "‹"),
+    el("button", {type: "button", "aria-label": "Next month", onclick: function(){ D.view = second; renderDatePicker(); }}, "›"));
+  var iso = function(day){ var x = ymd(day); return x.y + "-" + String(x.m + 1).padStart(2, "0") + "-" + String(x.d).padStart(2, "0"); };
+  var fromIn = el("input", {type: "date", id: "dp-from", value: iso(Math.min(D.from, D.to)), "aria-label": "From"}), toIn = el("input", {type: "date", id: "dp-to", value: iso(Math.max(D.from, D.to)), "aria-label": "To"});
+  var onIn = function(){ var a = parseDT(fromIn.value), b = parseDT(toIn.value); if (isNum(a) && isNum(b)){ D.preset = "custom"; D.from = dayOf(a); D.to = dayOf(b); var y2 = ymd(D.to); D.view = dayFrom(y2.y, y2.m - 1, 1); renderDatePicker(); } };
+  fromIn.addEventListener("change", onIn); toIn.addEventListener("change", onIn);
+  var main = el("div", {cls: "dp-main"}, nav, el("div", {cls: "dp-cals"}, month(D.view, "first"), month(second, "second")),
+    el("div", {cls: "dp-inputs"}, fromIn, el("span", {text: "to"}), toIn),
+    el("div", {cls: "dp-foot"},
+      el("span", {cls: "small", text: (av.min !== null ? "Data available " + spanText({from: av.min, to: av.max}) + " (dotted days). " : "No dated rows in this data. ") + "Dates are India time." +
+        (state.R.metaRows && !state.R.partialRows && state.R.period.metaStart !== null && state.R.period.metaStart !== state.R.period.metaEnd && !(av.days || []).length ? "" : "")}),
+      el("span", {cls: "actions"},
+        el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.dp = null; renderDatePicker(); }}, "Cancel"),
+        el("button", {cls: "btn", type: "button", id: "dp-update", onclick: function(){ setRange(D.preset === "custom" ? {preset: "custom", from: Math.min(D.from, D.to), to: Math.max(D.from, D.to)} : {preset: D.preset}); }}, "Update"))));
+  pop.appendChild(main); host.appendChild(pop);
+}
+document.addEventListener("keydown", function(e){ if (e.key === "Escape" && state.dp){ state.dp = null; renderDatePicker(); var b = document.getElementById("dp-btn"); if (b) b.focus(); } });
+document.addEventListener("mousedown", function(e){ if (state.dp && !e.target.closest("#dp")){ state.dp = null; renderDatePicker(); } });
+
+/* ================= file loading ================= */
+function readTable(file){
+  return file.arrayBuffer().then(function(buf){
+    if (typeof XLSX === "undefined") throw new Error("The spreadsheet reader did not load. Check your connection and reload the page.");
+    var isText = /\.(csv|txt|tsv)$/i.test(file.name);
+    var wb = XLSX.read(new Uint8Array(buf), {type: "array", raw: isText, cellDates: false, dense: true});
+    return wb.SheetNames.map(function(n){ return {name: n, aoa: XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: "", blankrows: false})}; });
+  });
+}
+function setFile(kind, file){
+  var st = document.getElementById("st-" + kind), er = document.getElementById("er-" + kind), drop = document.getElementById("drop-" + kind);
+  st.textContent = "Reading " + file.name + "…"; er.textContent = "";
+  readTable(file).then(function(sheets){
+    var S = state.settings, found = pickSheet(sheets, kind, S);
+    if (!found){ st.textContent = ""; drop.classList.remove("ok"); er.textContent = kind === "meta"
+        ? "No Campaign name column found in " + file.name + ". Is this the Meta Ads export? The page looks for Campaign name plus Amount spent and Results (or Leads)."
+        : "No “" + S.cols.crm.id + "” column found in " + file.name + ". Is this the TeleCRM export? Column names can be changed in Settings."; return; }
+    var aoa = found.aoa, hi = found.header;
+    state.pending[kind] = {aoa: aoa, name: file.name, rows: Math.max(0, aoa.length - hi - 1)};
+    drop.classList.add("ok"); st.textContent = "✓ " + file.name + " · " + state.pending[kind].rows.toLocaleString("en-IN") + " rows";
+    if (state.pending.meta && state.pending.crm){
+      state.raw = {meta: state.pending.meta.aoa, crm: state.pending.crm.aoa};
+      state.files = {meta: {name: state.pending.meta.name, rows: state.pending.meta.rows}, crm: {name: state.pending.crm.name, rows: state.pending.crm.rows}};
+      state.source = "upload"; state.brand = "All"; state.limit = {};
+      rebuild();
+      document.getElementById("upload").hidden = true; render(); toast("Report built from your exports");
+    }
+  }).catch(function(e){ st.textContent = ""; er.textContent = "Could not read " + file.name + ": " + e.message; });
+}
+["meta", "crm"].forEach(function(kind){
+  var inp = document.getElementById("file-" + kind), drop = document.getElementById("drop-" + kind);
+  inp.addEventListener("change", function(){ if (inp.files && inp.files[0]) setFile(kind, inp.files[0]); inp.value = ""; });
+  drop.addEventListener("dragover", function(e){ e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", function(){ drop.classList.remove("over"); });
+  drop.addEventListener("drop", function(e){ e.preventDefault(); drop.classList.remove("over"); var f = e.dataTransfer.files; if (f && f[0]) setFile(kind, f[0]); });
+});
+document.getElementById("btn-load").addEventListener("click", function(){ var u = document.getElementById("upload"); u.hidden = !u.hidden; if (!u.hidden) u.scrollIntoView({block: "nearest"}); });
+document.getElementById("btn-sample").addEventListener("click", function(){ loadSample(); document.getElementById("upload").hidden = true; });
+document.getElementById("tablist").addEventListener("click", function(e){ var t = e.target.closest(".tab"); if (!t) return; state.tab = t.dataset.tab; try { localStorage.setItem("ebg-lead-dash-tab", state.tab); } catch (x) {} render(); });
+function loadSample(){ var s = makeSample(); state.raw = {meta: s.meta, crm: s.crm}; state.files = {meta: {name: "sample-meta.csv", rows: s.meta.length - 1}, crm: {name: "sample-telecrm.csv", rows: s.crm.length - 1}};
+  state.source = "sample"; state.brand = "All"; state.limit = {}; rebuild(); render(); }
+
+/* ================= Excel download ================= */
+function aoaFrom(cols, rows, level){ var head = cols.filter(function(c){ return !c.render || c.k; }).map(function(c){ return c.label; });
+  var out = [head]; rows.forEach(function(r){ out.push(cols.map(function(c){ var v = c.get ? c.get(r) : r[c.k]; if (c.t === "text") return v == null ? "" : String(v); return isNum(v) ? (c.t === "pct" ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100) : "N/A"; })); });
+  return out; }
+function downloadExcel(){
+  var R = state.R, dl = state.caps.downloads; if (!dl || !R) return;
+  var wb = XLSX.utils.book_new(), add = function(name, aoa){ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name); };
+  var mc = function(level){ return metricCols(level).map(function(c){ return c; }); };
+  var bcols = [{k: "brand", label: "Brand", t: "text"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"}, {k: "diff", label: "Difference", t: "int"}, {k: "pct", label: "Difference %", t: "pct"}, {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"}, {k: "noCamp", label: "CRM leads with no campaign", t: "int"}, {k: "tat", label: "Avg first call TAT (min)", t: "min"}, {k: "sla", label: "SLA %", t: "pct"}, {k: "pend", label: "Calls pending", t: "int"}];
+  add("Brand summary", aoaFrom(bcols, R.brandRows));
+  add("Campaigns", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"}].concat(mc("agg")), R.camps));
+  add("Ad sets", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "nAds", label: "Ads", t: "int"}].concat(mc("agg")), R.adsets));
+  add("Ads", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "ad", label: "Ad", t: "text"}].concat(mc("ad")), R.ads));
+  add("Leads needing a call", [["Lead id", "Created", "Brand", "Campaign", "Ad", "Owner", "First call", "TAT (min)", "SLA status", "Lead status"]].concat(R.needsCall.map(function(x){ return [x.id, fTime(x.created), x.brand, x.campaign, x.ad, x.owner, x.fc ? fTime(x.fc) : "", isNum(x.tat) ? x.tat : "", x.sla, x.status]; })));
+  add("Data checks", [["Check", "Value", "Note"]].concat(R.checks.map(function(c){ return [c.label, c.n, c.detail || ""]; })));
+  add("Unmatched CRM leads", [["Lead id", "Created", "Brand", "Campaign", "Ad set", "Ad", "Reason"]].concat(R.unmatched.map(function(u){ return [u.id, fTime(u.created), u.brand, u.campaign, u.adset, u.ad, u.reason]; })));
+  var out = XLSX.write(wb, {bookType: "xlsx", type: "array"});
+  var d = new Date(), name = "Lead_Performance_" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + ".xlsx";
+  dl.save({filename: name, data: new Uint8Array(out)}).then(function(){ toast("Excel file saved"); }).catch(function(e){ if (e && e.code === "declined") return; if (e && (e.code === "unavailable" || e.code === "not_granted")) { document.getElementById("btn-xlsx").hidden = true; } toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
+}
+document.getElementById("btn-xlsx").addEventListener("click", downloadExcel);
+
+/* ================= team report (shared store) ================= */
+var CHUNK = 110000;
+function encodeAOA(aoa){ var h = aoa[0] || [], cols = h.map(function(){ return {d: [], i: [], m: {}}; });
+  for (var r = 1; r < aoa.length; r++) h.forEach(function(_, c){ var v = aoa[r][c]; v = v === undefined ? "" : v; var key = typeof v + ":" + v, col = cols[c];
+    if (!(key in col.m)){ col.m[key] = col.d.length; col.d.push(v); } col.i.push(col.m[key]); });
+  return {h: h, n: aoa.length - 1, c: cols.map(function(c){ return {d: c.d, i: c.i}; })}; }
+function decodeAOA(e){ var out = [e.h]; for (var r = 0; r < e.n; r++) out.push(e.c.map(function(c){ return c.d[c.i[r]]; })); return out; }
+/* keep only the columns the report reads: no names, phone numbers or emails leave the browser */
+function leanData(raw, S){
+  var mh = findMetaHeader(raw.meta, S.cols.meta), meta = [[]];
+  if (mh >= 0){ var c = detectMetaColumns(raw.meta[mh], S.cols.meta), keep = ["campaign", "adset", "ad", "spend", "lead", "start", "end", "indicator"].filter(function(f){ return c[f] >= 0; });
+    meta = [keep.map(function(f){ return raw.meta[mh][c[f]]; })];
+    for (var i = mh + 1; i < raw.meta.length; i++){ var row = raw.meta[i] || []; if (!clean(row[c.campaign])) continue; meta.push(keep.map(function(f){ return row[c[f]]; })); } }
+  var ch = findHeaderRow(raw.crm, S.cols.crm.id), crm = [[]];
+  if (ch >= 0){ var H = raw.crm[ch], ks = Object.keys(S.cols.crm).map(function(k){ return findCol(H, S.cols.crm[k]); }).filter(function(ix){ return ix >= 0; });
+    crm = [ks.map(function(ix){ return H[ix]; })];
+    for (var j = ch + 1; j < raw.crm.length; j++){ var rr = raw.crm[j] || [], has = rr.some(function(v){ return v !== null && v !== undefined && String(v).trim() !== ""; });
+      if (!has) continue; var out = ks.map(function(ix){ return rr[ix] === undefined ? "" : rr[ix]; });
+      if (!out.some(function(v){ return String(v).trim() !== ""; })) out[0] = "-"; crm.push(out); } }
+  return {meta: meta, crm: crm};
+}
+function compactR(R){ var o = Object.assign({}, R); o.needsCallCapped = R.needsCall.length > 4000; o.needsCall = R.needsCall.slice(0, 4000); o.unmatched = R.unmatched.slice(0, 1500); return o; }
+function confirmSave(){
+  var w = document.getElementById("save-wrap"); w.textContent = "";
+  w.appendChild(el("span", {cls: "confirm"}, el("span", {text: "Replace the team report with this upload?"}),
+    el("button", {cls: "btn", type: "button", id: "btn-save-yes", onclick: doSave}, "Save"),
+    el("button", {cls: "btn ghost", type: "button", id: "btn-save-no", onclick: resetSaveBtn}, "Cancel")));
+}
+function resetSaveBtn(){ var w = document.getElementById("save-wrap"); w.textContent = ""; w.appendChild(el("button", {cls: "btn ghost", id: "btn-save", type: "button", onclick: confirmSave}, "Save for team")); }
+function doSave(){
+  var db = state.caps.db; if (!db || !state.R) return;
+  var w = document.getElementById("save-wrap"); w.textContent = ""; w.appendChild(el("span", {cls: "small", text: "Saving…"}));
+  var savedAt = new Date().toISOString(), ver = Date.now().toString(36);
+  var lean = leanData(state.raw, state.settings);
+  var payload = JSON.stringify({v: 2, savedAt: savedAt, files: state.files, settings: state.settings, meta: encodeAOA(lean.meta), crm: encodeAOA(lean.crm)});
+  var parts = []; for (var i = 0; i < payload.length; i += CHUNK) parts.push(payload.slice(i, i + CHUNK));
+  var prev = null, chain = db.doc("report/current").get().then(function(s){ prev = s.exists ? s.data() : null; });
+  parts.forEach(function(p, i){ chain = chain.then(function(){ return db.doc("report_chunks/" + ver + "-" + i).set({ver: ver, i: i, s: p}); }); });
+  chain.then(function(){ return db.doc("report/current").set({ver: ver, n: parts.length, savedAt: savedAt, files: state.files}); })
+    .then(function(){ state.lastSavedVer = ver; state.source = "team"; state.team = {savedAt: savedAt, files: state.files, ver: ver};
+      if (prev && prev.ver && prev.ver !== ver){ var c2 = Promise.resolve(); for (var j = 0; j < (prev.n || 0); j++) (function(j){ c2 = c2.then(function(){ return db.doc("report_chunks/" + prev.ver + "-" + j).delete().catch(function(){}); }); })(j); }
+      resetSaveBtn(); render(); toast("Saved. Anyone you share this page with now sees this report."); })
+    .catch(function(e){ resetSaveBtn(); render();
+      toast(e && e.code === "invalid_argument" ? "Only editors of this page can save the team report." : e && e.code === "quota_exceeded" ? "The page's storage is full. Ask the owner to clear old reports." : "Could not save: " + (e && e.message || "try again")); });
+}
+function loadTeam(cur){
+  var db = state.caps.db, parts = [], chain = Promise.resolve();
+  for (var i = 0; i < cur.n; i++) (function(i){ chain = chain.then(function(){ return db.doc("report_chunks/" + cur.ver + "-" + i).get().then(function(s){ if (!s.exists) throw new Error("part " + i + " missing"); parts.push(s.data().s); }); }); })(i);
+  return chain.then(function(){ var obj = JSON.parse(parts.join("")); return obj; });
+}
+function onTeamDoc(snap){
+  if (!snap.exists) return;
+  var cur = snap.data(); if (!cur || !cur.ver) return;
+  if (state.team && state.team.ver === cur.ver) return;
+  if (state.source === "upload" && state.lastSavedVer !== cur.ver){
+    var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner"; b.textContent = "";
+    b.appendChild(el("span", {text: "A team report saved " + new Date(cur.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " is available. You are looking at your own upload."}));
+    b.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ b.hidden = true; applyTeam(cur); }}, "Show team report"));
+    return; }
+  applyTeam(cur);
+}
+function applyTeam(cur){
+  loadTeam(cur).then(function(obj){
+    state.team = {savedAt: obj.savedAt, files: obj.files, ver: cur.ver}; state.source = "team"; state.files = obj.files || state.files;
+    if (obj.settings) state.settings = Object.assign(clone(DEFAULT_SETTINGS), obj.settings);
+    if (obj.v >= 2){ state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)}; rebuild(); } else { state.R = obj.R; state.raw = null; }
+    state.brand = "All"; state.limit = {}; render();
+  }).catch(function(e){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The team report could not be opened (" + e.message + "). Showing sample data."; });
+}
+
+/* ================= boot ================= */
+state.settings = loadSettings();
+try { var t0 = localStorage.getItem("ebg-lead-dash-tab"); if (t0) state.tab = t0; var r0 = JSON.parse(localStorage.getItem("ebg-lead-dash-range") || "null"); if (r0 && r0.preset) state.range = r0; } catch (e) {}
+document.getElementById("btn-save").addEventListener("click", confirmSave);
+function boot(){
+  if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Showing sample data; reload the page to try again."; }
+  loadSample();
+  if (!(window.claude && window.claude.use) && typeof XLSX !== "undefined"){
+    state.caps.downloads = {save: function(o){ var a = document.createElement("a"), url = URL.createObjectURL(new Blob([o.data], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+      a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); return Promise.resolve({status: "saved"}); }};
+    render();
+  }
+  if (window.claude && window.claude.use){
+    window.claude.use("downloads").then(function(d){ state.caps.downloads = d; render(); }).catch(function(){});
+    Promise.all([window.claude.use("db"), window.claude.use("user")]).then(function(r){
+      state.caps.db = r[0]; state.caps.user = r[1];
+      var u = r[1]; (u ? u.canEdit() : Promise.resolve(false)).then(function(ce){ state.canSave = !!ce; render(); }).catch(function(){ state.canSave = false; });
+      if (r[0]) r[0].doc("report/current").onSnapshot(onTeamDoc, function(){});
+    }).catch(function(){});
+  }
+}
+boot();
+</script>
+</body>
+</html>
