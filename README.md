@@ -32,5 +32,9 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 - **Excluded campaigns:** untick a campaign on the Campaigns tab to leave its spend, Meta results and CRM leads out of every total. Campaigns whose Meta *Result indicator* isn't a lead (landing page views, link clicks…) are excluded automatically; use *Include again* to count one anyway. Exclusions are remembered in the browser and saved with the team report.
 - If the Meta export isn't split by day, spend and Leads in UI show **N/A** for date ranges narrower than the export, with a notice.
 
+## Saving data and exporting
+- **Saved data** keeps the loaded exports in this browser (IndexedDB), so you don't upload them again. Name each save, open or delete any of them, and optionally open the latest one automatically. Only the report columns are kept; no names, phone numbers or emails.
+- **Download Excel** opens export options: all brands or the selected brand, and which sheets to include. The workbook is formatted: title and period line on each sheet, frozen bold header, filters, ₹ / % / count formats, totals, flagged cells, and TAT in minutes plus readable hours.
+
 ## Hosting
 `index.html` is self-contained (it loads SheetJS 0.18.5 from cdnjs and fonts from Google Fonts). It works from GitHub Pages or any static host. **Download Excel** saves every view to an .xlsx file. The *Save for team* button only appears when the page runs as a Claude artifact.

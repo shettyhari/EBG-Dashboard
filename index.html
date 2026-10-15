@@ -224,6 +224,12 @@ tr.flagged td{background:var(--warn-bg)}
 .group h3{font-size:15px;font-weight:500}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--btn-bg);color:var(--btn-fg);padding:10px 16px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
 .confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+.opt-row{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.opt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:10px 18px}
+.save-row{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end}
+.save-row .field{flex:1 1 320px}
+.save-row input[type=text]{border:1px solid var(--line);background:var(--panel);padding:9px 10px;border-radius:0;width:100%}
+.tag.saved{border-color:var(--slate);color:var(--slate)}
 @media (max-width:640px){
   header.top .wrap{padding-block:20px 16px}
   .bar-row{grid-template-columns:minmax(70px,110px) 1fr}
@@ -242,6 +248,7 @@ tr.flagged td{background:var(--warn-bg)}
     </div>
     <div class="actions">
       <button class="btn" id="btn-load" type="button">Load exports</button>
+      <button class="btn ghost" id="btn-saved" type="button" hidden>Saved data</button>
       <span id="save-wrap" hidden><button class="btn ghost" id="btn-save" type="button">Save for team</button></span>
       <button class="btn ghost" id="btn-xlsx" type="button" hidden>Download Excel</button>
     </div>
@@ -251,10 +258,12 @@ tr.flagged td{background:var(--warn-bg)}
 <div class="band">
   <div class="wrap">
     <div id="team-banner" class="banner" hidden></div>
+    <div id="saved" class="upload" hidden></div>
+    <div id="export" class="upload" hidden></div>
     <div id="upload" class="upload">
       <div class="sec-head">
         <h2 style="font-size:18px">Load today's exports</h2>
-        <span class="note">Files are read in your browser. Nothing leaves this page unless you press Save for team, which stores the report only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
+        <span class="note">Files are read in your browser. Save data keeps a copy in this browser only. Nothing leaves this page unless you press Save for team, which stores the report only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
       </div>
       <div class="drops">
         <div class="drop-col">
@@ -899,18 +908,7 @@ function excludedSection(){
     table("excl", cols, list, {empty: "No campaigns excluded. Untick a campaign above to leave it out of the report."}));
 }
 function viewTAT(){
-  var R = state.R, lite = R.lite.filter(function(x){ return brandOK(x[0]); });
-  var by = {}, order = [];
-  lite.forEach(function(x){ var o = by[x[1]]; if (!o){ o = by[x[1]] = {owner: x[1], leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; order.push(x[1]); }
-    o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; } if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending") o.pend++; else o.inv++; });
-  var owners = order.map(function(k){ var o = by[k]; o.tat = o.called ? o.ts / o.called : null; o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; })
-    .sort(function(a, b){ return b.leads - a.leads; });
-  var T = {owner: "TOTAL", leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; owners.forEach(function(o){ ["leads", "called", "ts", "win", "del", "pend", "inv"].forEach(function(k){ T[k] += o[k]; }); });
-  T.tat = T.called ? T.ts / T.called : null; T.sla = T.win + T.del + T.pend ? T.win / (T.win + T.del + T.pend) : null;
-  var ocols = [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name"}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Called", t: "int"},
-    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
-    {k: "win", label: "Within SLA", t: "int"}, {k: "del", label: "Delayed", t: "int"}, {k: "pend", label: "Pending", t: "int", flag: function(r){ return r.pend ? "warn" : null; }},
-    {k: "inv", label: "Invalid timestamp", t: "int"}, {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}];
+  var R = state.R, ow = ownerRows(brandOK), owners = ow.rows, T = ow.total, ocols = ownerCols();
   var list = R.needsCall.filter(function(x){ return brandOK(x.brand) && (state.callFilter === "All" || x.sla === state.callFilter) && matchQ("calls", x, ["id", "owner", "campaign", "ad", "status"]); });
   var counts = {All: 0, Pending: 0, Delayed: 0, "Invalid timestamp": 0}; R.needsCall.forEach(function(x){ if (!brandOK(x.brand)) return; counts.All++; counts[x.sla]++; });
   var lcols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap"}, {k: "created", label: "Created", t: "text", cls: "nowrap", get: function(r){ return fTime(r.created); }},
@@ -1023,6 +1021,9 @@ function renderHeader(){
   var sl = document.getElementById("source-line"); sl.textContent = "";
   if (state.source === "upload") sl.appendChild(el("span", {cls: "tag upload", text: "Your upload · not saved for team"}));
   if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team report"}));
+  if (state.source === "saved") sl.appendChild(el("span", {cls: "tag saved", title: state.savedInfo ? "Saved " + new Date(state.savedInfo.savedAt).toLocaleString("en-IN") : null,
+    text: "Saved data" + (state.savedInfo ? " · " + state.savedInfo.name : "")}));
+  if (state.source === "upload" && saved.ok) sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: toggleSaved}, "Save this data in the browser"));
   var f = state.source === "team" && state.team ? state.team.files : state.files;
   {
     if (f && f.meta) sl.appendChild(el("span", {title: (f.meta.list || [f.meta.name]).join("\n"), text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)" + (f.meta.list && f.meta.list.length > 1 ? " — " + f.meta.list.join(", ") : "")}));
@@ -1035,7 +1036,8 @@ function renderHeader(){
     chips.appendChild(el("button", {cls: "chip", type: "button", "aria-pressed": state.brand === b ? "true" : "false", onclick: function(){ state.brand = b; state.limit = {}; render(); }},
       b === "All" ? "All brands" : b, el("span", {cls: "c", text: (b === "All" ? tot : (per[b] || 0)).toLocaleString("en-IN")}))); });
   document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
-  document.getElementById("save-wrap").hidden = !(state.caps.db && state.canSave && state.source === "upload");
+  document.getElementById("save-wrap").hidden = !(state.caps.db && state.canSave && (state.source === "upload" || state.source === "saved"));
+  document.getElementById("btn-saved").hidden = !saved.ok;
 }
 function renderEmpty(){
   document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
@@ -1044,6 +1046,7 @@ function renderEmpty(){
   sl.appendChild(el("span", {text: state.caps.db ? "Load today's exports, or wait a moment if your team has saved a report." : "Load today's Meta and TeleCRM exports to build the report."}));
   document.getElementById("brand-chips").textContent = ""; document.getElementById("dp").textContent = "";
   document.getElementById("btn-xlsx").hidden = true; document.getElementById("save-wrap").hidden = true;
+  document.getElementById("btn-saved").hidden = !(saved.ok && saved.list.length);
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"); v.textContent = "";
   var step = function(n, t, d){ return el("div", {cls: "kpi"}, el("div", {cls: "eyebrow", text: "Step " + n}), el("div", {cls: "v", style: "font-size:20px", text: t}), el("div", {cls: "s", text: d})); };
@@ -1055,7 +1058,8 @@ function renderEmpty(){
       step(3, "Load the files", "Drop all Meta reports in the first box and the TeleCRM export in the second. The report builds as soon as both are in."),
       step(4, "Pick dates and brands", "Use the date picker and brand chips to view any day, week or month."),
       step(5, "Share", "Download Excel, or Save for team so your manager sees the same report.")),
-    el("div", null, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Load exports"))));
+    el("div", {cls: "actions"}, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Load exports"),
+      saved.ok && saved.list.length ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open saved data (" + saved.list.length + ")") : null)));
 }
 function render(){
   if (!state.R){ renderEmpty(); return; }
@@ -1247,7 +1251,7 @@ function tryBuild(fromList){
   var mrows = comb.aoa.length - 1;
   state.files = {meta: {name: state.metaFiles.length === 1 ? state.metaFiles[0].name : state.metaFiles.length + " Meta files", rows: mrows,
                         list: state.metaFiles.map(function(f){ return f.name; })}, crm: {name: crm.name, rows: crm.rows}};
-  state.source = "upload"; state.limit = {}; if (first) state.brand = "All";
+  state.source = "upload"; state.savedInfo = null; state.limit = {}; if (first) state.brand = "All";
   rebuild();
   if (first) document.getElementById("upload").hidden = true;
   render();
@@ -1295,33 +1299,398 @@ function setFile(kind, file){
   drop.addEventListener("dragleave", function(){ drop.classList.remove("over"); });
   drop.addEventListener("drop", function(e){ e.preventDefault(); drop.classList.remove("over"); var f = e.dataTransfer.files; if (f && f.length){ if (kind === "meta") addMetaFiles(f); else setFile(kind, f[0]); } });
 });
-document.getElementById("btn-load").addEventListener("click", function(){ var u = document.getElementById("upload"); u.hidden = !u.hidden; if (!u.hidden) u.scrollIntoView({block: "nearest"}); });
+document.getElementById("btn-load").addEventListener("click", function(){ var u = document.getElementById("upload"); u.hidden = !u.hidden; document.getElementById("saved").hidden = true; document.getElementById("export").hidden = true; if (!u.hidden) u.scrollIntoView({block: "nearest"}); });
 document.getElementById("tablist").addEventListener("click", function(e){ var t = e.target.closest(".tab"); if (!t) return; state.tab = t.dataset.tab; try { localStorage.setItem("ebg-lead-dash-tab", state.tab); } catch (x) {} render(); });
 
-/* ================= Excel download ================= */
-function aoaFrom(cols, rows, level){
-  cols = [].concat.apply([], cols.map(function(c){ return c.t === "min" ? [Object.assign({}, c, {label: c.label + " (min)"}), {k: c.k, label: c.label, t: "text", get: function(r){ var v = c.get ? c.get(r) : r[c.k]; return isNum(v) ? fDur(v) : ""; }}] : [c]; })); var head = cols.filter(function(c){ return !c.render || c.k; }).map(function(c){ return c.label; });
-  var out = [head]; rows.forEach(function(r){ out.push(cols.map(function(c){ var v = c.get ? c.get(r) : r[c.k]; if (c.t === "text") return v == null ? "" : String(v); return isNum(v) ? (c.t === "pct" ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100) : "N/A"; })); });
-  return out; }
-function downloadExcel(){
-  var R = state.R, dl = state.caps.downloads; if (!dl || !R) return;
-  var wb = XLSX.utils.book_new(), add = function(name, aoa){ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name); };
-  var mc = function(level){ return metricCols(level).map(function(c){ return c; }); };
-  var bcols = [{k: "brand", label: "Brand", t: "text"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"}, {k: "diff", label: "Difference", t: "int"}, {k: "pct", label: "Difference %", t: "pct"}, {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"}, {k: "noCamp", label: "CRM leads with no campaign", t: "int"}, {k: "tat", label: "Avg first call TAT", t: "min"}, {k: "sla", label: "SLA %", t: "pct"}, {k: "pend", label: "Calls pending", t: "int"}];
-  add("Brand summary", aoaFrom(bcols, R.brandRows));
-  add("Campaigns", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"}].concat(mc("agg")), R.camps));
-  add("Ad sets", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "nAds", label: "Ads", t: "int"}].concat(mc("agg")), R.adsets));
-  add("Ads", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "ad", label: "Ad", t: "text"}].concat(mc("ad")), R.ads));
-  add("Leads needing a call", [["Lead id", "Created", "Brand", "Campaign", "Ad", "Owner", "First call", "TAT (min)", "TAT", "SLA status", "Lead status"]].concat(R.needsCall.map(function(x){ return [x.id, fTime(x.created), x.brand, x.campaign, x.ad, x.owner, x.fc ? fTime(x.fc) : "", isNum(x.tat) ? x.tat : "", isNum(x.tat) ? fDur(x.tat) : "", x.sla, x.status]; })));
-  if ((R.excluded || []).length) add("Excluded campaigns", [["Brand", "Campaign", "Status", "Meta result type", "Amount spent", "Meta results", "CRM leads"]].concat(R.excluded.map(function(x){
-    return [x.brand, x.campaign, x.excluded ? (x.manual ? "Excluded by you" : "Auto-excluded") : "Counted (review)", x.indicators.join(", "), isNum(x.spend) ? Math.round(x.spend * 100) / 100 : "", isNum(x.ui) ? x.ui : "", x.crm]; })));
-  add("Data checks", [["Check", "Value", "Note"]].concat(R.checks.map(function(c){ return [c.label, c.n, c.detail || ""]; })));
-  add("Unmatched CRM leads", [["Lead id", "Created", "Brand", "Campaign", "Ad set", "Ad", "Reason"]].concat(R.unmatched.map(function(u){ return [u.id, fTime(u.created), u.brand, u.campaign, u.adset, u.ad, u.reason]; })));
-  var out = XLSX.write(wb, {bookType: "xlsx", type: "array"});
-  var d = new Date(), name = "Lead_Performance_" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + ".xlsx";
-  dl.save({filename: name, data: new Uint8Array(out)}).then(function(){ toast("Excel file saved"); }).catch(function(e){ if (e && e.code === "declined") return; if (e && (e.code === "unavailable" || e.code === "not_granted")) { document.getElementById("btn-xlsx").hidden = true; } toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
+/* ================= Excel download (structured workbook) ================= */
+var EXCELJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js";
+function loadExcelJS(){
+  if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  if (loadExcelJS._p) return loadExcelJS._p;
+  loadExcelJS._p = new Promise(function(res, rej){
+    var s = document.createElement("script"); s.src = EXCELJS_URL; s.async = true;
+    s.onload = function(){ if (window.ExcelJS) res(window.ExcelJS); else { loadExcelJS._p = null; rej(new Error("Excel writer missing")); } };
+    s.onerror = function(){ loadExcelJS._p = null; rej(new Error("Excel writer did not load")); };
+    document.head.appendChild(s); });
+  return loadExcelJS._p;
 }
-document.getElementById("btn-xlsx").addEventListener("click", downloadExcel);
+var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["campaigns", "Campaign level"], ["adsets", "Ad set level"], ["ads", "Ad level"],
+  ["owners", "TAT by owner"], ["calls", "Leads needing a call"], ["excluded", "Excluded campaigns"], ["ql", "QL statuses"], ["checks", "Data checks"], ["unmatched", "Unmatched CRM leads"]];
+var EXPORT_KEY = "ebg-lead-dash-export";
+function exportPrefs(){
+  var p = null; try { p = JSON.parse(localStorage.getItem(EXPORT_KEY) || "null"); } catch (e) {}
+  var d = {sheets: {}}; EXPORT_SHEETS.forEach(function(s){ d.sheets[s[0]] = true; });
+  if (p && p.sheets) Object.keys(d.sheets).forEach(function(k){ if (k in p.sheets) d.sheets[k] = !!p.sheets[k]; });
+  return d; }
+function ownerRows(ok){
+  var R = state.R, by = {}, order = [];
+  R.lite.forEach(function(x){ if (!ok(x[0])) return; var o = by[x[1]]; if (!o){ o = by[x[1]] = {owner: x[1], leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; order.push(x[1]); }
+    o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; } if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending") o.pend++; else o.inv++; });
+  var fin = function(o){ o.tat = o.called ? o.ts / o.called : null; o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; };
+  var owners = order.map(function(k){ return fin(by[k]); }).sort(function(a, b){ return b.leads - a.leads; });
+  var T = {owner: "TOTAL", leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; owners.forEach(function(o){ ["leads", "called", "ts", "win", "del", "pend", "inv"].forEach(function(k){ T[k] += o[k]; }); });
+  return {rows: owners, total: fin(T)};
+}
+function ownerCols(){ var R = state.R;
+  return [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name"}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Called", t: "int"},
+    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "win", label: "Within SLA", t: "int"}, {k: "del", label: "Delayed", t: "int"}, {k: "pend", label: "Pending", t: "int", flag: function(r){ return r.pend ? "warn" : null; }},
+    {k: "inv", label: "Invalid timestamp", t: "int"}, {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}]; }
+
+/* one description of every sheet, used by both the formatted writer and the plain fallback */
+function exportSpecs(brand, want){
+  var R = state.R, ok = function(b){ return brand === "All" || b === brand; }, specs = [];
+  var scopeTxt = brand === "All" ? "All listed brands" : brand;
+  var bcols = [{k: "brand", label: "Brand", t: "text"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
+    {k: "diff", label: "Lead difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
+    {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"}, {k: "noCamp", label: "CRM leads with no campaign", t: "int"},
+    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}, {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }}];
+  var lvl = function(level){
+    var src = level === "campaign" ? R.camps : level === "adset" ? R.adsets : R.ads, rows = src.filter(function(r){ return ok(r.brand); });
+    var lead = [{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign name", t: "text", w: 44}];
+    if (level === "campaign") lead.push({k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"});
+    if (level === "adset") lead.push({k: "adset", label: "Ad set name", t: "text", w: 40}, {k: "nAds", label: "Ads", t: "int"});
+    if (level === "ad") lead.push({k: "adset", label: "Ad set name", t: "text", w: 36}, {k: "ad", label: "Ad name", t: "text", w: 40});
+    var cols = lead.concat(metricCols(level === "ad" ? "ad" : "agg").map(function(c){ return c.k === "remarks" ? Object.assign({}, c, {wrap: true, w: 60}) : c; }));
+    var T = sumRows(rows); T.brand = "TOTAL (" + rows.length + ")"; T.campaign = ""; T.adset = ""; T.ad = "";
+    return {cols: cols, rows: rows, total: T};
+  };
+  if (want.summary){
+    var ads = R.ads.filter(function(a){ return ok(a.brand); }), T = sumRows(ads), br = R.brandRows.filter(function(b){ return ok(b.brand); });
+    var bt = sumRows(br); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
+    var ex = (R.excluded || []).filter(function(x){ return x.excluded && ok(x.brand); });
+    var f = state.files || {};
+    specs.push({name: "Summary", summary: true, title: "EBG Lead Performance Report",
+      info: [["Period", rangeText(false)], ["Meta export dates", fDay(R.period.metaStart) + " – " + fDay(R.period.metaEnd)], ["Brands", scopeTxt],
+        ["Meta file(s)", f.meta ? (f.meta.list || [f.meta.name]).join(", ") + " · " + fInt(f.meta.rows) + " rows" : "—"], ["TeleCRM file", f.crm ? f.crm.name + " · " + fInt(f.crm.rows) + " rows" : "—"],
+        ["Excluded campaigns", ex.length ? ex.length + " (" + ex.map(function(x){ return x.campaign; }).join("; ") + ")" : "None"],
+        ["How it's counted", "Leads in UI = sum of Meta " + (R.resultsCol || "Results") + ". Leads in CRM = TeleCRM rows. QL = lead status with buying intent. TAT = Created On → First Attempted Call."]],
+      kpis: [["Amount spent", T.spend, "inr", ads.length + " ad rows"], ["Leads in UI", T.ui, "int", "Meta " + (R.resultsCol || "Results")], ["Leads in CRM", T.crm, "int", "TeleCRM"],
+        ["Lead difference (UI − CRM)", T.diff, "int", ""], ["Difference %", T.pct, "pct", "Flagged above " + Math.round(R.diffAlert * 100) + "%"], ["CPL", T.cpl, "inr", "Spend ÷ Leads in UI"],
+        ["Qualified leads", T.ql, "int", isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""], ["CPQL", T.cpql, "inr", "Spend ÷ QLs"],
+        ["Avg first call TAT", T.tat, "min", T.called + " leads called"], ["SLA % (≤ " + R.slaMin + " min)", T.sla, "pct", T.win + " of " + T.elig + " leads; target " + Math.round(R.slaTarget * 100) + "%"],
+        ["Calls pending", T.pend, "int", "Not called yet"]],
+      table: {title: "Brand summary", cols: bcols, rows: br, total: brand === "All" ? bt : null}});
+  }
+  if (want.campaigns){ var c1 = lvl("campaign"); specs.push({name: "Campaigns", title: "Campaign level report", cols: c1.cols, rows: c1.rows, total: c1.total, freeze: 2, brandRule: true,
+    rowFill: function(r){ var fl = R.campFlags && R.campFlags[campKey(r.campaign)]; return fl && fl.nonLead && !fl.excluded ? "warn" : null; }}); }
+  if (want.adsets){ var c2 = lvl("adset"); specs.push({name: "Ad sets", title: "Ad set level report", cols: c2.cols, rows: c2.rows, total: c2.total, freeze: 2, brandRule: true}); }
+  if (want.ads){ var c3 = lvl("ad"); specs.push({name: "Ads", title: "Ad level report", cols: c3.cols, rows: c3.rows, total: c3.total, freeze: 2, brandRule: true}); }
+  if (want.owners){ var ow = ownerRows(ok); specs.push({name: "TAT by owner", title: "First-call TAT by owner", note: "SLA % = within ÷ (within + delayed + pending), so leads not yet called count against the SLA.", cols: ownerCols(), rows: ow.rows, total: ow.total, freeze: 1}); }
+  if (want.calls){ specs.push({name: "Leads needing a call", title: "Leads needing a call", note: "Pending, delayed (over " + R.slaMin + " min) or with unreadable call times.", freeze: 1,
+    cols: [{k: "id", label: "Lead id", t: "text"}, {k: "created", label: "Created", t: "dt"}, {k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text", w: 40}, {k: "ad", label: "Ad", t: "text", w: 36},
+      {k: "owner", label: "Owner", t: "text"}, {k: "fc", label: "First call", t: "dt"}, {k: "tat", label: "TAT", t: "min"},
+      {k: "sla", label: "SLA status", t: "text", flag: function(r){ return r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : null; }}, {k: "status", label: "Lead status", t: "text"}],
+    rows: R.needsCall.filter(function(x){ return ok(x.brand); })}); }
+  if (want.excluded){ specs.push({name: "Excluded campaigns", title: "Excluded campaigns", note: "Left out of every total in this report.",
+    cols: [{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text", w: 44},
+      {k: "st", label: "Status", t: "text", get: function(x){ return x.excluded ? (x.manual ? "Excluded by you" : "Auto-excluded") : "Counted (review)"; }, flag: function(x){ return x.excluded ? null : "warn"; }},
+      {k: "ind", label: "Meta result type", t: "text", get: function(x){ return x.indicators.join(", "); }}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Meta results", t: "int"}, {k: "crm", label: "CRM leads", t: "int"}],
+    rows: (R.excluded || []).filter(function(x){ return ok(x.brand) || !x.inMeta; })}); }
+  if (want.ql){ specs.push({name: "QL statuses", title: "Which CRM statuses count as qualified", note: "All brands. Decided by intent words; overrides set on the QL statuses tab.",
+    cols: [{k: "status", label: "Status in CRM", t: "text", w: 30}, {k: "count", label: "Leads", t: "int"}, {k: "q", label: "Counts as", t: "text", get: function(r){ return r.ql ? "QL" : "Not QL"; }, flag: function(r){ return r.ql ? "good" : null; }},
+      {k: "reason", label: "Why", t: "text", w: 40}, {k: "override", label: "Override", t: "text"}], rows: R.statuses}); }
+  if (want.checks){ specs.push({name: "Data checks", title: "Data checks", note: "All brands. With counting rules off, leads in the report + left out + excluded must equal the CRM rows uploaded.",
+    cols: [{k: "label", label: "Check", t: "text", w: 58}, {k: "n", label: "Value", t: "text", align: "right"},
+      {k: "st", label: "Status", t: "text", get: function(c){ return c.kind === "bad" ? "Fix" : c.kind === "warn" ? "Review" : c.kind === "ok" ? "OK" : "Info"; }, flag: function(c){ return c.kind === "bad" ? "bad" : c.kind === "warn" ? "warn" : c.kind === "ok" ? "good" : null; }},
+      {k: "detail", label: "Note", t: "text", wrap: true, w: 80}],
+    rows: R.checks.map(function(c){ return Object.assign({}, c, {n: typeof c.n === "number" ? c.n.toLocaleString("en-IN") : String(c.n)}); })}); }
+  if (want.unmatched){ specs.push({name: "Unmatched CRM leads", title: "CRM leads not matched to a Meta ad", freeze: 1,
+    cols: [{k: "id", label: "Lead id", t: "text"}, {k: "created", label: "Created", t: "dt"}, {k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text", w: 40},
+      {k: "adset", label: "Ad set", t: "text", w: 36}, {k: "ad", label: "Ad", t: "text", w: 36}, {k: "reason", label: "Reason", t: "text", w: 36}],
+    rows: R.unmatched.filter(function(u){ return ok(u.brand); })}); }
+  return specs;
+}
+/* "min" columns become two: minutes (a number to sort and sum) and readable text (1 hr 10 min) */
+function xlCols(cols){
+  return [].concat.apply([], cols.filter(function(c){ return c.k !== "inc"; }).map(function(c){ return c.t === "min"
+    ? [Object.assign({}, c, {label: c.label + " (min)"}), {k: c.k + "_txt", label: c.label, t: "text", align: "right", get: function(r){ var v = c.get ? c.get(r) : r[c.k]; return isNum(v) ? fDur(v) : ""; }, flag: c.flag}]
+    : [c]; }));
+}
+function xlVal(c, r){ return c.get ? c.get(r) : r[c.k]; }
+var XL = {ink: "FF111111", headFg: "FFFFFFFF", sub: "FF686868", faint: "FF9A9A9A", line: "FFDDDDDD", zebra: "FFF7F7F5", total: "FFECECE8",
+  bad: "FFB42318", badBg: "FFFBE7E5", warn: "FF8A5D0B", warnBg: "FFFBF1DD", good: "FF1F7A4A", goodBg: "FFE6F2EB"};
+function xlNumFmt(t){ var c = (CUR || "₹").trim(); return t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
+function xlSolid(argb){ return {type: "pattern", pattern: "solid", fgColor: {argb: argb}}; }
+function xlCellVal(c, v){
+  if (c.t === "text") return v == null ? "" : String(v);
+  if (c.t === "dt") return isNum(v) ? new Date(v) : "";
+  if (!isNum(v)) return "N/A";
+  return c.t === "pct" ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100;
+}
+/* writes a header + rows (+ total) block at row r0; returns the next free row */
+function xlTable(ws, r0, cols, rows, o, widths){
+  o = o || {};
+  var n = cols.length, hr = ws.getRow(r0);
+  cols.forEach(function(c, i){ var cell = hr.getCell(i + 1); cell.value = c.label;
+    cell.font = {bold: true, size: 10, color: {argb: XL.headFg}}; cell.fill = xlSolid(XL.ink);
+    cell.alignment = {vertical: "middle", horizontal: c.t === "text" && !c.align ? "left" : "right", wrapText: true};
+    widths[i] = Math.max(widths[i] || 0, Math.min(18, String(c.label).length + 2)); });
+  hr.height = 30;
+  var prev = null;
+  rows.forEach(function(r, ri){
+    var row = ws.getRow(r0 + 1 + ri), brandTop = o.brandRule && prev && prev.brand !== r.brand, rowFill = o.rowFill ? o.rowFill(r) : null;
+    cols.forEach(function(c, i){
+      var cell = row.getCell(i + 1), v = xlVal(c, r), val = xlCellVal(c, v), fl = c.flag ? c.flag(r) : null;
+      cell.value = val; var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "") cell.numFmt = fmt;
+      cell.font = {size: 10, color: {argb: val === "N/A" ? XL.faint : XL.ink}};
+      cell.alignment = {vertical: "top", horizontal: c.t === "text" && !c.align ? "left" : "right", wrapText: !!c.wrap};
+      if (fl === "bad"){ cell.font = {size: 10, bold: true, color: {argb: XL.bad}}; cell.fill = xlSolid(XL.badBg); }
+      else if (fl === "warn"){ cell.font = {size: 10, bold: true, color: {argb: XL.warn}}; cell.fill = xlSolid(XL.warnBg); }
+      else if (fl === "good"){ cell.font = {size: 10, color: {argb: XL.good}}; }
+      if (!fl && rowFill === "warn") cell.fill = xlSolid(XL.warnBg); else if (!fl && ri % 2) cell.fill = xlSolid(XL.zebra);
+      cell.border = {bottom: {style: "hair", color: {argb: XL.line}}}; if (brandTop) cell.border.top = {style: "medium", color: {argb: XL.ink}};
+      var len = c.t === "dt" ? 17 : val === "" ? 0 : c.t === "text" ? String(val).length : (c.t === "pct" ? 7 : String(Math.round(Math.abs(Number(val) || 0))).length + 4);
+      widths[i] = Math.max(widths[i] || 0, Math.min(c.w || (c.t === "text" ? 34 : 16), len + 2));
+    });
+    prev = r;
+  });
+  var end = r0 + 1 + rows.length;
+  if (!rows.length){ var e = ws.getRow(end).getCell(1); e.value = "Nothing to show for this filter."; e.font = {italic: true, size: 10, color: {argb: XL.sub}}; end++; }
+  if (o.autoFilter && rows.length) ws.autoFilter = {from: {row: r0, column: 1}, to: {row: r0 + rows.length, column: n}};
+  if (o.total){
+    var tr = ws.getRow(end);
+    cols.forEach(function(c, i){ var cell = tr.getCell(i + 1), v = c.k === "remarks" ? "" : xlVal(c, o.total);
+      if (i === 0) v = v || "TOTAL";
+      var val = c.t === "text" ? (v == null ? "" : String(v)) : xlCellVal(c, v); cell.value = val;
+      var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "") cell.numFmt = fmt;
+      cell.font = {bold: true, size: 10, color: {argb: XL.ink}}; cell.fill = xlSolid(XL.total);
+      cell.alignment = {vertical: "top", horizontal: c.t === "text" && !c.align && !(c.k || "").match(/_txt$/) ? "left" : "right"};
+      cell.border = {top: {style: "thin", color: {argb: XL.ink}}, bottom: {style: "double", color: {argb: XL.ink}}}; });
+    end++;
+  }
+  return end;
+}
+function xlTitle(ws, title, sub, note){
+  ws.getCell(1, 1).value = title; ws.getCell(1, 1).font = {bold: true, size: 15, color: {argb: XL.ink}}; ws.getRow(1).height = 22;
+  ws.getCell(2, 1).value = sub; ws.getCell(2, 1).font = {size: 10, color: {argb: XL.sub}};
+  if (note){ ws.getCell(3, 1).value = note; ws.getCell(3, 1).font = {italic: true, size: 9, color: {argb: XL.sub}}; }
+}
+function buildWorkbookExcelJS(ExcelJS, specs, sub){
+  var wb = new ExcelJS.Workbook(); wb.creator = "EBG Lead Performance"; wb.created = new Date();
+  var page = {orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9, margins: {left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2}};
+  specs.forEach(function(sp){
+    var widths = [], ws;
+    if (sp.summary){
+      ws = wb.addWorksheet(sp.name, {views: [{showGridLines: false}], pageSetup: page, properties: {tabColor: {argb: XL.ink}}});
+      xlTitle(ws, sp.title, sub);
+      var r = 4;
+      sp.info.forEach(function(x){ var a = ws.getCell(r, 1), b = ws.getCell(r, 2); a.value = x[0]; a.font = {bold: true, size: 10, color: {argb: XL.sub}};
+        b.value = x[1]; b.font = {size: 10, color: {argb: XL.ink}}; b.alignment = {wrapText: false}; r++; });
+      widths[0] = 26;
+      r++;
+      var kh = ws.getRow(r); ["Key metric", "Value", "Note"].forEach(function(h, i){ var cell = kh.getCell(i + 1); cell.value = h; cell.font = {bold: true, size: 10, color: {argb: XL.headFg}}; cell.fill = xlSolid(XL.ink);
+        cell.alignment = {vertical: "middle", horizontal: i === 1 ? "right" : "left"}; }); kh.height = 22; r++;
+      sp.kpis.forEach(function(k, i){ var row = ws.getRow(r), a = row.getCell(1), b = row.getCell(2), c = row.getCell(3);
+        a.value = k[0]; a.font = {size: 10, bold: true, color: {argb: XL.ink}};
+        if (k[2] === "min") b.value = isNum(k[1]) ? fDur(k[1]) : "N/A"; else { b.value = isNum(k[1]) ? (k[2] === "pct" ? Math.round(k[1] * 10000) / 10000 : Math.round(k[1] * 100) / 100) : "N/A"; if (isNum(k[1])) b.numFmt = xlNumFmt(k[2]); }
+        b.font = {size: 11, bold: true, color: {argb: XL.ink}}; b.alignment = {horizontal: "right"};
+        c.value = k[3] || ""; c.font = {size: 9, color: {argb: XL.sub}};
+        [a, b, c].forEach(function(x){ x.border = {bottom: {style: "hair", color: {argb: XL.line}}}; if (i % 2) x.fill = xlSolid(XL.zebra); }); r++; });
+      r += 1;
+      ws.getCell(r, 1).value = sp.table.title; ws.getCell(r, 1).font = {bold: true, size: 13, color: {argb: XL.ink}}; r++;
+      var tcols = xlCols(sp.table.cols);
+      xlTable(ws, r, tcols, sp.table.rows, {total: sp.table.total}, widths);
+      widths[0] = Math.max(widths[0], 26); widths[1] = Math.max(widths[1] || 0, 16); widths[2] = Math.max(widths[2] || 0, 16);
+    } else {
+      ws = wb.addWorksheet(sp.name.slice(0, 31), {views: [{state: "frozen", xSplit: sp.freeze || 0, ySplit: 4, showGridLines: false}], pageSetup: page});
+      xlTitle(ws, sp.title, sub, sp.note);
+      var cols = xlCols(sp.cols);
+      xlTable(ws, 4, cols, sp.rows, {total: sp.total, brandRule: sp.brandRule, rowFill: sp.rowFill, autoFilter: true}, widths);
+      ws.pageSetup.printTitlesRow = "4:4";
+    }
+    widths.forEach(function(w, i){ ws.getColumn(i + 1).width = Math.max(8, w || 10); });
+  });
+  return wb.xlsx.writeBuffer();
+}
+/* plain fallback when the Excel writer can't load: same sheets, titles, widths, filters and number formats, no colours */
+function buildWorkbookPlain(specs, sub){
+  var wb = XLSX.utils.book_new();
+  specs.forEach(function(sp){
+    var aoa = [[sp.title], [sub], [sp.note || ""]], fmts = [], widths = [];
+    var tbl = sp.summary ? sp.table : sp, cols = xlCols(tbl.cols);
+    if (sp.summary){ aoa = [[sp.title], [sub], []]; sp.info.forEach(function(x){ aoa.push([x[0], x[1]]); }); aoa.push([]); aoa.push(["Key metric", "Value", "Note"]);
+      sp.kpis.forEach(function(k){ aoa.push([k[0], k[2] === "min" ? (isNum(k[1]) ? fDur(k[1]) : "N/A") : (isNum(k[1]) ? k[1] : "N/A"), k[3] || ""]); fmts.push([aoa.length - 1, 1, k[2]]); });
+      aoa.push([]); aoa.push([sp.table.title]); }
+    var hrow = aoa.length; aoa.push(cols.map(function(c){ return c.label; }));
+    tbl.rows.concat(tbl.total ? [tbl.total] : []).forEach(function(r, ri){ var isT = tbl.total && ri === tbl.rows.length;
+      aoa.push(cols.map(function(c, i){ var v = c.k === "remarks" && isT ? "" : xlVal(c, r); if (isT && i === 0) v = v || "TOTAL"; var val = c.t === "dt" ? (isNum(v) ? v / 864e5 + 25569 : "") : xlCellVal(c, v); if (c.t !== "text") fmts.push([aoa.length, i, c.t]); return val; })); });
+    var ws = XLSX.utils.aoa_to_sheet(aoa, {cellDates: true});
+    fmts.forEach(function(f){ var a = XLSX.utils.encode_cell({r: f[0], c: f[1]}), cell = ws[a]; if (cell && cell.t === "n" || cell && cell.t === "d") cell.z = xlNumFmt(f[2]); });
+    cols.forEach(function(c, i){ widths[i] = Math.max(c.label.length > 18 ? 18 : c.label.length + 2, c.w || (c.t === "text" ? 24 : 14)); });
+    if (sp.summary) widths[0] = Math.max(widths[0] || 0, 26);
+    ws["!cols"] = widths.map(function(w){ return {wch: w}; });
+    if (tbl.rows.length) ws["!autofilter"] = {ref: XLSX.utils.encode_range({s: {r: hrow, c: 0}, e: {r: hrow + tbl.rows.length, c: cols.length - 1}})};
+    XLSX.utils.book_append_sheet(wb, ws, sp.name.slice(0, 31));
+  });
+  return XLSX.write(wb, {bookType: "xlsx", type: "array"});
+}
+function exportFileName(brand){
+  var r = rangeOf(state.range) || (state.R.avail.min !== null ? {from: state.R.avail.min, to: state.R.avail.max} : null);
+  var iso = function(d){ var x = ymd(d); return x.y + "-" + String(x.m + 1).padStart(2, "0") + "-" + String(x.d).padStart(2, "0"); };
+  var b = brand === "All" ? "All_Brands" : brand.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return "EBG_Lead_Report_" + b + (r ? "_" + iso(r.from) + (r.to !== r.from ? "_to_" + iso(r.to) : "") : "") + ".xlsx";
+}
+function toggleExport(){
+  var x = document.getElementById("export");
+  if (!x.hidden){ x.hidden = true; return; }
+  renderExportPanel(); x.hidden = false; document.getElementById("saved").hidden = true; document.getElementById("upload").hidden = true;
+  x.scrollIntoView({block: "nearest"});
+  loadExcelJS().catch(function(){});
+}
+function renderExportPanel(){
+  var x = document.getElementById("export"), P = exportPrefs(); x.textContent = "";
+  var one = state.brand !== "All";
+  var radio = function(val, label, on){ return el("label", {cls: "toggle"}, el("input", {type: "radio", name: "ex-scope", value: val, checked: on ? true : null}), el("span", {text: label})); };
+  var setAll = function(on){ x.querySelectorAll("input[name=ex-sheet]").forEach(function(i){ i.checked = on; }); };
+  x.appendChild(el("div", {cls: "sec-head"}, el("h2", {style: "font-size:18px", text: "Download Excel"}),
+    el("span", {cls: "note", text: "Dates: " + rangeText(false) + ". Every sheet has a title and period line, a bold header row that stays frozen, filters, ₹ / % / count formats, a total row, and flagged cells shaded like the dashboard."})));
+  x.appendChild(el("div", {cls: "opt-row", role: "radiogroup", "aria-label": "Brands to include"}, el("span", {cls: "eyebrow", text: "Brands"}),
+    radio("All", "All listed brands", !one), one ? radio(state.brand, state.brand + " only", true) : null));
+  x.appendChild(el("div", {cls: "opt-row"}, el("span", {cls: "eyebrow", text: "Sheets"}),
+    el("button", {cls: "linkbtn", type: "button", onclick: function(){ setAll(true); }}, "All"), el("button", {cls: "linkbtn", type: "button", onclick: function(){ setAll(false); }}, "None")));
+  x.appendChild(el("div", {cls: "opt-grid"}, EXPORT_SHEETS.map(function(s){
+    return el("label", {cls: "toggle"}, el("input", {type: "checkbox", name: "ex-sheet", value: s[0], checked: P.sheets[s[0]] ? true : null}), el("span", {text: s[1]})); })));
+  x.appendChild(el("div", {cls: "actions"},
+    el("button", {cls: "btn", type: "button", id: "ex-go", onclick: runExport}, "Download .xlsx"),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ x.hidden = true; }}, "Cancel"),
+    el("span", {cls: "small", id: "ex-status", "aria-live": "polite"})));
+}
+function runExport(){
+  var R = state.R, dl = state.caps.downloads; if (!dl || !R) return;
+  var x = document.getElementById("export"), want = {}, any = false;
+  x.querySelectorAll("input[name=ex-sheet]").forEach(function(i){ want[i.value] = i.checked; if (i.checked) any = true; });
+  if (!any){ toast("Tick at least one sheet"); return; }
+  try { localStorage.setItem(EXPORT_KEY, JSON.stringify({sheets: want})); } catch (e) {}
+  var sc = x.querySelector("input[name=ex-scope]:checked"), brand = sc ? sc.value : "All";
+  var specs = exportSpecs(brand, want), now = new Date();
+  var sub = "EBG Group · Meta Ads vs TeleCRM · " + rangeText(false) + " · " + (brand === "All" ? "All listed brands" : brand) + " · Generated " + now.toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
+  var go = document.getElementById("ex-go"), st = document.getElementById("ex-status"); go.disabled = true; st.textContent = "Building the workbook…";
+  var plain = false;
+  loadExcelJS().then(function(ExcelJS){ return buildWorkbookExcelJS(ExcelJS, specs, sub); })
+    .catch(function(e){ console.warn(e); plain = true; return buildWorkbookPlain(specs, sub); })
+    .then(function(buf){ st.textContent = ""; return dl.save({filename: exportFileName(brand), data: new Uint8Array(buf)}); })
+    .then(function(){ go.disabled = false; x.hidden = true; toast(plain ? "Excel saved (plain format: the formatter didn't load)" : "Excel saved: " + specs.length + " sheet" + (specs.length > 1 ? "s" : "")); })
+    .catch(function(e){ go.disabled = false; st.textContent = ""; if (e && e.code === "declined") return;
+      if (e && (e.code === "unavailable" || e.code === "not_granted")) document.getElementById("btn-xlsx").hidden = true;
+      toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
+}
+document.getElementById("btn-xlsx").addEventListener("click", toggleExport);
+
+/* ================= saved data (this browser only) ================= */
+var IDB_NAME = "ebg-lead-dash", AUTO_KEY = "ebg-lead-dash-autoload";
+var saved = {ok: typeof indexedDB !== "undefined", list: [], confirmDel: null, busy: false};
+function idb(){
+  if (idb._p) return idb._p;
+  idb._p = new Promise(function(res, rej){
+    try { var rq = indexedDB.open(IDB_NAME, 1);
+      rq.onupgradeneeded = function(){ var db = rq.result; if (!db.objectStoreNames.contains("index")) db.createObjectStore("index", {keyPath: "id"}); if (!db.objectStoreNames.contains("data")) db.createObjectStore("data", {keyPath: "id"}); };
+      rq.onsuccess = function(){ res(rq.result); }; rq.onerror = function(){ rej(rq.error || new Error("Browser storage is unavailable")); };
+      rq.onblocked = function(){ rej(new Error("Browser storage is busy in another tab")); };
+    } catch (e){ rej(e); } });
+  idb._p.catch(function(){ idb._p = null; });
+  return idb._p;
+}
+function idbRun(stores, mode, fn){
+  return idb().then(function(db){ return new Promise(function(res, rej){
+    var tx = db.transaction(stores, mode), out = {};
+    fn(tx, out); tx.oncomplete = function(){ res(out); }; tx.onerror = tx.onabort = function(){ rej(tx.error || new Error("Browser storage error")); }; }); });
+}
+function refreshSaved(){
+  if (!saved.ok) return Promise.resolve([]);
+  return idbRun(["index"], "readonly", function(tx, out){ var rq = tx.objectStore("index").getAll(); rq.onsuccess = function(){ out.list = rq.result || []; }; })
+    .then(function(o){ saved.list = o.list.sort(function(a, b){ return b.savedAt < a.savedAt ? -1 : 1; }); return saved.list; })
+    .catch(function(){ saved.ok = false; return []; });
+}
+function autoLoadOn(){ try { return localStorage.getItem(AUTO_KEY) !== "0"; } catch (e){ return true; } }
+function suggestName(){
+  var r = rangeOf(state.range) || (state.R && state.R.avail.min !== null ? {from: state.R.avail.min, to: state.R.avail.max} : null);
+  var f = state.files || {};
+  return (r ? spanText(r) : "Exports") + " · " + (f.meta && f.meta.list ? f.meta.list.length + " Meta file" + (f.meta.list.length > 1 ? "s" : "") : "Meta") + " + TeleCRM";
+}
+function saveDataset(name){
+  if (!state.raw) return Promise.reject(new Error("Load the exports first"));
+  name = clean(name) || suggestName();
+  var lean = leanData(state.raw, state.settings);
+  var existing = saved.list.filter(function(d){ return d.name.toLowerCase() === name.toLowerCase(); })[0];
+  var id = existing ? existing.id : Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  var meta = encodeAOA(lean.meta), crm = encodeAOA(lean.crm);
+  var bytes = JSON.stringify(meta).length + JSON.stringify(crm).length;
+  var idx = {id: id, name: name, savedAt: new Date().toISOString(), files: state.files, metaRows: lean.meta.length - 1, crmRows: lean.crm.length - 1, bytes: bytes,
+             avail: state.R ? {min: state.R.avail.min, max: state.R.avail.max} : null};
+  return idbRun(["index", "data"], "readwrite", function(tx){ tx.objectStore("data").put({id: id, meta: meta, crm: crm}); tx.objectStore("index").put(idx); })
+    .then(function(){ state.savedInfo = idx; if (state.source === "upload") state.source = "saved"; return refreshSaved(); })
+    .then(function(){ return idx; });
+}
+function openDataset(id, quiet){
+  var info = saved.list.filter(function(d){ return d.id === id; })[0];
+  return idbRun(["data"], "readonly", function(tx, out){ var rq = tx.objectStore("data").get(id); rq.onsuccess = function(){ out.rec = rq.result; }; })
+    .then(function(o){
+      if (!o.rec) throw new Error("This saved data is missing");
+      state.raw = {meta: decodeAOA(o.rec.meta), crm: decodeAOA(o.rec.crm)};
+      state.files = (info && info.files) || {}; state.source = "saved"; state.savedInfo = info || null; state.team = null;
+      state.metaFiles = []; state.pending = {meta: null, crm: null}; renderMetaList();
+      ["crm"].forEach(function(k){ document.getElementById("st-" + k).textContent = ""; document.getElementById("drop-" + k).classList.remove("ok"); });
+      state.brand = "All"; state.limit = {}; rebuild();
+      ["upload", "saved", "export"].forEach(function(p){ document.getElementById(p).hidden = true; });
+      document.getElementById("team-banner").hidden = true;
+      render(); if (!quiet) toast("Opened saved data: " + (info ? info.name : ""));
+    });
+}
+function deleteDataset(id){
+  return idbRun(["index", "data"], "readwrite", function(tx){ tx.objectStore("data").delete(id); tx.objectStore("index").delete(id); })
+    .then(function(){ if (state.savedInfo && state.savedInfo.id === id){ state.savedInfo = null; if (state.source === "saved") state.source = "upload"; } return refreshSaved(); });
+}
+function toggleSaved(){
+  var x = document.getElementById("saved");
+  if (!x.hidden){ x.hidden = true; return; }
+  saved.confirmDel = null;
+  refreshSaved().then(function(){ renderSavedPanel(); x.hidden = false; document.getElementById("export").hidden = true; document.getElementById("upload").hidden = true; x.scrollIntoView({block: "nearest"}); });
+}
+function renderSavedPanel(){
+  var x = document.getElementById("saved"); x.textContent = "";
+  x.appendChild(el("div", {cls: "sec-head"}, el("h2", {style: "font-size:18px", text: "Saved data"}),
+    el("span", {cls: "note", text: "Kept in this browser on this device, so you don't have to upload the exports again. Only the columns the report reads are kept: campaigns, spend, results, dates, lead IDs, statuses, owners and call times. No names, phone numbers or emails. Not shared with anyone."})));
+  if (!saved.ok){ x.appendChild(el("div", {cls: "banner warn", text: "This browser doesn't allow saving data here (private window or blocked site data). Use Download Excel instead."})); return; }
+  if (state.raw){
+    var inp = el("input", {type: "text", id: "sv-name", value: state.source === "saved" && state.savedInfo ? state.savedInfo.name : suggestName(), "aria-label": "Name for this data", maxlength: "120"});
+    var doSaveLocal = function(){ var b = document.getElementById("sv-go"); b.disabled = true;
+      saveDataset(inp.value).then(function(info){ renderSavedPanel(); render(); toast("Saved in this browser: " + info.name); })
+        .catch(function(e){ b.disabled = false; toast(e && e.name === "QuotaExceededError" ? "Browser storage is full. Delete an older saved dataset and try again." : "Could not save: " + (e && e.message || "try again")); }); };
+    inp.addEventListener("keydown", function(e){ if (e.key === "Enter") doSaveLocal(); });
+    x.appendChild(el("div", {cls: "save-row"},
+      el("div", {cls: "field"}, el("label", {"for": "sv-name", text: "Save the data that's loaded now as"}), inp),
+      el("button", {cls: "btn", type: "button", id: "sv-go", onclick: doSaveLocal}, "Save data"),
+      el("span", {cls: "small", text: "Using an existing name replaces that saved copy."})));
+  }
+  var auto = el("input", {type: "checkbox", id: "sv-auto", checked: autoLoadOn() ? true : null});
+  auto.addEventListener("change", function(){ try { localStorage.setItem(AUTO_KEY, auto.checked ? "1" : "0"); } catch (e) {} });
+  x.appendChild(el("label", {cls: "toggle", "for": "sv-auto"}, auto, el("span", {text: "Open the most recent saved data when this page opens"})));
+  if (!saved.list.length){ x.appendChild(el("div", {cls: "empty", text: "Nothing saved yet." + (state.raw ? "" : " Load the exports, then save them here.")})); return; }
+  var tb = el("tbody");
+  saved.list.forEach(function(d){
+    var cur = state.source === "saved" && state.savedInfo && state.savedInfo.id === d.id;
+    var acts = saved.confirmDel === d.id
+      ? el("span", {cls: "confirm"}, el("span", {text: "Delete this saved data?"}),
+          el("button", {cls: "btn", type: "button", onclick: function(){ deleteDataset(d.id).then(function(){ saved.confirmDel = null; renderSavedPanel(); render(); toast("Deleted: " + d.name); }); }}, "Delete"),
+          el("button", {cls: "btn ghost", type: "button", onclick: function(){ saved.confirmDel = null; renderSavedPanel(); }}, "Keep"))
+      : el("span", {cls: "confirm"},
+          el("button", {cls: "btn" + (cur ? " ghost" : ""), type: "button", onclick: function(){ openDataset(d.id).catch(function(e){ toast("Could not open: " + e.message); }); }}, cur ? "Reopen" : "Open"),
+          el("button", {cls: "linkbtn", type: "button", onclick: function(){ saved.confirmDel = d.id; renderSavedPanel(); }}, "Delete"));
+    var span = d.avail && d.avail.min !== null ? spanText({from: d.avail.min, to: d.avail.max}) : "—";
+    tb.appendChild(el("tr", null,
+      el("td", {cls: "name"}, el("span", {text: d.name}), cur ? el("span", {cls: "pill good", style: "margin-left:8px", text: "Open now"}) : null),
+      el("td", {cls: "nowrap", text: new Date(d.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}),
+      el("td", {cls: "nowrap", text: span}),
+      el("td", {cls: "r num nowrap", text: fInt(d.metaRows)}), el("td", {cls: "r num nowrap", text: fInt(d.crmRows)}),
+      el("td", {cls: "small", text: d.files && d.files.meta ? (d.files.meta.list || [d.files.meta.name]).join(", ") + (d.files.crm ? " · " + d.files.crm.name : "") : ""}),
+      el("td", {cls: "nowrap"}, acts)));
+  });
+  x.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:none"}, el("table", null,
+    el("thead", null, el("tr", null, ["Name", "Saved", "Data dates", "Meta rows", "CRM rows", "Files", ""].map(function(h, i){ return el("th", {cls: i === 3 || i === 4 ? "r" : "", scope: "col", style: "cursor:default", text: h}); }))), tb)));
+}
+document.getElementById("btn-saved").addEventListener("click", toggleSaved);
 
 /* ================= team report (shared store) ================= */
 var CHUNK = 110000;
@@ -1377,7 +1746,7 @@ function onTeamDoc(snap){
   if (!snap.exists) return;
   var cur = snap.data(); if (!cur || !cur.ver) return;
   if (state.team && state.team.ver === cur.ver) return;
-  if (state.source === "upload" && state.lastSavedVer !== cur.ver){
+  if ((state.source === "upload" || state.source === "saved") && state.lastSavedVer !== cur.ver){
     var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner"; b.textContent = "";
     b.appendChild(el("span", {text: "A team report saved " + new Date(cur.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " is available. You are looking at your own upload."}));
     b.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ b.hidden = true; applyTeam(cur); }}, "Show team report"));
@@ -1401,6 +1770,10 @@ document.getElementById("btn-save").addEventListener("click", confirmSave);
 function boot(){
   if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Check your connection and reload the page."; }
   render();
+  refreshSaved().then(function(list){
+    if (list.length && autoLoadOn() && state.source === "none" && typeof XLSX !== "undefined") return openDataset(list[0].id, true).then(function(){ toast("Opened your saved data: " + list[0].name); });
+    render();
+  }).catch(function(e){ console.warn(e); render(); });
   if (!(window.claude && window.claude.use) && typeof XLSX !== "undefined"){
     state.caps.downloads = {save: function(o){ var a = document.createElement("a"), url = URL.createObjectURL(new Blob([o.data], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
       a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); return Promise.resolve({status: "saved"}); }};
