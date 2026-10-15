@@ -37,6 +37,28 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 - **Saved data › This browser only** keeps a private copy in this browser (IndexedDB), so you don't upload them again. Name each save, open or delete any of them, and optionally open the latest one automatically. Only the report columns are kept; no names, phone numbers or emails.
 - **Download Excel** opens export options: all brands or the selected brand, and which sheets to include. The workbook is formatted: title and period line on each sheet, frozen bold header, filters, ₹ / % / count formats, totals, flagged cells, and TAT in minutes plus readable hours.
 
+## Team database (Supabase)
+When Supabase is connected, the Vercel site keeps one shared database of every upload:
+
+- **Add this upload to the database** (editors) adds Meta rows (one per ad per day) and TeleCRM leads (one per Lead id). Re-uploading the same days or leads **updates** them: a lead's newest status, owner and first call win. Upload the newest exports last.
+- **Open from database** loads any date range; the date picker reloads from the database, so history goes back as far as you've uploaded.
+- **Trends** tab: spend, Leads in UI vs CRM, CPL, CPQL, QL rate, TAT and SLA by day, week or month, with CPL / CPQL change vs the previous period.
+- **Shared settings**: brand keywords, QL rules and excluded campaigns changed by an editor apply for the whole team.
+- **Logins**: each person signs in with their own email and password. Roles: *viewer* (sees data), *editor* (adds uploads, changes shared settings), *admin* (also removes uploads and manages members). People not on the team see nothing, even with an account.
+- Stored per lead: lead id, created time, source, campaign / ad set / ad, status, CRM brand, owner, first call time, plus the report brand, QL flag and TAT. **No names, phone numbers or emails.**
+
+### Set up (one time, about 10 minutes)
+1. **Create the project**: supabase.com › New project › Region **Mumbai (ap-south-1)** › set a database password.
+2. **Create the tables**: SQL Editor › New query › paste all of [`supabase/schema.sql`](supabase/schema.sql) › Run. Then edit and run the *FIRST ADMIN* line with your own email (lowercase).
+3. **Sign-in settings**: Authentication › Sign In / Providers › Email: keep Email enabled and turn **off "Confirm email"** (access is controlled by the team list, so confirmation emails aren't needed and Supabase's free email limit stays out of the way).
+4. **Connect Vercel**: Supabase › Project Settings › API (Data API): copy the **Project URL** and the **anon / publishable** key. In Vercel › Settings › Environment Variables add `SUPABASE_URL` and `SUPABASE_ANON_KEY`, then redeploy. Never use the `service_role` / secret key here.
+5. Open the site › **Saved data** › **Create an account** with the same email as the first admin › add teammates under **Team members**; they create their accounts with those emails.
+
+When Supabase is connected it replaces the passcode team saves on the Vercel site. *This browser only* saves and Excel downloads keep working. The Claude artifact can't reach outside services, so it keeps its own team saves.
+
+### Looker Studio (optional)
+Run the *OPTIONAL: read-only login for Looker Studio* block at the end of `schema.sql` (set a password first). In Looker Studio › Add data › **PostgreSQL**: host and port from Supabase › Connect › **Session pooler**, database `postgres`, user `looker_reader.<project-ref>`, your password, tick **Enable SSL**. Use the views `v_brand_daily`, `v_meta_daily`, `v_crm_leads`.
+
 ## Hosting
 `index.html` is self-contained (SheetJS 0.18.5 and ExcelJS 4.4.0 from cdnjs, fonts from Google Fonts). Team saving uses `api/team.js`, a Vercel function backed by Vercel Blob.
 

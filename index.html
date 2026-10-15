@@ -294,6 +294,7 @@ tr.flagged td{background:var(--warn-bg)}
 <nav class="tabs" aria-label="Report sections">
   <div class="wrap" role="tablist" id="tablist">
     <button class="tab" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button class="tab" role="tab" data-tab="trends" aria-selected="false">Trends</button>
     <button class="tab" role="tab" data-tab="campaigns" aria-selected="false">Campaigns</button>
     <button class="tab" role="tab" data-tab="adsets" aria-selected="false">Ad sets</button>
     <button class="tab" role="tab" data-tab="ads" aria-selected="false">Ads</button>
@@ -672,7 +673,7 @@ function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem
   for (var k in d) if (k in s) d[k] = s[k];
   d.cols.meta = Object.assign(clone(DEFAULT_SETTINGS.cols.meta), (s.cols || {}).meta || {}); d.cols.crm = Object.assign(clone(DEFAULT_SETTINGS.cols.crm), (s.cols || {}).crm || {});
   return d; }
-function storeSettings(){ try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch (e) {} }
+function storeSettings(){ try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch (e) {} if (typeof dbSettingsChanged === "function") dbSettingsChanged(); }
 
 /* ================= formatting ================= */
 var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1013,6 +1014,79 @@ function applySettings(){
   storeSettings(); recompute(); toast(state.raw ? "Report rebuilt with the new settings" : "Settings saved");
 }
 
+/* ================= trends (by day, week or month) ================= */
+function periodKey(d, gran){ if (gran === "day") return d; var x = ymd(d); if (gran === "month") return dayFrom(x.y, x.m, 1); return d - ((x.w + 6) % 7); }
+function periodLabel(k, gran){ var x = ymd(k);
+  if (gran === "day") return x.d + " " + MON[x.m] + " " + x.y;
+  if (gran === "month") return MON[x.m] + " " + x.y;
+  return "Week of " + x.d + " " + MON[x.m] + " " + x.y; }
+function trendData(gran, ok){
+  var R = state.R, S = state.settings, raw = state.raw, brandOf = makeBrandOf(S), rng = rangeOf(state.range), B = {}, partial = 0;
+  var ex = {}; (R.excluded || []).forEach(function(x){ if (x.excluded) ex[x.key] = 1; });
+  var listed = {}; S.brands.forEach(function(b){ listed[b] = 1; });
+  var keep = function(b){ return ((b in listed) || S.showOther) && ok(b); };
+  var get = function(k){ return B[k] || (B[k] = newAcc({k: k, spend: 0, ui: 0})); };
+  var mh = findMetaHeader(raw.meta, S.cols.meta);
+  if (mh >= 0){ var c = detectMetaColumns(raw.meta[mh], S.cols.meta);
+    for (var i = mh + 1; i < raw.meta.length; i++){
+      var r = raw.meta[i] || [], camp = clean(r[c.campaign]); if (!camp) continue;
+      if (!keep(brandOf(camp) || "Unmapped") || ex[campKey(camp)]) continue;
+      var st = c.start >= 0 ? parseDT(r[c.start]) : null, en = c.end >= 0 ? parseDT(r[c.end]) : st; if (!isNum(st)) continue; if (!isNum(en)) en = st;
+      var d0 = dayOf(st), d1 = dayOf(en);
+      if (rng && (d1 < rng.from || d0 > rng.to)) continue;
+      if ((rng && (d0 < rng.from || d1 > rng.to)) || periodKey(d0, gran) !== periodKey(d1, gran)){ partial++; continue; }
+      var o = get(periodKey(d0, gran)); o.spend += c.spend >= 0 ? num(r[c.spend]) : 0; o.ui += c.lead >= 0 ? num(r[c.lead]) : 0; o.hasMeta = true;
+    } }
+  var cc = S.cols.crm, ch = findHeaderRow(raw.crm, cc.id);
+  if (ch >= 0){ var H = raw.crm[ch], k = {}; Object.keys(cc).forEach(function(f){ k[f] = findCol(H, cc[f]); });
+    var g = function(row, ix){ return ix >= 0 ? clean(row[ix]) : ""; };
+    for (var j = ch + 1; j < raw.crm.length; j++){
+      var row = raw.crm[j] || [], created = k.created >= 0 ? parseDT(row[k.created]) : null; if (!isNum(created)) continue;
+      var d = dayOf(created); if (rng && (d < rng.from || d > rng.to)) continue;
+      var camp2 = g(row, k.campaign), cb = g(row, k.brand), brand = camp2 ? (brandOf(camp2) || "Unmapped") : (cb ? (brandOf(cb) || "Unmapped") : "No campaign");
+      if (!keep(brand) || (camp2 && ex[campKey(camp2)])) continue;
+      var status = g(row, k.status), fc = k.firstCall >= 0 ? parseDT(row[k.firstCall]) : null, tat = null, sla;
+      if (fc === null) sla = "Pending"; else if (!isNum(fc) || fc < created) sla = "Invalid timestamp"; else { tat = Math.round((fc - created) / 6000) / 10; sla = tat <= S.slaMin ? "Within SLA" : "Delayed"; }
+      addLead(get(periodKey(d, gran)), {isQL: status ? !!classifyStatus(status, S).ql : false, tat: tat, sla: sla});
+    } }
+  var rows = Object.keys(B).map(Number).sort(function(a, b){ return a - b; }).map(function(key){ var o = derive(B[key]);
+    if (!o.hasMeta){ o.spend = null; o.ui = null; derive(o); }
+    o.period = periodLabel(key, gran); o.qlRate = o.crm ? o.ql / o.crm : null; return o; });
+  rows.forEach(function(o, i){ var p = rows[i - 1];
+    o.cplChg = p && isNum(p.cpl) && p.cpl > 0 && isNum(o.cpl) ? o.cpl / p.cpl - 1 : null;
+    o.cpqlChg = p && isNum(p.cpql) && p.cpql > 0 && isNum(o.cpql) ? o.cpql / p.cpql - 1 : null; });
+  return {rows: rows, partial: partial};
+}
+function trendCols(){ var R = state.R, up = function(k){ return function(r){ return isNum(r[k]) && r[k] > 0.15 ? "bad" : isNum(r[k]) && r[k] < -0.15 ? "good" : null; }; };
+  return [{k: "period", label: "Period", t: "text", cls: "nowrap", w: 22}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
+    {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
+    {k: "cpl", label: "CPL", t: "inr"}, {k: "cplChg", label: "CPL vs previous", t: "pct", flag: up("cplChg")},
+    {k: "ql", label: "Qualified leads", t: "int"}, {k: "qlRate", label: "QL rate", t: "pct"},
+    {k: "cpql", label: "CPQL", t: "inr"}, {k: "cpqlChg", label: "CPQL vs previous", t: "pct", flag: up("cpqlChg")},
+    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}]; }
+function viewTrends(){
+  var gran = state.trendGran || "week", T = trendData(gran, brandOK), rows = T.rows;
+  var chips = el("div", {cls: "chips", role: "group", "aria-label": "Group by"}, [["day", "By day"], ["week", "By week"], ["month", "By month"]].map(function(gx){
+    return el("button", {cls: "chip", type: "button", "aria-pressed": gran === gx[0] ? "true" : "false", onclick: function(){ state.trendGran = gx[0]; try { localStorage.setItem("ebg-lead-dash-gran", gx[0]); } catch (e) {} render(); }}, gx[1]); }));
+  var items = rows.slice(-16).map(function(r){ return Object.assign({label: r.period.replace("Week of ", "")}, r); });
+  var unit = gran === "day" ? "day" : gran === "month" ? "month" : "week";
+  var sec = el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "Trends · " + (state.brand === "All" ? "All listed brands" : state.brand) + " · " + rangeText(true)}),
+      el("span", {cls: "note", text: "Weeks start on Monday. CPL / CPQL vs previous turn red when up more than 15% and green when down more than 15%. Excluded campaigns are left out. Pick a longer date range (or open the team database) to see more periods."})),
+    el("div", {cls: "tbl-tools"}, chips, el("span", {cls: "small", text: rows.length + " " + unit + (rows.length === 1 ? "" : "s")})));
+  if (T.partial) sec.appendChild(el("div", {cls: "banner warn", text: T.partial.toLocaleString("en-IN") + " Meta rows cover more than one " + unit + " (or run past the selected dates), so their spend and Leads in UI aren't split into " + unit + "s. Export from Meta with Breakdown › By time › Day."}));
+  var tot = sumRows(rows); tot.period = "TOTAL"; tot.qlRate = tot.crm ? tot.ql / tot.crm : null;
+  sec.appendChild(table("trends", trendCols(), rows, {total: rows.length ? tot : null, empty: "No data in these dates."}));
+  sec.appendChild(el("div", {cls: "charts"},
+    barChart("CPL and CPQL by " + unit, items, [{k: "cpl", label: "CPL", cls: "s1", fmt: fINR}, {k: "cpql", label: "CPQL", cls: "s3", fmt: fINR}]),
+    barChart("Leads in UI vs CRM by " + unit, items, [{k: "ui", label: "Leads in UI (Meta)", cls: "s1", fmt: fInt}, {k: "crm", label: "Leads in CRM", cls: "s2", fmt: fInt}]),
+    barChart("QL rate by " + unit, items, [{k: "qlRate", label: "Qualified leads ÷ CRM leads", cls: "s3", fmt: fPct}], {max: 1, legend: true}),
+    barChart("Avg first call TAT by " + unit, items, [{k: "tat", label: "Time from lead created to first call", cls: "s1", fmt: fMin}], {legend: true, mark: state.R.slaMin,
+      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + state.R.slaMin + " min")]})));
+  return sec;
+}
+
 /* ================= shell rendering ================= */
 function renderHeader(){
   var R = state.R, p = R.period;
@@ -1021,9 +1095,11 @@ function renderHeader(){
   var sl = document.getElementById("source-line"); sl.textContent = "";
   if (state.source === "upload") sl.appendChild(el("span", {cls: "tag upload", text: "Your upload · not saved for team"}));
   if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team data" + (state.team && state.team.name ? " · " + state.team.name : "")}));
+  if (state.source === "db") sl.appendChild(el("span", {cls: "tag team", title: sb.email, text: "Team database" + (sb.role ? " · " + sb.role : "")}));
+  if (sb.busy) sl.appendChild(el("span", {cls: "small", text: sb.busy}));
   if (state.source === "saved") sl.appendChild(el("span", {cls: "tag saved", title: state.savedInfo ? "Saved " + new Date(state.savedInfo.savedAt).toLocaleString("en-IN") : null,
     text: "Saved data" + (state.savedInfo ? " · " + state.savedInfo.name : "")}));
-  if (state.source === "upload" && (saved.ok || team.kind)) sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: toggleSaved}, "Not saved yet: save this data"));
+  if ((state.source === "upload" || (state.source === "saved" && sb.cfg)) && (saved.ok || team.kind || sb.cfg)) sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: toggleSaved}, "Not saved yet: save this data"));
   var f = state.source === "team" && state.team ? state.team.files : state.files;
   {
     if (f && f.meta) sl.appendChild(el("span", {title: (f.meta.list || [f.meta.name]).join("\n"), text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)" + (f.meta.list && f.meta.list.length > 1 ? " — " + f.meta.list.join(", ") : "")}));
@@ -1036,17 +1112,17 @@ function renderHeader(){
     chips.appendChild(el("button", {cls: "chip", type: "button", "aria-pressed": state.brand === b ? "true" : "false", onclick: function(){ state.brand = b; state.limit = {}; render(); }},
       b === "All" ? "All brands" : b, el("span", {cls: "c", text: (b === "All" ? tot : (per[b] || 0)).toLocaleString("en-IN")}))); });
   document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
-  document.getElementById("save-wrap").hidden = !(state.raw && (teamCanWrite() || team.status === "locked"));
-  document.getElementById("btn-saved").hidden = !(saved.ok || team.kind);
+  document.getElementById("save-wrap").hidden = sb.cfg ? !(state.raw && state.source !== "db" && (sbCanWrite() || sb.status === "signedout")) : !(state.raw && (teamCanWrite() || team.status === "locked"));
+  document.getElementById("btn-saved").hidden = !(saved.ok || team.kind || sb.cfg);
 }
 function renderEmpty(){
   document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
   var sl = document.getElementById("source-line"); sl.textContent = "";
   sl.appendChild(el("span", {cls: "tag", text: "No data loaded"}));
-  sl.appendChild(el("span", {text: team.status === "locked" ? "Load today's exports, or enter the team passcode under Saved data to open team data." : team.kind ? "Load today's exports, or open data your team has saved." : "Load today's Meta and TeleCRM exports to build the report."}));
+  sl.appendChild(el("span", {text: sb.cfg ? (sb.status === "ready" ? (sb.busy || "Loading the team database…") : "Sign in under Saved data to open the team database, or load today's exports.") : team.status === "locked" ? "Load today's exports, or enter the team passcode under Saved data to open team data." : team.kind ? "Load today's exports, or open data your team has saved." : "Load today's Meta and TeleCRM exports to build the report."}));
   document.getElementById("brand-chips").textContent = ""; document.getElementById("dp").textContent = "";
   document.getElementById("btn-xlsx").hidden = true; document.getElementById("save-wrap").hidden = true;
-  document.getElementById("btn-saved").hidden = !((saved.ok && saved.list.length) || team.kind);
+  document.getElementById("btn-saved").hidden = !((saved.ok && saved.list.length) || team.kind || sb.cfg);
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"); v.textContent = "";
   var step = function(n, t, d){ return el("div", {cls: "kpi"}, el("div", {cls: "eyebrow", text: "Step " + n}), el("div", {cls: "v", style: "font-size:20px", text: t}), el("div", {cls: "s", text: d})); };
@@ -1060,6 +1136,7 @@ function renderEmpty(){
       step(5, "Share", "Download Excel, or Save for team so your manager sees the same report.")),
     el("div", {cls: "actions"}, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Load exports"),
       (saved.ok && saved.list.length) || team.list.length ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open saved data (" + (saved.list.length + team.list.length) + ")")
+        : sb.cfg && sb.status !== "ready" ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Sign in to the team database")
         : team.status === "locked" ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open team data") : null)));
 }
 function render(){
@@ -1071,7 +1148,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, campaigns: function(){ return viewLevel("campaign"); }, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); },
+  var map = {overview: viewOverview, trends: viewTrends, campaigns: function(){ return viewLevel("campaign"); }, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); },
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   window.scrollTo(0, y);
@@ -1114,9 +1191,11 @@ function rangeText(short){
   if (!r){ var av = state.R && state.R.avail; return name + (av && av.min !== null ? ": " + spanText({from: av.min, to: av.max}) : ""); }
   return (short && sel.preset === "custom" ? "" : name + ": ") + spanText(r);
 }
-function rebuild(){ state.R = processData(state.raw.meta, state.raw.crm, state.settings, rangeOf(state.range)); }
+function rebuild(){ state.R = processData(state.raw.meta, state.raw.crm, state.settings, rangeOf(state.range));
+  if (state.source === "db" && sb.days && sb.days.length) state.R.avail = {min: sb.days[0], max: sb.days[sb.days.length - 1], days: sb.days}; }
 function setRange(sel){ state.range = sel; try { localStorage.setItem("ebg-lead-dash-range", JSON.stringify(sel)); } catch (e) {}
   state.dp = null; state.limit = {};
+  if (state.source === "db" && sb.status === "ready"){ render(); dbOpen(true).catch(function(e){ toast("Could not load these dates: " + e.message); }); return; }
   if (state.raw) rebuild(); render(); }
 var CAL_ICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="12" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 6h13M5 1v3M11 1v3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>';
 function renderDatePicker(){
@@ -1255,7 +1334,7 @@ function tryBuild(fromList){
   state.source = "upload"; state.savedInfo = null; state.limit = {}; if (first) state.brand = "All";
   rebuild();
   if (first) document.getElementById("upload").hidden = true;
-  render();
+  render(); if (!document.getElementById("saved").hidden) renderSavedPanel();
   toast(fromList ? "Report rebuilt with " + state.metaFiles.length + " Meta file" + (state.metaFiles.length > 1 ? "s" : "") : (first ? "Report built from your exports" : "Report updated"));
   if (comb.currencies.length > 1) toast("Meta files use different currencies (" + comb.currencies.join(", ") + "). Spend is added as-is.");
 }
@@ -1315,7 +1394,7 @@ function loadExcelJS(){
     document.head.appendChild(s); });
   return loadExcelJS._p;
 }
-var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["campaigns", "Campaign level"], ["adsets", "Ad set level"], ["ads", "Ad level"],
+var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["trends", "Trends (by day / week / month, as on the Trends tab)"], ["campaigns", "Campaign level"], ["adsets", "Ad set level"], ["ads", "Ad level"],
   ["owners", "TAT by owner"], ["calls", "Leads needing a call"], ["excluded", "Excluded campaigns"], ["ql", "QL statuses"], ["checks", "Data checks"], ["unmatched", "Unmatched CRM leads"]];
 var EXPORT_KEY = "ebg-lead-dash-export";
 function exportPrefs(){
@@ -1374,6 +1453,9 @@ function exportSpecs(brand, want){
         ["Calls pending", T.pend, "int", "Not called yet"]],
       table: {title: "Brand summary", cols: bcols, rows: br, total: brand === "All" ? bt : null}});
   }
+  if (want.trends){ var gran = state.trendGran || "week", td = trendData(gran, ok), tt = sumRows(td.rows); tt.period = "TOTAL"; tt.qlRate = tt.crm ? tt.ql / tt.crm : null;
+    specs.push({name: "Trends", title: "Trends by " + gran, note: "Weeks start on Monday. Excluded campaigns are left out." + (td.partial ? " " + td.partial + " Meta rows span more than one " + gran + " and are not split." : ""),
+      cols: trendCols(), rows: td.rows, total: td.rows.length ? tt : null, freeze: 1}); }
   if (want.campaigns){ var c1 = lvl("campaign"); specs.push({name: "Campaigns", title: "Campaign level report", cols: c1.cols, rows: c1.rows, total: c1.total, freeze: 2, brandRule: true,
     rowFill: function(r){ var fl = R.campFlags && R.campFlags[campKey(r.campaign)]; return fl && fl.nonLead && !fl.excluded ? "warn" : null; }}); }
   if (want.adsets){ var c2 = lvl("adset"); specs.push({name: "Ad sets", title: "Ad set level report", cols: c2.cols, rows: c2.rows, total: c2.total, freeze: 2, brandRule: true}); }
@@ -1648,13 +1730,13 @@ function toggleSaved(){
   if (!x.hidden){ x.hidden = true; return; }
   saved.confirmDel = null;
   saved.confirmDel = null; team.confirmDel = null;
-  Promise.all([refreshSaved(), refreshTeam()]).then(function(){ renderSavedPanel(); x.hidden = false; document.getElementById("export").hidden = true; document.getElementById("upload").hidden = true; x.scrollIntoView({block: "nearest"}); });
+  Promise.all([refreshSaved(), refreshTeam(), dbRefreshLists()]).then(function(){ renderSavedPanel(); x.hidden = false; document.getElementById("export").hidden = true; document.getElementById("upload").hidden = true; x.scrollIntoView({block: "nearest"}); });
 }
 function renderSavedPanel(){
   var x = document.getElementById("saved"); x.textContent = "";
   x.appendChild(el("div", {cls: "sec-head"}, el("h2", {style: "font-size:18px", text: "Saved data"}),
     el("span", {cls: "note", text: "Save the loaded exports so nobody has to upload them again. Only the columns the report reads are kept: campaigns, spend, results, dates, lead IDs, statuses, owners and call times. No names, phone numbers or emails."})));
-  if (team.kind) renderTeamSection(x);
+  if (sb.cfg) renderDbSection(x); else if (team.kind) renderTeamSection(x);
   var outer = x; x = el("div", {cls: "group"}, el("div", {cls: "sec-head"}, el("h3", {text: "This browser only"}), el("span", {cls: "note", text: "Private to you on this device. Not shared."}))); outer.appendChild(x);
   if (!saved.ok){ x.appendChild(el("div", {cls: "banner warn", text: "This browser doesn't allow saving data here (private window or blocked site data). Use Download Excel instead."})); return; }
   if (state.raw){
@@ -1907,11 +1989,271 @@ function renderTeamSection(x){
   if (team.kind === "vercel") box.appendChild(el("div", null, el("button", {cls: "linkbtn", type: "button", onclick: function(){ try { localStorage.removeItem(TEAM_KEY); } catch (e) {} team.status = "locked"; team.role = null; team.list = []; team.err = ""; renderSavedPanel(); renderHeaderSafe(); }}, "Use a different passcode")));
 }
 function renderHeaderSafe(){ if (state.R) renderHeader(); }
-function openSaveForTeam(){ var x = document.getElementById("saved"); if (x.hidden) toggleSaved(); else renderSavedPanel(); setTimeout(function(){ var n = document.getElementById("tm-name") || document.getElementById("tm-key"); if (n) n.focus(); }, 60); }
+function openSaveForTeam(){ var x = document.getElementById("saved"); if (x.hidden) toggleSaved(); else renderSavedPanel(); setTimeout(function(){ var n = document.getElementById("db-add") || document.getElementById("sb-email") || document.getElementById("tm-name") || document.getElementById("tm-key"); if (n) n.focus(); }, 60); }
 document.getElementById("btn-save").addEventListener("click", openSaveForTeam);
+
+/* ================= Supabase database (Vercel site) =================
+   Sign in with email + password; access is decided by public.team_members (row level security).
+   Uploads are added with upserts, so re-uploading the same days or leads updates rows instead of duplicating them. */
+var SB_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
+var sb = {cfg: null, client: null, email: "", role: null, status: "off", err: "", uploads: [], members: [], days: null, busy: "", mode: "signin", confirmUp: null, settingsAt: null};
+function loadScript(src){ return new Promise(function(res, rej){ var s = document.createElement("script"); s.src = src; s.async = true; s.onload = res; s.onerror = function(){ rej(new Error("Could not load " + src)); }; document.head.appendChild(s); }); }
+function sbCanWrite(){ return sb.status === "ready" && (sb.role === "admin" || sb.role === "editor"); }
+function sbInit(){
+  if (!/^https?:$/.test(location.protocol) || (window.claude && window.claude.use)) return Promise.resolve(false);
+  return fetch("/api/config", {cache: "no-store"}).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }).then(function(cfg){
+    if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey) return false;
+    sb.cfg = cfg; sb.status = "loading";
+    return (window.supabase ? Promise.resolve() : loadScript(SB_JS)).then(function(){
+      sb.client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: true}});
+      sb.client.auth.onAuthStateChange(function(ev, session){
+        if (ev === "SIGNED_OUT"){ sbSession(null).then(sbAfterAuth); }
+        else if (ev === "SIGNED_IN" && session && session.user && (session.user.email || "").toLowerCase() !== sb.email){ sbSession(session).then(sbAfterAuth); }
+      });
+      return sb.client.auth.getSession().then(function(r){ return sbSession(r.data && r.data.session); }).then(function(){ return true; });
+    }).catch(function(e){ sb.status = "error"; sb.err = e.message; return true; });
+  });
+}
+function sbSession(session){
+  sb.email = session && session.user ? String(session.user.email || "").toLowerCase() : "";
+  if (!session){ sb.status = "signedout"; sb.role = null; return Promise.resolve(); }
+  return sb.client.from("team_members").select("role").eq("email", sb.email).maybeSingle().then(function(r){
+    if (r.error){ sb.status = "error"; sb.err = r.error.message; return; }
+    sb.role = r.data ? r.data.role : null; sb.status = sb.role ? "ready" : "norole"; sb.err = "";
+  });
+}
+function sbAfterAuth(){
+  renderHeaderSafe(); if (!document.getElementById("saved").hidden) renderSavedPanel(); if (!state.R) render();
+  if (sb.status === "ready" && (state.source === "none")) dbOpen().catch(function(e){ toast("Could not open the database: " + e.message); });
+}
+function sbSignIn(email, pw, create){
+  sb.err = "";
+  var p = create ? sb.client.auth.signUp({email: email, password: pw}) : sb.client.auth.signInWithPassword({email: email, password: pw});
+  return p.then(function(r){
+    if (r.error) throw r.error;
+    if (create && !r.data.session) throw new Error("Account created. Supabase is asking for email confirmation: turn off “Confirm email” in Supabase › Authentication › Providers › Email, or confirm from your inbox, then sign in.");
+    return sbSession(r.data.session);
+  }).then(sbAfterAuth);
+}
+function sbSignOut(){ return sb.client.auth.signOut().then(function(){ return sbSession(null); }).then(function(){ if (state.source === "db"){ state.source = "none"; state.raw = null; state.R = null; } sbAfterAuth(); render(); }); }
+/* page through a query 1000 rows at a time (the API's limit per request) */
+function sbAll(build, onPage){
+  var out = [], size = 1000;
+  function page(from){ return build().range(from, from + size - 1).then(function(r){
+    if (r.error) throw r.error; out = out.concat(r.data || []); if (onPage) onPage(out.length);
+    return (r.data || []).length < size ? out : page(from + size); }); }
+  return page(0);
+}
+function isoDay(d){ var x = ymd(d); return x.y + "-" + String(x.m + 1).padStart(2, "0") + "-" + String(x.d).padStart(2, "0"); }
+function tsStr(ms){ return isNum(ms) ? new Date(ms).toISOString().slice(0, 19).replace("T", " ") : null; }
+function makeBrandOf(S){
+  var kws = S.keywords.filter(function(k){ return k[0] && k[1]; }).map(function(k){ return [String(k[0]).toLowerCase(), k[1]]; });
+  return function(t){ var s = String(t || "").toLowerCase(); if (!s) return ""; for (var i = 0; i < kws.length; i++) if (s.indexOf(kws[i][0]) >= 0) return kws[i][1]; return "Unmapped"; };
+}
+/* canonical rows from whatever is loaded (uploads or saved data) */
+function dbRowsFromRaw(){
+  var S = state.settings, raw = state.raw, brandOf = makeBrandOf(S), out = {meta: [], crm: [], noDate: 0, level: 3, from: null, to: null};
+  var mh = findMetaHeader(raw.meta, S.cols.meta);
+  if (mh >= 0){
+    var H = raw.meta[mh], c = detectMetaColumns(H, S.cols.meta), cur = c.spend >= 0 ? String(H[c.spend]).match(/\(([A-Za-z]{3})\)/) : null, code = cur ? cur[1].toUpperCase() : "INR", mm = {};
+    out.level = c.ad >= 0 && c.adset >= 0 ? 3 : c.adset >= 0 ? 2 : 1;
+    for (var i = mh + 1; i < raw.meta.length; i++){
+      var r = raw.meta[i] || [], camp = clean(r[c.campaign]); if (!camp) continue;
+      var st = c.start >= 0 ? parseDT(r[c.start]) : null, en = c.end >= 0 ? parseDT(r[c.end]) : st;
+      if (!isNum(st)){ out.noDate++; continue; } if (!isNum(en) || en < st) en = st;
+      var d0 = dayOf(st), d1 = dayOf(en), adset = c.adset >= 0 ? clean(r[c.adset]) : "", ad = c.ad >= 0 ? clean(r[c.ad]) : "";
+      out.from = out.from === null ? d0 : Math.min(out.from, d0); out.to = out.to === null ? d1 : Math.max(out.to, d1);
+      mm[[camp, adset, ad, d0, d1].join("\u0001")] = {campaign: camp, adset: adset, ad: ad, day: isoDay(d0), day_end: isoDay(d1),
+        spend: c.spend >= 0 ? Math.round(num(r[c.spend]) * 100) / 100 : 0, results: c.lead >= 0 ? num(r[c.lead]) : 0,
+        result_indicator: c.indicator >= 0 && c.lead === c.results ? clean(r[c.indicator]) : "", currency: code, brand: brandOf(camp)};
+    }
+    out.meta = Object.keys(mm).map(function(k){ return mm[k]; });
+  }
+  var cc = S.cols.crm, ch = findHeaderRow(raw.crm, cc.id);
+  if (ch >= 0){
+    var HC = raw.crm[ch], k = {}; Object.keys(cc).forEach(function(f){ k[f] = findCol(HC, cc[f]); });
+    var g = function(row, ix){ return ix >= 0 ? clean(row[ix]) : ""; }, cm = {};
+    for (var j = ch + 1; j < raw.crm.length; j++){
+      var row = raw.crm[j] || []; if (!row.some(function(v){ return v !== null && v !== undefined && String(v).trim() !== ""; })) continue;
+      var created = k.created >= 0 ? parseDT(row[k.created]) : null, fc = k.firstCall >= 0 ? parseDT(row[k.firstCall]) : null;
+      var camp2 = g(row, k.campaign), crmBrand = g(row, k.brand), status = g(row, k.status), id = g(row, k.id);
+      var lid = id || ("noid:" + (isNum(created) ? created : "") + "|" + camp2 + "|" + g(row, k.ad) + "|" + g(row, k.owner) + "|" + j);
+      var tat = isNum(created) && isNum(fc) && fc >= created ? Math.round((fc - created) / 6000) / 10 : null;
+      cm[lid] = {lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
+        status: status, crm_brand: crmBrand, first_call: tsStr(fc), owner: g(row, k.owner), brand: camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign"),
+        is_ql: status ? !!classifyStatus(status, S).ql : false, tat_min: tat};
+      if (isNum(created)){ var cd = dayOf(created); out.from = out.from === null ? cd : Math.min(out.from, cd); out.to = out.to === null ? cd : Math.max(out.to, cd); }
+    }
+    out.crm = Object.keys(cm).map(function(x){ return cm[x]; });
+  }
+  return out;
+}
+function dbUpload(onStep){
+  var rows = dbRowsFromRaw(), f = state.files || {}, uid, now = new Date().toISOString();
+  if (!rows.meta.length && !rows.crm.length) return Promise.reject(new Error("Nothing to add: no dated Meta rows or CRM leads found"));
+  return sb.client.from("uploads").insert({meta_files: f.meta ? (f.meta.list || [f.meta.name]) : [], crm_file: f.crm ? f.crm.name : null, meta_rows: rows.meta.length, crm_rows: rows.crm.length,
+      date_from: rows.from !== null ? isoDay(rows.from) : null, date_to: rows.to !== null ? isoDay(rows.to) : null}).select("id").single()
+    .then(function(r){ if (r.error) throw r.error; uid = r.data.id;
+      var jobs = [], B = 500;
+      for (var i = 0; i < rows.meta.length; i += B) jobs.push(["meta_ad_rows", rows.meta.slice(i, i + B), "campaign,adset,ad,day,day_end"]);
+      for (var j = 0; j < rows.crm.length; j += B) jobs.push(["crm_leads", rows.crm.slice(j, j + B), "lead_id"]);
+      var done = 0, chain = Promise.resolve();
+      jobs.forEach(function(jb){ chain = chain.then(function(){
+        var batch = jb[1].map(function(x){ return Object.assign({}, x, {upload_id: uid, updated_at: now}); });
+        return sb.client.from(jb[0]).upsert(batch, {onConflict: jb[2]}).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, rows.meta.length + rows.crm.length); }); }); });
+      return chain; })
+    .then(function(){ return {id: uid, meta: rows.meta.length, crm: rows.crm.length, noDate: rows.noDate, level: rows.level, from: rows.from, to: rows.to}; });
+}
+/* load the rows for the selected dates (or everything) into the same shape as an upload */
+function dbLoad(range, onProgress){
+  var S = state.settings, cc = S.cols.crm, p = {meta: 0, crm: 0};
+  var tell = function(){ if (onProgress) onProgress(p); };
+  var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency").order("id");
+    return range ? q.lte("day", isoDay(range.to)).gte("day_end", isoDay(range.from)) : q; };
+  var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner").order("lead_id");
+    return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
+  return Promise.all([sbAll(mq, function(n){ p.meta = n; tell(); }), sbAll(cq, function(n){ p.crm = n; tell(); }),
+    sb.client.from("data_days").select("d").then(function(r){ if (r.error) throw r.error; return r.data; }),
+    sb.client.from("team_settings").select("settings,updated_at,updated_by").eq("id", 1).maybeSingle().then(function(r){ return r.error ? null : r.data; })])
+  .then(function(res){
+    var cur = res[0].length ? res[0][0].currency : "INR";
+    var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator"]]
+      .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator]; }));
+    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner]]
+      .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner]; }));
+    sb.days = (res[2] || []).map(function(r){ return dayOf(Date.parse(r.d + "T00:00:00Z")); }).sort(function(a, b){ return a - b; });
+    if (res[3] && res[3].settings){ state.settings = Object.assign(clone(DEFAULT_SETTINGS), res[3].settings); sb.settingsAt = res[3].updated_at; }
+    return {meta: meta, crm: crm, metaRows: res[0].length, crmRows: res[1].length};
+  });
+}
+function dbOpen(quiet){
+  if (sb.status !== "ready") return Promise.reject(new Error("Sign in first"));
+  sb.busy = "Loading from the database…"; renderDbStatus();
+  return dbLoad(rangeOf(state.range), function(p){ sb.busy = "Loading… " + fInt(p.meta) + " Meta rows · " + fInt(p.crm) + " leads"; renderDbStatus(); }).then(function(d){
+    sb.busy = "";
+    state.raw = {meta: d.meta, crm: d.crm}; state.source = "db"; state.team = null; state.savedInfo = null;
+    state.files = {meta: {name: "Database", rows: d.metaRows, list: ["Database"]}, crm: {name: "Database", rows: d.crmRows}};
+    state.metaFiles = []; state.pending = {meta: null, crm: null}; renderMetaList();
+    document.getElementById("st-crm").textContent = ""; document.getElementById("drop-crm").classList.remove("ok");
+    state.limit = {}; rebuild();
+    ["upload", "export"].forEach(function(p){ document.getElementById(p).hidden = true; });
+    document.getElementById("team-banner").hidden = true;
+    render(); if (!document.getElementById("saved").hidden) renderSavedPanel();
+    if (!quiet) toast("Loaded from the database: " + fInt(d.metaRows) + " Meta rows, " + fInt(d.crmRows) + " leads");
+  }).catch(function(e){ sb.busy = ""; renderDbStatus(); throw e; });
+}
+function renderDbStatus(){ var e = document.getElementById("db-status"); if (e) e.textContent = sb.busy || ""; var h = document.getElementById("db-busy"); if (h){ h.textContent = sb.busy || ""; h.hidden = !sb.busy; } }
+/* editors' settings changes are shared with the team while looking at database data */
+function dbSettingsChanged(){
+  if (state.source !== "db" || !sbCanWrite()) return;
+  clearTimeout(dbSettingsChanged._t);
+  dbSettingsChanged._t = setTimeout(function(){
+    sb.client.from("team_settings").upsert({id: 1, settings: state.settings, updated_by: sb.email, updated_at: new Date().toISOString()}, {onConflict: "id"})
+      .then(function(r){ if (r.error) toast("Settings not shared: " + r.error.message); else toast("Settings shared with the team"); });
+  }, 900);
+}
+function dbRefreshLists(){
+  if (sb.status !== "ready") return Promise.resolve();
+  return Promise.all([
+    sb.client.from("uploads").select("*").order("id", {ascending: false}).limit(15).then(function(r){ sb.uploads = r.error ? [] : r.data; }),
+    sb.role === "admin" ? sb.client.from("team_members").select("*").order("email").then(function(r){ sb.members = r.error ? [] : r.data; }) : Promise.resolve()]);
+}
+function renderDbSection(x){
+  var box = el("div", {cls: "group team-box"}), editable = sbCanWrite();
+  box.appendChild(el("div", {cls: "sec-head"}, el("h3", {text: "Team database"}),
+    el("span", {cls: "note", text: "Every upload is added to one shared database (Supabase), so history builds up and any date range can be opened. Re-uploading the same days or leads updates them instead of duplicating."})));
+  x.appendChild(box);
+  if (sb.status === "loading"){ box.appendChild(el("div", {cls: "small", text: "Connecting…"})); return; }
+  if (sb.status === "error"){ box.appendChild(el("div", {cls: "banner warn", text: "The database is unavailable: " + sb.err})); return; }
+  if (sb.status === "signedout"){
+    var em = el("input", {type: "email", id: "sb-email", autocomplete: "email", placeholder: "you@company.com", "aria-label": "Email"});
+    var pw = el("input", {type: "password", id: "sb-pw", autocomplete: sb.mode === "create" ? "new-password" : "current-password", placeholder: "Password", "aria-label": "Password"});
+    var go = function(){ var b = document.getElementById("sb-go"); b.disabled = true; sb.err = "";
+      sbSignIn(em.value.trim(), pw.value, sb.mode === "create").catch(function(e){ sb.err = e.message || String(e); b.disabled = false; renderSavedPanel(); }); };
+    pw.addEventListener("keydown", function(e){ if (e.key === "Enter") go(); });
+    box.appendChild(el("div", {cls: "save-row"},
+      el("div", {cls: "field"}, el("label", {"for": "sb-email", text: "Email"}), em),
+      el("div", {cls: "field"}, el("label", {"for": "sb-pw", text: sb.mode === "create" ? "Choose a password (8+ characters)" : "Password"}), pw),
+      el("button", {cls: "btn", type: "button", id: "sb-go", onclick: go}, sb.mode === "create" ? "Create account" : "Sign in")));
+    box.appendChild(el("div", {cls: "small"}, sb.mode === "create" ? "Already have an account? " : "First time here? ",
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ sb.mode = sb.mode === "create" ? "signin" : "create"; sb.err = ""; renderSavedPanel(); }}, sb.mode === "create" ? "Sign in" : "Create an account"),
+      ". Your admin adds your email to the team before you can see data."));
+    if (sb.err) box.appendChild(el("div", {cls: "small", style: "color:var(--bad)", text: sb.err}));
+    return; }
+  var who = el("div", {cls: "opt-row"}, el("span", {cls: "small", text: "Signed in as " + sb.email + (sb.role ? " · " + sb.role : "")}),
+    el("button", {cls: "linkbtn", type: "button", onclick: function(){ sbSignOut(); }}, "Sign out"));
+  box.appendChild(who);
+  if (sb.status === "norole"){ box.appendChild(el("div", {cls: "banner warn", text: "Your account isn't on the team yet. Ask your admin to add " + sb.email + " in Saved data › Team database › Team members."})); return; }
+  var acts = el("div", {cls: "actions"},
+    el("button", {cls: "btn" + (state.source === "db" ? " ghost" : ""), type: "button", id: "db-open", onclick: function(){ dbOpen().catch(function(e){ toast("Could not load: " + e.message); }); }},
+      state.source === "db" ? "Reload from database" : "Open from database"),
+    el("span", {cls: "small", text: "Dates: " + rangeText(false)}));
+  box.appendChild(acts);
+  if (editable && state.raw && state.source !== "db"){
+    var f = state.files || {};
+    var upBtn = el("button", {cls: "btn", type: "button", id: "db-add", onclick: function(){
+      upBtn.disabled = true; sb.busy = "Adding…"; renderDbStatus();
+      dbUpload(function(d, t){ sb.busy = "Adding… " + fInt(d) + " of " + fInt(t) + " rows"; renderDbStatus(); }).then(function(u){
+        sb.busy = "";
+        toast("Added to the database: " + fInt(u.meta) + " Meta rows, " + fInt(u.crm) + " leads" + (u.noDate ? " (" + u.noDate + " Meta rows without dates skipped)" : ""));
+        if (u.level < 3) toast("This Meta export isn't at ad level. Ad-level daily exports give the most accurate matching.");
+        return dbRefreshLists().then(function(){ return dbOpen(true); });
+      }).catch(function(e){ sb.busy = ""; upBtn.disabled = false; renderDbStatus(); toast("Could not add: " + (e.message || e)); }); }}, "Add this upload to the database");
+    box.appendChild(el("div", {cls: "save-row"}, upBtn,
+      el("span", {cls: "small", text: (f.meta ? (f.meta.list || [f.meta.name]).join(", ") : "") + (f.crm ? " + " + f.crm.name : "") + ". Use daily-breakdown Meta exports (Breakdown › By time › Day)."})));
+  }
+  box.appendChild(el("div", {cls: "small", id: "db-status", "aria-live": "polite", text: sb.busy}));
+  /* upload history */
+  if (sb.uploads.length){
+    var tb = el("tbody");
+    sb.uploads.forEach(function(u){
+      var conf = sb.confirmUp === u.id;
+      tb.appendChild(el("tr", null,
+        el("td", {cls: "nowrap", text: new Date(u.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}),
+        el("td", {cls: "nowrap", text: u.uploaded_by}),
+        el("td", {cls: "nowrap", text: u.date_from ? spanText({from: dayOf(Date.parse(u.date_from + "T00:00:00Z")), to: dayOf(Date.parse((u.date_to || u.date_from) + "T00:00:00Z"))}) : "—"}),
+        el("td", {cls: "r num nowrap", text: fInt(u.meta_rows)}), el("td", {cls: "r num nowrap", text: fInt(u.crm_rows)}),
+        el("td", {cls: "small", text: (u.meta_files || []).join(", ") + (u.crm_file ? " · " + u.crm_file : "")}),
+        el("td", {cls: "nowrap"}, sb.role !== "admin" ? null : conf
+          ? el("span", {cls: "confirm"}, el("span", {text: "Remove rows last written by this upload?"}),
+              el("button", {cls: "btn", type: "button", onclick: function(){ Promise.all([sb.client.from("meta_ad_rows").delete().eq("upload_id", u.id), sb.client.from("crm_leads").delete().eq("upload_id", u.id)])
+                .then(function(rs){ var er = rs.filter(function(r){ return r.error; })[0]; if (er) throw er.error; return sb.client.from("uploads").delete().eq("id", u.id); })
+                .then(function(){ sb.confirmUp = null; toast("Upload removed"); return dbRefreshLists(); }).then(function(){ renderSavedPanel(); if (state.source === "db") dbOpen(true); })
+                .catch(function(e){ toast("Could not remove: " + e.message); }); }}, "Remove"),
+              el("button", {cls: "btn ghost", type: "button", onclick: function(){ sb.confirmUp = null; renderSavedPanel(); }}, "Keep"))
+          : el("button", {cls: "linkbtn", type: "button", onclick: function(){ sb.confirmUp = u.id; renderSavedPanel(); }}, "Remove"))));
+    });
+    box.appendChild(el("h3", {style: "font-size:14px", text: "Recent uploads"}));
+    box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:320px"}, el("table", null,
+      el("thead", null, el("tr", null, ["Uploaded", "By", "Data dates", "Meta rows", "Leads", "Files", ""].map(function(h, i){ return el("th", {cls: i === 3 || i === 4 ? "r" : "", scope: "col", style: "cursor:default", text: h}); }))), tb)));
+  }
+  /* team members (admin) */
+  if (sb.role === "admin"){
+    var mEmail = el("input", {type: "email", id: "mb-email", placeholder: "teammate@company.com", "aria-label": "Teammate email"});
+    var mRole = el("select", {id: "mb-role", "aria-label": "Role"}, ["viewer", "editor", "admin"].map(function(r){ return el("option", {value: r, text: r}); }));
+    var add = function(){ var e = mEmail.value.trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){ toast("Enter a valid email"); return; }
+      sb.client.from("team_members").upsert({email: e, role: mRole.value, added_by: sb.email}, {onConflict: "email"}).then(function(r){ if (r.error) throw r.error; toast("Added " + e + " as " + mRole.value); return dbRefreshLists(); })
+        .then(renderSavedPanel).catch(function(er){ toast("Could not add: " + er.message); }); };
+    box.appendChild(el("h3", {style: "font-size:14px", text: "Team members"}));
+    box.appendChild(el("div", {cls: "small", text: "Viewer: sees data. Editor: also adds uploads and changes shared settings. Admin: also removes uploads and manages members. They sign in with the same email (Create an account the first time)."}));
+    box.appendChild(el("div", {cls: "save-row"}, el("div", {cls: "field"}, el("label", {"for": "mb-email", text: "Email"}), mEmail),
+      el("div", {cls: "field", style: "flex:0 0 140px"}, el("label", {"for": "mb-role", text: "Role"}), mRole), el("button", {cls: "btn", type: "button", onclick: add}, "Add member")));
+    var mt = el("tbody");
+    sb.members.forEach(function(m){
+      var sel = el("select", {"aria-label": "Role for " + m.email, disabled: m.email === sb.email ? true : null}, ["viewer", "editor", "admin"].map(function(r){ return el("option", {value: r, selected: r === m.role ? true : null, text: r}); }));
+      sel.addEventListener("change", function(){ sb.client.from("team_members").update({role: sel.value}).eq("email", m.email).then(function(r){ toast(r.error ? "Could not change: " + r.error.message : m.email + " is now " + sel.value); dbRefreshLists(); }); });
+      mt.appendChild(el("tr", null, el("td", {text: m.email}), el("td", null, sel), el("td", {cls: "small", text: m.added_by || ""}),
+        el("td", null, m.email === sb.email ? el("span", {cls: "small", text: "You"}) : el("button", {cls: "linkbtn", type: "button", onclick: function(){
+          sb.client.from("team_members").delete().eq("email", m.email).then(function(r){ toast(r.error ? "Could not remove: " + r.error.message : "Removed " + m.email); return dbRefreshLists(); }).then(renderSavedPanel); }}, "Remove"))));
+    });
+    box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:320px"}, el("table", null,
+      el("thead", null, el("tr", null, ["Email", "Role", "Added by", ""].map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), mt)));
+  }
+}
 
 /* ================= boot ================= */
 state.settings = loadSettings();
+try { var g0 = localStorage.getItem("ebg-lead-dash-gran"); if (g0) state.trendGran = g0; } catch (e) {}
 try { var t0 = localStorage.getItem("ebg-lead-dash-tab"); if (t0) state.tab = t0; var r0 = JSON.parse(localStorage.getItem("ebg-lead-dash-range") || "null"); if (r0 && r0.preset) state.range = r0; } catch (e) {}
 function boot(){
   if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Check your connection and reload the page."; }
@@ -1927,11 +2269,12 @@ function boot(){
   } else {
     if (typeof XLSX !== "undefined") state.caps.downloads = {save: function(o){ var a = document.createElement("a"), url = URL.createObjectURL(new Blob([o.data], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
       a.href = url; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); return Promise.resolve({status: "saved"}); }};
-    teamInit = /^https?:$/.test(location.protocol) ? connectVercel() : Promise.resolve([]);
+    teamInit = sbInit().then(function(on){ if (on) return []; return /^https?:$/.test(location.protocol) ? connectVercel() : []; });
   }
   /* open whichever is newer: the latest team save, or this browser's latest save */
   Promise.all([refreshSaved(), teamInit]).then(function(r){
     var loc = autoLoadOn() ? r[0][0] : null, tm = team.status === "ready" ? team.list[0] : null;
+    if (state.source === "none" && sb.status === "ready") return dbOpen(true).then(function(){ toast("Opened the team database · " + rangeText(false)); });
     if (state.source === "none" && typeof XLSX !== "undefined"){
       if (tm && (!loc || tm.savedAt >= loc.savedAt)) return openTeamDataset(tm, true).then(function(){ toast("Opened the latest team data: " + tm.name); });
       if (loc) return openDataset(loc.id, true).then(function(){ toast("Opened your saved data: " + loc.name); if (tm) offerTeam(tm); });
