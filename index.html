@@ -673,9 +673,13 @@ function fInt(v){ return isNum(v) ? Math.round(v).toLocaleString("en-IN") : "N/A
 var CUR = "₹";
 function fINR(v){ return isNum(v) ? (v < 0 ? "-" : "") + CUR + Math.abs(Math.round(v)).toLocaleString("en-IN") : "N/A"; }
 function fPct(v){ return isNum(v) ? (v * 100).toFixed(1) + "%" : "N/A"; }
-function fMin(v){ return isNum(v) ? v.toFixed(1) + " min" : "N/A"; }
+/* TAT: minutes up to 60, then hours and minutes (over a day: hours only) */
+function fDur(v){ if (!isNum(v)) return "N/A"; if (v < 59.95) return v.toFixed(1) + " min";
+  var m = Math.round(v), h = Math.floor(m / 60), r = m % 60; if (h >= 24) return Math.round(v / 60).toLocaleString("en-IN") + " hrs";
+  return h + (h === 1 ? " hr" : " hrs") + (r ? " " + r + " min" : ""); }
+function fMin(v){ return fDur(v); }
 function fShortINR(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v); if (CUR !== "₹") return fINR(v); if (a >= 1e7) return "₹" + (v / 1e7).toFixed(2) + " Cr"; if (a >= 1e5) return "₹" + (v / 1e5).toFixed(2) + " L"; return fINR(v); }
-var FMT = {int: fInt, inr: fINR, pct: fPct, min: function(v){ return isNum(v) ? v.toFixed(1) : "N/A"; }, text: function(v){ return v == null ? "" : String(v); }};
+var FMT = {int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
 
 /* ================= DOM helpers ================= */
 function el(tag, attrs){ var e = document.createElement(tag); if (attrs) for (var k in attrs){ var v = attrs[k];
@@ -711,7 +715,7 @@ function remarks(r, level){
   if (isNum(r.spend) && r.spend > 0 && r.ui === 0) out.push("Spend with zero leads.");
   if (r.crm > 0 && r.ql === 0) out.push("No QLs yet.");
   if (r.pend > 0) out.push(r.pend + " lead(s) not called yet.");
-  if (isNum(r.tat) && r.tat > R.slaMin) out.push("Slow first call (avg " + Math.round(r.tat) + " min).");
+  if (isNum(r.tat) && r.tat > R.slaMin) out.push("Slow first call (avg " + (r.tat < 60 ? Math.round(r.tat) + " min" : fDur(r.tat)) + ").");
   return out.join(" ");
 }
 function metricCols(level){
@@ -726,7 +730,7 @@ function metricCols(level){
     {k: "ql", label: "Qualified leads", t: "int"},
     {k: "cpql", label: "CPQL", t: "inr"},
     {k: "spend", label: "Amount spent", t: "inr"},
-    {k: "tat", label: "Avg first call TAT (min)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
     {k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }},
     {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }},
     {k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}
@@ -819,7 +823,7 @@ function viewOverview(){
     {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
     {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"},
     {k: "noCamp", label: "CRM leads with no campaign", t: "int"},
-    {k: "tat", label: "Avg first call TAT (min)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
     {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }},
     {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }}];
   var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
@@ -836,7 +840,7 @@ function viewOverview(){
     barChart("CPL and CPQL " + by, items, [{k: "cpl", label: "CPL", cls: "s1", fmt: fINR}, {k: "cpql", label: "CPQL", cls: "s3", fmt: fINR}]),
     barChart("First-call SLA " + by, items, [{k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", cls: "s3", fmt: fPct}], {max: 1, mark: R.slaTarget, legend: true,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "Target " + Math.round(R.slaTarget * 100) + "%")]}),
-    barChart("Avg first call TAT " + by, items, [{k: "tat", label: "Minutes from lead created to first call", cls: "s1", fmt: fMin}], {legend: true, mark: R.slaMin,
+    barChart("Avg first call TAT " + by, items, [{k: "tat", label: "Time from lead created to first call", cls: "s1", fmt: fMin}], {legend: true, mark: R.slaMin,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + R.slaMin + " min")]})));
   return sec;
 }
@@ -904,7 +908,7 @@ function viewTAT(){
   var T = {owner: "TOTAL", leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; owners.forEach(function(o){ ["leads", "called", "ts", "win", "del", "pend", "inv"].forEach(function(k){ T[k] += o[k]; }); });
   T.tat = T.called ? T.ts / T.called : null; T.sla = T.win + T.del + T.pend ? T.win / (T.win + T.del + T.pend) : null;
   var ocols = [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name"}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Called", t: "int"},
-    {k: "tat", label: "Avg first call TAT (min)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
     {k: "win", label: "Within SLA", t: "int"}, {k: "del", label: "Delayed", t: "int"}, {k: "pend", label: "Pending", t: "int", flag: function(r){ return r.pend ? "warn" : null; }},
     {k: "inv", label: "Invalid timestamp", t: "int"}, {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}];
   var list = R.needsCall.filter(function(x){ return brandOK(x.brand) && (state.callFilter === "All" || x.sla === state.callFilter) && matchQ("calls", x, ["id", "owner", "campaign", "ad", "status"]); });
@@ -912,7 +916,7 @@ function viewTAT(){
   var lcols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap"}, {k: "created", label: "Created", t: "text", cls: "nowrap", get: function(r){ return fTime(r.created); }},
     {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "ad", label: "Ad", t: "text", cls: "name"},
     {k: "owner", label: "Owner", t: "text", cls: "nowrap"}, {k: "fc", label: "First call", t: "text", cls: "nowrap", get: function(r){ return r.fc ? fTime(r.fc) : "—"; }},
-    {k: "tat", label: "TAT (min)", t: "min"},
+    {k: "tat", label: "TAT", t: "min"},
     {k: "sla", label: "SLA status", t: "text", render: function(r){ return el("span", {cls: "pill " + (r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : "mut"), text: r.sla}); }},
     {k: "status", label: "Lead status", t: "text", cls: "nowrap"}];
   var filt = el("div", {cls: "chips"}, ["All", "Pending", "Delayed", "Invalid timestamp"].map(function(f){
@@ -1295,19 +1299,20 @@ document.getElementById("btn-load").addEventListener("click", function(){ var u 
 document.getElementById("tablist").addEventListener("click", function(e){ var t = e.target.closest(".tab"); if (!t) return; state.tab = t.dataset.tab; try { localStorage.setItem("ebg-lead-dash-tab", state.tab); } catch (x) {} render(); });
 
 /* ================= Excel download ================= */
-function aoaFrom(cols, rows, level){ var head = cols.filter(function(c){ return !c.render || c.k; }).map(function(c){ return c.label; });
+function aoaFrom(cols, rows, level){
+  cols = [].concat.apply([], cols.map(function(c){ return c.t === "min" ? [Object.assign({}, c, {label: c.label + " (min)"}), {k: c.k, label: c.label, t: "text", get: function(r){ var v = c.get ? c.get(r) : r[c.k]; return isNum(v) ? fDur(v) : ""; }}] : [c]; })); var head = cols.filter(function(c){ return !c.render || c.k; }).map(function(c){ return c.label; });
   var out = [head]; rows.forEach(function(r){ out.push(cols.map(function(c){ var v = c.get ? c.get(r) : r[c.k]; if (c.t === "text") return v == null ? "" : String(v); return isNum(v) ? (c.t === "pct" ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100) : "N/A"; })); });
   return out; }
 function downloadExcel(){
   var R = state.R, dl = state.caps.downloads; if (!dl || !R) return;
   var wb = XLSX.utils.book_new(), add = function(name, aoa){ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name); };
   var mc = function(level){ return metricCols(level).map(function(c){ return c; }); };
-  var bcols = [{k: "brand", label: "Brand", t: "text"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"}, {k: "diff", label: "Difference", t: "int"}, {k: "pct", label: "Difference %", t: "pct"}, {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"}, {k: "noCamp", label: "CRM leads with no campaign", t: "int"}, {k: "tat", label: "Avg first call TAT (min)", t: "min"}, {k: "sla", label: "SLA %", t: "pct"}, {k: "pend", label: "Calls pending", t: "int"}];
+  var bcols = [{k: "brand", label: "Brand", t: "text"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"}, {k: "diff", label: "Difference", t: "int"}, {k: "pct", label: "Difference %", t: "pct"}, {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"}, {k: "noCamp", label: "CRM leads with no campaign", t: "int"}, {k: "tat", label: "Avg first call TAT", t: "min"}, {k: "sla", label: "SLA %", t: "pct"}, {k: "pend", label: "Calls pending", t: "int"}];
   add("Brand summary", aoaFrom(bcols, R.brandRows));
   add("Campaigns", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"}].concat(mc("agg")), R.camps));
   add("Ad sets", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "nAds", label: "Ads", t: "int"}].concat(mc("agg")), R.adsets));
   add("Ads", aoaFrom([{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text"}, {k: "adset", label: "Ad set", t: "text"}, {k: "ad", label: "Ad", t: "text"}].concat(mc("ad")), R.ads));
-  add("Leads needing a call", [["Lead id", "Created", "Brand", "Campaign", "Ad", "Owner", "First call", "TAT (min)", "SLA status", "Lead status"]].concat(R.needsCall.map(function(x){ return [x.id, fTime(x.created), x.brand, x.campaign, x.ad, x.owner, x.fc ? fTime(x.fc) : "", isNum(x.tat) ? x.tat : "", x.sla, x.status]; })));
+  add("Leads needing a call", [["Lead id", "Created", "Brand", "Campaign", "Ad", "Owner", "First call", "TAT (min)", "TAT", "SLA status", "Lead status"]].concat(R.needsCall.map(function(x){ return [x.id, fTime(x.created), x.brand, x.campaign, x.ad, x.owner, x.fc ? fTime(x.fc) : "", isNum(x.tat) ? x.tat : "", isNum(x.tat) ? fDur(x.tat) : "", x.sla, x.status]; })));
   if ((R.excluded || []).length) add("Excluded campaigns", [["Brand", "Campaign", "Status", "Meta result type", "Amount spent", "Meta results", "CRM leads"]].concat(R.excluded.map(function(x){
     return [x.brand, x.campaign, x.excluded ? (x.manual ? "Excluded by you" : "Auto-excluded") : "Counted (review)", x.indicators.join(", "), isNum(x.spend) ? Math.round(x.spend * 100) / 100 : "", isNum(x.ui) ? x.ui : "", x.crm]; })));
   add("Data checks", [["Check", "Value", "Note"]].concat(R.checks.map(function(c){ return [c.label, c.n, c.detail || ""]; })));
