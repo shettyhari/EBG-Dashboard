@@ -224,6 +224,14 @@ tr.flagged td{background:var(--warn-bg)}
 .group h3{font-size:15px;font-weight:500}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--btn-bg);color:var(--btn-fg);padding:10px 16px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
 .confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+.user-box{display:inline-flex;gap:10px;align-items:center;font-size:12.5px;color:var(--muted)}
+.msg{font-size:13px;padding:10px 12px;border:1px solid}
+.msg.ok{color:var(--good);border-color:var(--good);background:var(--good-bg)}
+.msg.err{color:var(--bad);border-color:var(--bad);background:var(--bad-bg)}
+.login{max-width:440px;margin:24px auto;border:1px solid var(--line);background:var(--panel);padding:28px;display:grid;gap:16px}
+.login h2{font-size:24px;font-weight:500;letter-spacing:-.02em}
+.login .field input{border:1px solid var(--line);background:var(--panel);padding:10px 12px;border-radius:0;width:100%}
+.login .btn{justify-content:center}
 .opt-row{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
 .opt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:10px 18px}
 .save-row{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end}
@@ -247,7 +255,8 @@ tr.flagged td{background:var(--warn-bg)}
       <div class="period" id="period">Meta UI vs TeleCRM · brand, campaign, ad set and ad level</div>
     </div>
     <div class="actions">
-      <button class="btn" id="btn-load" type="button">Load exports</button>
+      <span id="user-box" class="user-box" hidden></span>
+      <button class="btn" id="btn-load" type="button">Lead data upload</button>
       <button class="btn ghost" id="btn-saved" type="button" hidden>Saved data</button>
       <span id="save-wrap" hidden><button class="btn ghost" id="btn-save" type="button">Save for team</button></span>
       <button class="btn ghost" id="btn-xlsx" type="button" hidden>Download Excel</button>
@@ -260,9 +269,9 @@ tr.flagged td{background:var(--warn-bg)}
     <div id="team-banner" class="banner" hidden></div>
     <div id="saved" class="upload" hidden></div>
     <div id="export" class="upload" hidden></div>
-    <div id="upload" class="upload">
+    <div id="upload" class="upload" hidden>
       <div class="sec-head">
-        <h2 style="font-size:18px">Load today's exports</h2>
+        <h2 style="font-size:18px">Lead data upload</h2>
         <span class="note">Files are read in your browser. Save data keeps a copy in this browser only. Nothing leaves this page unless you press Save for team, which stores the report data only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
       </div>
       <div class="drops">
@@ -285,6 +294,7 @@ tr.flagged td{background:var(--warn-bg)}
         </label>
       </div>
       <div class="small">Add one or more Meta reports and the TeleCRM export. The report builds once both sides are in, and rebuilds whenever you add or remove a file.</div>
+      <div id="upload-db"></div>
     </div>
     <div class="source-line" id="source-line"></div>
     <div class="filters"><div class="chips" id="brand-chips" role="group" aria-label="Brand filter"></div><div class="dp" id="dp"></div></div>
@@ -1090,7 +1100,7 @@ function viewTrends(){
 /* ================= shell rendering ================= */
 function renderHeader(){
   var R = state.R, p = R.period;
-  document.getElementById("period").textContent = "Showing " + rangeText(false) + " · Meta export " + fDay(p.metaStart) + " – " + fDay(p.metaEnd) + " · Leads in UI vs TeleCRM";
+  document.getElementById("period").textContent = "Showing " + rangeText(false) + (p.metaStart !== null ? " · Meta data " + fDay(p.metaStart) + " – " + fDay(p.metaEnd) : " · No data in these dates yet") + " · Leads in UI vs TeleCRM";
   renderDatePicker();
   var sl = document.getElementById("source-line"); sl.textContent = "";
   if (state.source === "upload") sl.appendChild(el("span", {cls: "tag upload", text: "Your upload · not saved for team"}));
@@ -1099,7 +1109,9 @@ function renderHeader(){
   if (sb.busy) sl.appendChild(el("span", {cls: "small", text: sb.busy}));
   if (state.source === "saved") sl.appendChild(el("span", {cls: "tag saved", title: state.savedInfo ? "Saved " + new Date(state.savedInfo.savedAt).toLocaleString("en-IN") : null,
     text: "Saved data" + (state.savedInfo ? " · " + state.savedInfo.name : "")}));
-  if ((state.source === "upload" || (state.source === "saved" && sb.cfg)) && (saved.ok || team.kind || sb.cfg)) sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: toggleSaved}, "Not saved yet: save this data"));
+  if (sb.cfg ? (state.source === "upload" || state.source === "saved") && sbCanWrite() : state.source === "upload" && (saved.ok || team.kind))
+    sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ if (sb.cfg){ var u = document.getElementById("upload"); u.hidden = false; renderUploadDb(); u.scrollIntoView({block: "nearest"}); } else toggleSaved(); }},
+      sb.cfg ? "Not in the database yet: add it" : "Not saved yet: save this data"));
   var f = state.source === "team" && state.team ? state.team.files : state.files;
   {
     if (f && f.meta) sl.appendChild(el("span", {title: (f.meta.list || [f.meta.name]).join("\n"), text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)" + (f.meta.list && f.meta.list.length > 1 ? " — " + f.meta.list.join(", ") : "")}));
@@ -1114,15 +1126,24 @@ function renderHeader(){
   document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
   document.getElementById("save-wrap").hidden = sb.cfg ? !(state.raw && state.source !== "db" && (sbCanWrite() || sb.status === "signedout")) : !(state.raw && (teamCanWrite() || team.status === "locked"));
   document.getElementById("btn-saved").hidden = !(saved.ok || team.kind || sb.cfg);
+  applyAccess();
 }
 function renderEmpty(){
+  if (sb.cfg){
+    document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
+    ["btn-xlsx", "save-wrap"].forEach(function(id){ document.getElementById(id).hidden = true; });
+    document.getElementById("source-line").textContent = ""; document.getElementById("brand-chips").textContent = ""; document.getElementById("dp").textContent = "";
+    var vv = document.getElementById("view"); vv.textContent = "";
+    vv.appendChild(el("section", {cls: "panel"}, el("div", {cls: "sec-head"}, el("h2", {text: sb.busy || "Loading the dashboard…"}))));
+    return; }
+  if (state.booting){ document.getElementById("view").textContent = ""; return; }
   document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
   var sl = document.getElementById("source-line"); sl.textContent = "";
   sl.appendChild(el("span", {cls: "tag", text: "No data loaded"}));
   sl.appendChild(el("span", {text: sb.cfg ? (sb.status === "ready" ? (sb.busy || "Loading the team database…") : "Sign in under Saved data to open the team database, or load today's exports.") : team.status === "locked" ? "Load today's exports, or enter the team passcode under Saved data to open team data." : team.kind ? "Load today's exports, or open data your team has saved." : "Load today's Meta and TeleCRM exports to build the report."}));
   document.getElementById("brand-chips").textContent = ""; document.getElementById("dp").textContent = "";
   document.getElementById("btn-xlsx").hidden = true; document.getElementById("save-wrap").hidden = true;
-  document.getElementById("btn-saved").hidden = !((saved.ok && saved.list.length) || team.kind || sb.cfg);
+  document.getElementById("btn-saved").hidden = !((saved.ok && saved.list.length) || team.kind || sb.cfg) || (!!(window.claude && window.claude.use) && !state.canSave);
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"); v.textContent = "";
   var step = function(n, t, d){ return el("div", {cls: "kpi"}, el("div", {cls: "eyebrow", text: "Step " + n}), el("div", {cls: "v", style: "font-size:20px", text: t}), el("div", {cls: "s", text: d})); };
@@ -1134,12 +1155,83 @@ function renderEmpty(){
       step(3, "Load the files", "Drop all Meta reports in the first box and the TeleCRM export in the second. The report builds as soon as both are in."),
       step(4, "Pick dates and brands", "Use the date picker and brand chips to view any day, week or month."),
       step(5, "Share", "Download Excel, or Save for team so your manager sees the same report.")),
-    el("div", {cls: "actions"}, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Load exports"),
+    el("div", {cls: "actions"}, el("button", {cls: "btn", type: "button", onclick: function(){ var u = document.getElementById("upload"); u.hidden = false; u.scrollIntoView({block: "nearest"}); }}, "Lead data upload"),
       (saved.ok && saved.list.length) || team.list.length ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open saved data (" + (saved.list.length + team.list.length) + ")")
         : sb.cfg && sb.status !== "ready" ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Sign in to the team database")
         : team.status === "locked" ? el("button", {cls: "btn ghost", type: "button", onclick: toggleSaved}, "Open team data") : null)));
 }
+function gated(){ return !!sb.cfg && sb.status !== "ready"; }
+function setChrome(on){
+  ["brand-chips", "dp"].forEach(function(id){ var e = document.getElementById(id); if (!on) e.textContent = ""; });
+  document.querySelector(".filters").hidden = !on; document.querySelector("nav.tabs").hidden = !on;
+  document.getElementById("source-line").hidden = !on;
+}
+function renderUserBox(){
+  var b = document.getElementById("user-box"); b.textContent = "";
+  if (!sb.cfg || !sb.email){ b.hidden = true; return; }
+  b.hidden = false;
+  b.appendChild(el("span", {text: sb.email + (sb.role ? " · " + sb.role : "")}));
+  b.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ sbSignOut(); }}, "Sign out"));
+}
+/* who sees which header buttons */
+function applyAccess(){
+  var load = document.getElementById("btn-load"), sv = document.getElementById("btn-saved");
+  if (sb.cfg){
+    load.hidden = !sbCanWrite();
+    sv.hidden = !(sb.status === "ready" && sb.role === "admin");
+    if (sv.hidden) document.getElementById("saved").hidden = true;
+    if (load.hidden) document.getElementById("upload").hidden = true;
+  } else if (window.claude && window.claude.use){
+    sv.hidden = !state.canSave || sv.hidden;
+  }
+  renderUserBox(); renderUploadDb();
+}
+function renderLogin(){
+  document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
+  ["btn-load", "btn-saved", "btn-xlsx", "save-wrap"].forEach(function(id){ document.getElementById(id).hidden = true; });
+  ["upload", "saved", "export"].forEach(function(id){ document.getElementById(id).hidden = true; });
+  setChrome(false); renderUserBox();
+  var v = document.getElementById("view"); v.textContent = "";
+  var box = el("section", {cls: "login"});
+  v.appendChild(box);
+  if (sb.status === "loading"){ box.appendChild(el("h2", {text: "Loading…"})); return; }
+  if (sb.status === "error"){ box.appendChild(el("h2", {text: "Can't reach the database"})); box.appendChild(el("div", {cls: "msg err", text: sb.err || "Try again in a minute."}));
+    box.appendChild(el("button", {cls: "btn", type: "button", onclick: function(){ location.reload(); }}, "Try again")); return; }
+  if (sb.status === "norole"){
+    box.appendChild(el("h2", {text: "Waiting for access"}));
+    box.appendChild(el("div", {cls: "msg ok", text: "You're signed in as " + sb.email + ". An admin needs to add this email to the team before you can see the dashboard."}));
+    box.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ sbSession(null); sb.client.auth.signOut(); renderLogin(); }}, "Use a different account"));
+    return; }
+  var create = sb.mode === "create";
+  box.appendChild(el("div", null, el("div", {cls: "eyebrow", text: "EBG Group · Performance Marketing"}), el("h2", {text: create ? "Create your account" : "Sign in"})));
+  var em = el("input", {type: "email", id: "sb-email", autocomplete: "email", placeholder: "you@company.com", value: sb.lastEmail || ""});
+  var pw = el("input", {type: "password", id: "sb-pw", autocomplete: create ? "new-password" : "current-password", placeholder: create ? "8 or more characters" : "Password"});
+  var btn = el("button", {cls: "btn", type: "submit", id: "sb-go"}, create ? "Create account" : "Sign in");
+  var form = el("form", {style: "display:grid;gap:14px"},
+    el("div", {cls: "field"}, el("label", {"for": "sb-email", text: "Email"}), em),
+    el("div", {cls: "field"}, el("label", {"for": "sb-pw", text: create ? "Choose a password" : "Password"}), pw), btn);
+  form.addEventListener("submit", function(e){ e.preventDefault(); sb.lastEmail = em.value.trim(); btn.disabled = true; sb.msg = null;
+    sbSignIn(em.value.trim(), pw.value, create).catch(function(er){ sb.msg = {kind: "err", text: friendlyAuthError(er)}; renderLogin(); }); });
+  box.appendChild(form);
+  if (sb.msg) box.appendChild(el("div", {cls: "msg " + sb.msg.kind, role: sb.msg.kind === "err" ? "alert" : "status", text: sb.msg.text}));
+  box.appendChild(el("div", {cls: "small"}, create ? "Already have an account? " : "New here? ",
+    el("button", {cls: "linkbtn", type: "button", onclick: function(){ sb.mode = create ? "signin" : "create"; sb.msg = null; renderLogin(); }}, create ? "Sign in" : "Create an account")));
+  box.appendChild(el("div", {cls: "small", text: "Only teammates an admin has added can see the dashboard."}));
+  setTimeout(function(){ (em.value ? pw : em).focus(); }, 30);
+}
+function friendlyAuthError(e){
+  var m = String((e && e.message) || e || "");
+  if (/invalid login credentials/i.test(m)) return "Wrong email or password.";
+  if (/email not confirmed/i.test(m)) return "Please confirm your email first: open the link we sent you, then sign in.";
+  if (/already registered|already been registered/i.test(m)) return "An account with this email already exists. Sign in instead.";
+  if (/password should be at least|weak/i.test(m)) return "Choose a longer password (at least 8 characters).";
+  if (/rate limit|too many/i.test(m)) return "Too many attempts. Wait a minute and try again.";
+  if (/invalid.*email|valid email/i.test(m)) return "Enter a valid email address.";
+  return m || "Something went wrong. Try again.";
+}
 function render(){
+  if (gated()){ renderLogin(); return; }
+  setChrome(true); applyAccess();
   if (!state.R){ renderEmpty(); return; }
   CUR = state.R.currency || "₹";
   renderHeader();
@@ -1333,7 +1425,7 @@ function tryBuild(fromList){
                         list: state.metaFiles.map(function(f){ return f.name; })}, crm: {name: crm.name, rows: crm.rows}};
   state.source = "upload"; state.savedInfo = null; state.limit = {}; if (first) state.brand = "All";
   rebuild();
-  if (first) document.getElementById("upload").hidden = true;
+  if (first && !sb.cfg) document.getElementById("upload").hidden = true;
   render(); if (!document.getElementById("saved").hidden) renderSavedPanel();
   toast(fromList ? "Report rebuilt with " + state.metaFiles.length + " Meta file" + (state.metaFiles.length > 1 ? "s" : "") : (first ? "Report built from your exports" : "Report updated"));
   if (comb.currencies.length > 1) toast("Meta files use different currencies (" + comb.currencies.join(", ") + "). Spend is added as-is.");
@@ -2003,7 +2095,7 @@ function sbInit(){
   if (!/^https?:$/.test(location.protocol) || (window.claude && window.claude.use)) return Promise.resolve(false);
   return fetch("/api/config", {cache: "no-store"}).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }).then(function(cfg){
     if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey) return false;
-    sb.cfg = cfg; sb.status = "loading";
+    sb.cfg = cfg; sb.status = "loading"; readAuthReturn(); render();
     return (window.supabase ? Promise.resolve() : loadScript(SB_JS)).then(function(){
       sb.client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: true}});
       sb.client.auth.onAuthStateChange(function(ev, session){
@@ -2019,23 +2111,44 @@ function sbSession(session){
   if (!session){ sb.status = "signedout"; sb.role = null; return Promise.resolve(); }
   return sb.client.from("team_members").select("role").eq("email", sb.email).maybeSingle().then(function(r){
     if (r.error){ sb.status = "error"; sb.err = r.error.message; return; }
-    sb.role = r.data ? r.data.role : null; sb.status = sb.role ? "ready" : "norole"; sb.err = "";
+    sb.role = r.data ? r.data.role : null; sb.status = sb.role ? "ready" : "norole"; sb.err = ""; sb.msg = null;
+    if (sb.confirmed){ sb.confirmed = false; setTimeout(function(){ toast("Email confirmed. You're signed in."); }, 300); }
   });
 }
 function sbAfterAuth(){
+  if (sb.confirmed && sb.status === "ready"){ sb.confirmed = false; toast("Email confirmed. You're signed in."); }
+  else if (sb.confirmed && sb.status === "signedout"){ sb.confirmed = false; sb.msg = {kind: "ok", text: "Email confirmed. Sign in below."}; }
+  render();
   renderHeaderSafe(); if (!document.getElementById("saved").hidden) renderSavedPanel(); if (!state.R) render();
   if (sb.status === "ready" && (state.source === "none")) dbOpen().catch(function(e){ toast("Could not open the database: " + e.message); });
 }
+function siteUrl(){ return location.origin + location.pathname; }
 function sbSignIn(email, pw, create){
-  sb.err = "";
-  var p = create ? sb.client.auth.signUp({email: email, password: pw}) : sb.client.auth.signInWithPassword({email: email, password: pw});
+  sb.err = ""; sb.msg = null;
+  var p = create ? sb.client.auth.signUp({email: email, password: pw, options: {emailRedirectTo: siteUrl()}}) : sb.client.auth.signInWithPassword({email: email, password: pw});
   return p.then(function(r){
     if (r.error) throw r.error;
-    if (create && !r.data.session) throw new Error("Account created. Supabase is asking for email confirmation: turn off “Confirm email” in Supabase › Authentication › Providers › Email, or confirm from your inbox, then sign in.");
-    return sbSession(r.data.session);
-  }).then(sbAfterAuth);
+    if (create && !r.data.session){
+      if (r.data.user && Array.isArray(r.data.user.identities) && !r.data.user.identities.length) throw new Error("already registered");
+      sb.mode = "signin"; sb.msg = {kind: "ok", text: "Account created. We've sent a confirmation link to " + email + ". Open it, then sign in here."};
+      if (gated()) renderLogin(); else renderSavedPanel();
+      return; }
+    return sbSession(r.data.session).then(sbAfterAuth);
+  });
 }
-function sbSignOut(){ return sb.client.auth.signOut().then(function(){ return sbSession(null); }).then(function(){ if (state.source === "db"){ state.source = "none"; state.raw = null; state.R = null; } sbAfterAuth(); render(); }); }
+/* coming back from the email link: show a clear message instead of an error page */
+function readAuthReturn(){
+  var h = new URLSearchParams((location.hash || "").replace(/^#/, "")), q = new URLSearchParams(location.search || "");
+  var err = h.get("error_description") || q.get("error_description"), type = h.get("type") || q.get("type");
+  var back = !!(err || h.get("access_token") || q.get("code") || type);
+  if (err){ var expired = /expired|invalid/i.test(err);
+    sb.msg = {kind: "err", text: expired ? "That link has expired or was already used. If you already confirmed your email, just sign in below." : "The link didn't work: " + err.replace(/\+/g, " ")}; }
+  else if (type === "signup" || type === "email" || h.get("access_token") || q.get("code")){ sb.confirmed = true; sb.msg = {kind: "ok", text: "Your email is confirmed. Sign in below."}; }
+  if (back) setTimeout(function(){ try { history.replaceState(null, "", location.pathname); } catch (e) {} }, 1500);
+}
+function sbSignOut(){ return sb.client.auth.signOut().then(function(){ return sbSession(null); }).then(function(){
+  state.source = "none"; state.raw = null; state.R = null; state.metaFiles = []; state.pending = {meta: null, crm: null}; sb.msg = null; sb.mode = "signin";
+  ["upload", "saved", "export"].forEach(function(id){ document.getElementById(id).hidden = true; }); render(); }); }
 /* page through a query 1000 rows at a time (the API's limit per request) */
 function sbAll(build, onPage){
   var out = [], size = 1000;
@@ -2158,6 +2271,26 @@ function dbRefreshLists(){
     sb.client.from("uploads").select("*").order("id", {ascending: false}).limit(15).then(function(r){ sb.uploads = r.error ? [] : r.data; }),
     sb.role === "admin" ? sb.client.from("team_members").select("*").order("email").then(function(r){ sb.members = r.error ? [] : r.data; }) : Promise.resolve()]);
 }
+function dbAddButton(){
+  var f = state.files || {};
+  var upBtn = el("button", {cls: "btn", type: "button", id: "db-add", onclick: function(){
+    upBtn.disabled = true; sb.busy = "Adding…"; renderDbStatus();
+    dbUpload(function(d, t){ sb.busy = "Adding… " + fInt(d) + " of " + fInt(t) + " rows"; renderDbStatus(); }).then(function(u){
+      sb.busy = "";
+      toast("Added to the database: " + fInt(u.meta) + " Meta rows, " + fInt(u.crm) + " leads" + (u.noDate ? " (" + u.noDate + " Meta rows without dates skipped)" : ""));
+      if (u.level < 3) toast("This Meta export isn't at ad level. Ad-level daily exports give the most accurate matching.");
+      document.getElementById("upload").hidden = true;
+      return dbRefreshLists().then(function(){ return dbOpen(true); });
+    }).catch(function(e){ sb.busy = ""; upBtn.disabled = false; renderDbStatus(); toast("Could not add: " + (e.message || e)); }); }}, "Add this upload to the database");
+  return el("div", {cls: "save-row"}, upBtn,
+    el("span", {cls: "small", text: (f.meta ? (f.meta.list || [f.meta.name]).join(", ") : "") + (f.crm ? " + " + f.crm.name : "") + ". Shared with the team once added. Use daily-breakdown Meta exports (Breakdown › By time › Day)."}),
+    el("span", {cls: "small", id: "db-busy", hidden: true}));
+}
+function renderUploadDb(){
+  var x = document.getElementById("upload-db"); if (!x) return; x.textContent = "";
+  if (sb.cfg && sbCanWrite() && state.raw && state.source !== "db") x.appendChild(dbAddButton());
+  else if (sb.cfg && sbCanWrite()) x.appendChild(el("div", {cls: "small", text: "Once both files are in, an Add this upload to the database button appears here."}));
+}
 function renderDbSection(x){
   var box = el("div", {cls: "group team-box"}), editable = sbCanWrite();
   box.appendChild(el("div", {cls: "sec-head"}, el("h3", {text: "Team database"}),
@@ -2178,7 +2311,7 @@ function renderDbSection(x){
     box.appendChild(el("div", {cls: "small"}, sb.mode === "create" ? "Already have an account? " : "First time here? ",
       el("button", {cls: "linkbtn", type: "button", onclick: function(){ sb.mode = sb.mode === "create" ? "signin" : "create"; sb.err = ""; renderSavedPanel(); }}, sb.mode === "create" ? "Sign in" : "Create an account"),
       ". Your admin adds your email to the team before you can see data."));
-    if (sb.err) box.appendChild(el("div", {cls: "small", style: "color:var(--bad)", text: sb.err}));
+    if (sb.msg) box.appendChild(el("div", {cls: "msg " + sb.msg.kind, text: sb.msg.text}));
     return; }
   var who = el("div", {cls: "opt-row"}, el("span", {cls: "small", text: "Signed in as " + sb.email + (sb.role ? " · " + sb.role : "")}),
     el("button", {cls: "linkbtn", type: "button", onclick: function(){ sbSignOut(); }}, "Sign out"));
@@ -2189,7 +2322,7 @@ function renderDbSection(x){
       state.source === "db" ? "Reload from database" : "Open from database"),
     el("span", {cls: "small", text: "Dates: " + rangeText(false)}));
   box.appendChild(acts);
-  if (editable && state.raw && state.source !== "db"){
+  if (false){
     var f = state.files || {};
     var upBtn = el("button", {cls: "btn", type: "button", id: "db-add", onclick: function(){
       upBtn.disabled = true; sb.busy = "Adding…"; renderDbStatus();
@@ -2256,6 +2389,7 @@ state.settings = loadSettings();
 try { var g0 = localStorage.getItem("ebg-lead-dash-gran"); if (g0) state.trendGran = g0; } catch (e) {}
 try { var t0 = localStorage.getItem("ebg-lead-dash-tab"); if (t0) state.tab = t0; var r0 = JSON.parse(localStorage.getItem("ebg-lead-dash-range") || "null"); if (r0 && r0.preset) state.range = r0; } catch (e) {}
 function boot(){
+  state.booting = /^https?:$/.test(location.protocol) && !(window.claude && window.claude.use);
   if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Check your connection and reload the page."; }
   render();
   var teamInit;
@@ -2272,7 +2406,7 @@ function boot(){
     teamInit = sbInit().then(function(on){ if (on) return []; return /^https?:$/.test(location.protocol) ? connectVercel() : []; });
   }
   /* open whichever is newer: the latest team save, or this browser's latest save */
-  Promise.all([refreshSaved(), teamInit]).then(function(r){
+  Promise.all([refreshSaved(), teamInit]).then(function(r){ state.booting = false;
     var loc = autoLoadOn() ? r[0][0] : null, tm = team.status === "ready" ? team.list[0] : null;
     if (state.source === "none" && sb.status === "ready") return dbOpen(true).then(function(){ toast("Opened the team database · " + rangeText(false)); });
     if (state.source === "none" && typeof XLSX !== "undefined"){
@@ -2280,7 +2414,7 @@ function boot(){
       if (loc) return openDataset(loc.id, true).then(function(){ toast("Opened your saved data: " + loc.name); if (tm) offerTeam(tm); });
     }
     render();
-  }).catch(function(e){ console.warn(e); render(); })
+  }).catch(function(e){ console.warn(e); state.booting = false; render(); })
   .then(function(){ team.booted = true; if (state.caps.db) state.caps.db.doc("report/current").onSnapshot(function(snap){ if (team.booted) onTeamDoc(snap); }, function(){}); });
 }
 boot();
