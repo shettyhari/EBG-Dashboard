@@ -263,7 +263,7 @@ tr.flagged td{background:var(--warn-bg)}
 <header class="top">
   <div class="wrap">
     <div class="title-block">
-      <div class="eyebrow">EBG Group · Performance Marketing</div>
+      <div class="eyebrow">EBG Group · In-House Performance Marketing Dashboard</div>
       <h1>Lead Performance</h1>
       <div class="period" id="period">Meta UI vs TeleCRM · brand, campaign, ad set and ad level</div>
     </div>
@@ -1256,7 +1256,7 @@ function renderLogin(){
     box.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ sbSession(null); sb.client.auth.signOut(); renderLogin(); }}, "Use a different account"));
     return; }
   var create = sb.mode === "create";
-  box.appendChild(el("div", null, el("div", {cls: "eyebrow", text: "EBG Group · Performance Marketing"}), el("h2", {text: create ? "Create your account" : "Sign in"})));
+  box.appendChild(el("div", null, el("div", {cls: "eyebrow", text: "EBG Group · In-House Performance Marketing Dashboard"}), el("h2", {text: create ? "Create your account" : "Sign in"})));
   var em = el("input", {type: "email", id: "sb-email", autocomplete: "email", placeholder: "you@company.com", value: sb.lastEmail || ""});
   var pw = el("input", {type: "password", id: "sb-pw", autocomplete: create ? "new-password" : "current-password", placeholder: create ? "8 or more characters" : "Password"});
   var btn = el("button", {cls: "btn", type: "submit", id: "sb-go"}, create ? "Create account" : "Sign in");
