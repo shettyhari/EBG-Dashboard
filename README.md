@@ -29,7 +29,8 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 - CRM leads match Meta by Facebook Campaign + Ad Set + Ad name (or at ad set / campaign level when the Meta export has no ad columns). Unmatched leads keep their own rows; nothing is guessed.
 - **QL** is decided by status intent: rejection words first (not interested, lost, junk…), then buying-intent words (details shared, interested, site visit, booked…).
 - **TAT** = Created On → First Attempted Call, shown in minutes up to 60 and in hours above that (Excel keeps a minutes column for sorting). SLA % = within ÷ (within + delayed + pending).
-- **Excluded campaigns:** untick a campaign on the Campaigns tab to leave its spend, Meta results and CRM leads out of every total. Campaigns whose Meta *Result indicator* isn't a lead (landing page views, link clicks…) are excluded automatically; use *Include again* to count one anyway. Exclusions are remembered in the browser and saved with the team report.
+- **Excluded results:** untick *Count results* on the Campaigns tab when a campaign's Meta results aren't leads. Only its results are left out of Leads in UI; its spend, CTR and CRM leads are still counted, so Amount spent matches Ads Manager. Campaigns whose Meta *Result indicator* isn't a lead (landing page views, link clicks…) are handled this way automatically; tick the box to count them again.
+- **CTR** = link clicks ÷ impressions (totals ÷ totals) on every view, the Trends tab and the Excel file. Add the *Impressions* and *Link clicks* columns to the Meta export; without them CTR shows N/A. Exclusions are remembered in the browser and saved with the team report.
 - If the Meta export isn't split by day, spend and Leads in UI show **N/A** for date ranges narrower than the export, with a notice.
 
 ## Saving data and exporting

@@ -53,6 +53,8 @@ create table if not exists public.meta_ad_rows (
   result_indicator text not null default '',
   currency         text not null default 'INR',
   brand            text not null default '',
+  impressions      bigint not null default 0,
+  clicks           bigint not null default 0,
   upload_id        bigint references public.uploads(id) on delete set null,
   updated_at       timestamptz not null default now(),
   constraint meta_ad_rows_key unique (campaign, adset, ad, day, day_end),
@@ -143,7 +145,8 @@ grant usage on all sequences in schema public to authenticated;
 -- Reporting views (Looker Studio, SQL)
 -- ---------------------------------------------------------------
 create or replace view public.v_meta_daily with (security_invoker = true) as
-  select day, day_end, brand, campaign, adset, ad, spend, results, result_indicator, currency
+  select day, day_end, brand, campaign, adset, ad, spend, results, result_indicator, currency, impressions, clicks,
+         case when impressions > 0 then round(clicks::numeric / impressions, 4) end as ctr
   from public.meta_ad_rows;
 
 create or replace view public.v_crm_leads with (security_invoker = true) as
@@ -153,11 +156,13 @@ create or replace view public.v_crm_leads with (security_invoker = true) as
               else (tat_min <= 30) end as within_30_min
   from public.crm_leads;
 
+-- spend counts every campaign; Leads in UI leaves out non-lead results (landing page views, link clicks)
 create or replace view public.v_brand_daily with (security_invoker = true) as
   with m as (
-    select day as d, brand, sum(spend) as spend, sum(results) as leads_in_ui
-    from public.meta_ad_rows where day = day_end and result_indicator not ilike '%landing_page%' and result_indicator not ilike '%link_click%'
-    group by 1, 2),
+    select day as d, brand, sum(spend) as spend,
+           coalesce(sum(results) filter (where result_indicator not ilike '%landing_page%' and result_indicator not ilike '%link_click%'), 0) as leads_in_ui,
+           sum(impressions) as impressions, sum(clicks) as clicks
+    from public.meta_ad_rows where day = day_end group by 1, 2),
   c as (
     select created_on::date as d, brand, count(*) as leads_in_crm, count(*) filter (where is_ql) as qualified_leads,
            avg(tat_min) as avg_tat_min
@@ -165,7 +170,9 @@ create or replace view public.v_brand_daily with (security_invoker = true) as
   select coalesce(m.d, c.d) as day, coalesce(m.brand, c.brand) as brand,
          coalesce(m.spend, 0) as spend, coalesce(m.leads_in_ui, 0) as leads_in_ui,
          coalesce(c.leads_in_crm, 0) as leads_in_crm, coalesce(c.qualified_leads, 0) as qualified_leads,
-         round(c.avg_tat_min, 1) as avg_tat_min
+         round(c.avg_tat_min, 1) as avg_tat_min,
+         coalesce(m.impressions, 0) as impressions, coalesce(m.clicks, 0) as clicks,
+         case when coalesce(m.impressions, 0) > 0 then round(m.clicks::numeric / m.impressions, 4) end as ctr
   from m full join c on m.d = c.d and m.brand = c.brand;
 grant select on public.v_meta_daily, public.v_crm_leads, public.v_brand_daily to authenticated;
 
