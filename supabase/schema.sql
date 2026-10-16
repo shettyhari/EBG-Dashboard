@@ -55,6 +55,7 @@ create table if not exists public.meta_ad_rows (
   brand            text not null default '',
   impressions      bigint not null default 0,
   clicks           bigint not null default 0,
+  reach            bigint,
   upload_id        bigint references public.uploads(id) on delete set null,
   updated_at       timestamptz not null default now(),
   constraint meta_ad_rows_key unique (campaign, adset, ad, day, day_end),

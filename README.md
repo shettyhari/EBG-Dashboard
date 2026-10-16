@@ -24,6 +24,14 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 | QL statuses | Which TeleCRM statuses count as qualified (intent-based, with overrides) |
 | Settings | SLA, targets, brands, keywords, counting rules, QL words, column names |
 
+## TAT, holidays and reports
+- **Overall TAT** = Created On → First Attempted Call, all hours. **Working-hours TAT** counts only Mon–Sat, 10:00 AM–9:00 PM IST, skipping Sundays and active holidays; a lead created outside those hours starts counting at the next working interval. Both show average and median wherever TAT appears; **Not Contacted** leads are counted separately with how long they have been waiting (overall and in working hours). The SLA (≤ 30 min by default, Settings) uses overall TAT.
+- **Settings › Holidays**: add, edit, delete (with confirmation), activate or deactivate, search and filter by year. The 2026 list is pre-loaded once; changes recalculate working-hours TAT straight away and, with the team database, are shared with everyone. Holidays never change overall TAT.
+- Contact status labels: **Not Contacted** (no first call yet), **Call delayed** (first call after the SLA), **Contacted** (called).
+- **Brand view**: pick a brand chip for its own dashboard (spend, impressions, reach, clicks, CTR, CPC, Leads in UI and CRM, lead status breakdown, CPL, CPQL, TAT, SLA). Reach is shown only where it comes from a single Meta row, because reach can't be added across days or ads.
+- **Customize columns** on each report (saved in the browser); Excel uses the same columns unless *Export all columns* is ticked.
+- **Campaigns tab**: Campaign → Ad set → Ad tree with expand / collapse, search that opens matching branches, and sorting within each level. Totals add campaigns only; CTR, CPC and CPL are recalculated from totals. Excel gets a *Campaign hierarchy* sheet with outline groups.
+
 ## Rules
 - **Leads in UI** = sum of the Meta Results column. **Leads in CRM** = TeleCRM rows (optional rules in Settings: Meta sources only, report dates only, unique Lead id).
 - CRM leads match Meta by Facebook Campaign + Ad Set + Ad name (or at ad set / campaign level when the Meta export has no ad columns). Unmatched leads keep their own rows; nothing is guessed.

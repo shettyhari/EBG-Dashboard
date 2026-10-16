@@ -156,6 +156,29 @@ section.panel{display:grid;gap:22px;min-width:0}
 /* KPIs */
 .kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--ink);border-left:1px solid var(--line)}
 @media (min-width:760px){.kpis{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media (min-width:1100px){.kpi-group .kpis{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.kpi-group{display:grid;gap:8px;min-width:0}
+.col-tools{display:grid;gap:10px;justify-items:start}
+.col-panel{border:1px solid var(--ink);background:var(--panel);padding:14px;display:grid;gap:12px;width:100%}
+.col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:8px 18px}
+.toggle.locked{color:var(--muted)}
+td.name.tree-name{min-width:380px;max-width:560px}
+.tree-cell{display:flex;align-items:baseline;gap:6px;min-width:0}
+.tree-cell > span:last-child{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.tree-cell.lvl2{padding-left:22px} .tree-cell.lvl3{padding-left:44px}
+.tree-tog{background:none;border:1px solid var(--line);width:20px;height:20px;line-height:16px;padding:0;cursor:pointer;color:var(--ink);font-size:11px;flex:0 0 auto}
+.tree-tog.none{border-color:transparent;cursor:default}
+.tree-lvl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
+tr.lvl-1 td{font-weight:500}
+tr.lvl-2 td{background:var(--row-hover)} tr.lvl-3 td{background:var(--band)}
+.hol-panel{border-top:1px solid var(--ink);padding-top:20px}
+.hol-add .field{flex:1 1 220px}
+.hol-add input{border:1px solid var(--line);background:var(--panel);padding:9px 10px;border-radius:0;width:100%}
+.hol-panel select{border:1px solid var(--line);background:var(--panel);padding:7px 9px;border-radius:0}
+.hol-panel td input{border:1px solid var(--line);background:var(--panel);padding:6px 8px;border-radius:0;width:100%}
+tr.inactive td{color:var(--muted)}
+.pill-btn{border:1px solid currentColor;background:none;padding:2px 9px;font-size:11px;cursor:pointer;border-radius:0}
+.pill-btn.on{color:var(--good)} .pill-btn.off{color:var(--muted)}
 .kpi{padding:14px 16px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;gap:6px;align-content:start;min-width:0}
 .kpi .v{font-family:var(--font-display);font-size:clamp(22px,2.4vw,28px);letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.05}
 .kpi .s{font-size:12px;color:var(--muted)}
@@ -336,6 +359,10 @@ tr.flagged td{background:var(--warn-bg)}
 // ENGINE START
 var QL_POS_DEF = ["qualified","interested","details shared","shared details","site visit","visit scheduled","visit done","meeting","discussion scheduled","proposal","negotiation","token","payment","booked","booking","converted","closed won","won","hot","ready to invest","agreement"];
 var QL_NEG_DEF = ["not interested","not qualified","unqualified","disqualified","lost","junk","invalid","wrong","duplicate","spam","fake","not reachable","unreachable","no response","dnd","rejected","cold","dead","not eligible","below budget","low budget","no budget","not connected"];
+/* holidays used by Working-Hours TAT (seeded once; users manage them in Settings) */
+var DEFAULT_HOLIDAYS = [["Makar Sankranti", "2026-01-14"], ["Republic Day", "2026-01-26"], ["Gudi Padwa / Ugadi", "2026-03-19"], ["Ramzan", "2026-03-21"],
+  ["Labour Day", "2026-05-01"], ["Bakri Eid", "2026-05-28"], ["Independence Day", "2026-08-15"], ["Ganesh Chaturthi", "2026-09-14"], ["Gandhi Jayanti", "2026-10-02"],
+  ["Dussehra", "2026-10-20"], ["Diwali - New Year & Bali Pratipada", "2026-11-10"], ["Diwali - Bhai Duj", "2026-11-11"], ["Christmas", "2026-12-25"]];
 var DEFAULT_SETTINGS = {
   brands: ["Adhira & Appa","Acer","Carlton","Natuf","Tarzan","Shayreen by Natuf","Bonumcha","Chhota Bheem","EBG Rental"],
   keywords: [["Shayreen","Shayreen by Natuf"],["AAC","Adhira & Appa"],["Adhira","Adhira & Appa"],["ACER","Acer"],["Carlton","Carlton"],["Natuf","Natuf"],["Tarzan","Tarzan"],["Bonumcha","Bonumcha"],["Chhota Bheem","Chhota Bheem"],["Chhotabheem","Chhota Bheem"],["EBG Rental","EBG Rental"],["Rental","EBG Rental"]],
@@ -344,6 +371,7 @@ var DEFAULT_SETTINGS = {
   metaSources: ["Facebook","Instagram"],
   qlPos: QL_POS_DEF.slice(), qlNeg: QL_NEG_DEF.slice(), qlOverride: {},
   excludedCampaigns: [], includedCampaigns: [], autoExcludeNonLead: true,
+  holidays: DEFAULT_HOLIDAYS.map(function(h){ return {id: "h" + h[1].replace(/-/g, ""), name: h[0], date: h[1], active: true}; }),
   cols: {
     meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
     crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name"}
@@ -415,6 +443,7 @@ var META_SYN = {
   end: {exact: ["reporting ends", "reporting end", "ends", "end date", "date stop"], prefix: ["reporting ends"]},
   indicator: {exact: ["result indicator", "result type"], prefix: ["result indicator"]},
   impressions: {exact: ["impressions", "impr.", "impr"], prefix: ["impressions"]},
+  reach: {exact: ["reach"], prefix: []},
   clicks: {exact: ["link clicks", "clicks (link)", "outbound clicks", "clicks (all)", "clicks", "all clicks"], prefix: ["link clicks"]}
 };
 function hn(x){ return String(x == null ? "" : x).replace(/\s+/g, " ").trim().toLowerCase(); }
@@ -427,7 +456,7 @@ function metaCol(H, field, setName){
   return -1;
 }
 function detectMetaColumns(H, cm){
-  var c = {}; ["campaign", "adset", "ad", "spend", "results", "leads", "start", "end", "indicator", "impressions", "clicks"].forEach(function(f){ c[f] = metaCol(H, f, cm && cm[f]); });
+  var c = {}; ["campaign", "adset", "ad", "spend", "results", "leads", "start", "end", "indicator", "impressions", "clicks", "reach"].forEach(function(f){ c[f] = metaCol(H, f, cm && cm[f]); });
   if (c.ad === c.adset) c.ad = -1;
   c.lead = c.results >= 0 ? c.results : c.leads;
   if (c.end === c.start) c.end = -1;
@@ -463,10 +492,53 @@ function isLeadIndicator(v){ return String(v).toLowerCase().indexOf("lead") >= 0
 function prettyIndicator(v){ var s = String(v).replace(/^actions:/i, "").replace(/^offsite_conversion\.fb_pixel_/i, "").replace(/^onsite_conversion\./i, "").replace(/^omni_/i, "").replace(/[_.]+/g, " ").trim();
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : String(v); }
 function levelKey(camp, adset, ad, lvl){ var k = camp.toLowerCase(); if (lvl >= 2) k += "|" + adset.toLowerCase(); if (lvl >= 3) k += "|" + ad.toLowerCase(); return k; }
-function newAcc(o){ o.crm = 0; o.ql = 0; o.ts = 0; o.called = 0; o.win = 0; o.elig = 0; o.pend = 0; return o; }
-function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null){ o.ts += L.tat; o.called++; } if (L.sla === "Within SLA") o.win++; if (L.sla !== "Invalid timestamp") o.elig++; if (L.sla === "Pending") o.pend++; }
+/* ---------- TAT: times are wall-clock IST stored as UTC milliseconds ---------- */
+var WH_START_H = 10, WH_END_H = 21;   /* working hours 10:00 AM to 9:00 PM, Monday to Saturday (Asia/Kolkata) */
+function istNow(){ return Date.now() + 330 * 60000; }
+function weekdayOf(day){ return ((day + 4) % 7 + 7) % 7; }   /* 0 = Sunday */
+function holidaySet(S){ var h = {}; (S.holidays || []).forEach(function(x){ if (x && x.active !== false && /^\d{4}-\d{2}-\d{2}$/.test(x.date || "")) h[Math.floor(Date.parse(x.date + "T00:00:00Z") / 86400000)] = 1; }); return h; }
+/* minutes between a and b that fall inside working hours on working days */
+function workMinutes(a, b, hol){
+  if (!isNum(a) || !isNum(b) || b <= a) return 0;
+  var tot = 0, d0 = dayOf(a), d1 = Math.min(dayOf(b), d0 + 3700);
+  for (var d = d0; d <= d1; d++){
+    if (weekdayOf(d) === 0 || hol[d]) continue;
+    var s0 = d * 86400000 + WH_START_H * 3600000, e0 = d * 86400000 + WH_END_H * 3600000;
+    var ov = Math.min(b, e0) - Math.max(a, s0); if (ov > 0) tot += ov;
+  }
+  return Math.round(tot / 6000) / 10;
+}
+/* one place that decides a lead's TAT fields */
+function leadTiming(created, fc, S, hol, now){
+  var t = {tat: null, wh: null, pendO: null, pendW: null, sla: null};
+  if (!isNum(created)) { t.sla = "Invalid timestamp"; return t; }
+  if (fc === null){ t.sla = "Pending"; if (now > created){ t.pendO = Math.round((now - created) / 6000) / 10; t.pendW = workMinutes(created, now, hol); } else { t.pendO = 0; t.pendW = 0; } return t; }
+  if (!isNum(fc) || fc < created){ t.sla = "Invalid timestamp"; return t; }
+  t.tat = Math.round((fc - created) / 6000) / 10; t.wh = workMinutes(created, fc, hol);
+  t.sla = t.tat <= S.slaMin ? "Within SLA" : "Delayed";
+  return t;
+}
+function median(a){ if (!a || !a.length) return null; var x = a.slice().sort(function(p, q){ return p - q; }), m = x.length >> 1; return x.length % 2 ? x[m] : (x[m - 1] + x[m]) / 2; }
+/* display labels for the SLA states (stored values stay the same) */
+var SLA_LABEL = {"Within SLA": "Within SLA", "Delayed": "Call delayed", "Pending": "Not Contacted", "Invalid timestamp": "Invalid timestamp"};
+function slaLabel(v){ return SLA_LABEL[v] || v || ""; }
+function newAcc(o){ o.crm = 0; o.ql = 0; o.ts = 0; o.called = 0; o.win = 0; o.elig = 0; o.pend = 0; o.tats = []; o.whs = []; o.wsum = 0; o.pendO = 0; o.pendW = 0; o.statusN = {}; return o; }
+/* add one group's lead counts into another (never adds a parent into its own child) */
+function mergeLeads(o, a){
+  o.crm += a.crm || 0; o.ql += a.ql || 0; o.ts += a.ts || 0; o.called += a.called || 0; o.win += a.win || 0; o.elig += a.elig || 0; o.pend += a.pend || 0;
+  o.wsum += a.wsum || 0; o.pendO += a.pendO || 0; o.pendW += a.pendW || 0;
+  if (a.tats && a.tats.length) o.tats = o.tats.concat(a.tats); if (a.whs && a.whs.length) o.whs = o.whs.concat(a.whs);
+  if (a.statusN) for (var k in a.statusN) o.statusN[k] = (o.statusN[k] || 0) + a.statusN[k];
+}
+function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null && L.tat !== undefined){ o.ts += L.tat; o.called++; o.tats.push(L.tat); }
+  if (isNum(L.wh)){ o.wsum += L.wh; o.whs.push(L.wh); } if (L.sla === "Pending"){ o.pendO += L.pendO || 0; o.pendW += L.pendW || 0; }
+  if (L.status !== undefined){ var st = L.status || "(no status)"; o.statusN[st] = (o.statusN[st] || 0) + 1; } if (L.sla === "Within SLA") o.win++; if (L.sla !== "Invalid timestamp") o.elig++; if (L.sla === "Pending") o.pend++; }
 function derive(o){
   o.ctr = isNum(o.imp) && o.imp > 0 && isNum(o.clk) ? o.clk / o.imp : null;
+  o.cpc = isNum(o.spend) && isNum(o.clk) && o.clk > 0 ? o.spend / o.clk : null;
+  o.reachV = isNum(o.reach) && o.reachRows === 1 ? o.reach : null;
+  o.tatMed = median(o.tats); o.whAvg = o.whs && o.whs.length ? o.wsum / o.whs.length : null; o.whMed = median(o.whs);
+  o.pendAgeO = o.pend > 0 ? o.pendO / o.pend : null; o.pendAgeW = o.pend > 0 ? o.pendW / o.pend : null;
   if (o.uiExcluded){ o.diff = null; o.pct = null; o.cpl = null; o.cpql = isNum(o.spend) && o.ql > 0 ? o.spend / o.ql : null;
     o.tat = o.called > 0 ? o.ts / o.called : null; o.sla = o.elig > 0 ? o.win / o.elig : null; return o; }
   o.diff = isNum(o.ui) ? o.ui - o.crm : null;
@@ -478,7 +550,8 @@ function derive(o){
   return o;
 }
 /* range = {from, to} as day numbers (inclusive), or null for all dates */
-function processData(metaAOA, crmAOA, S, range){
+function processData(metaAOA, crmAOA, S, range, nowOverride){
+  var hol = holidaySet(S), nowT = isNum(nowOverride) ? nowOverride : istNow();
   var dataDays = {}, partialRows = 0, metaRowsIn = 0;
   var listed = {}; S.brands.forEach(function(b, i){ listed[b] = i; });
   var bidx = function(b){ return b in listed ? listed[b] : 90; };
@@ -496,7 +569,7 @@ function processData(metaAOA, crmAOA, S, range){
   if (mh < 0) missing.push("Meta: a Campaign name column");
   else {
     var H = metaAOA[mh], c = detectMetaColumns(H, cm);
-    ["campaign", "adset", "ad", "spend", "lead", "start", "end", "indicator", "impressions", "clicks"].forEach(function(f){ if (c[f] >= 0) usedCols[f] = String(H[c[f]]).trim(); });
+    ["campaign", "adset", "ad", "spend", "lead", "start", "end", "indicator", "impressions", "clicks", "reach"].forEach(function(f){ if (c[f] >= 0) usedCols[f] = String(H[c[f]]).trim(); });
     resultsCol = c.lead >= 0 ? String(H[c.lead]).trim() : "";
     hasCtr = c.impressions >= 0 && c.clicks >= 0; clicksCol = c.clicks >= 0 ? String(H[c.clicks]).trim() : "";
     metaLevel = c.ad >= 0 ? (c.adset >= 0 ? 3 : 1) : (c.adset >= 0 ? 2 : 1);
@@ -516,7 +589,7 @@ function processData(metaAOA, crmAOA, S, range){
       if (range && sD !== null){ inc = sD >= range.from && eD <= range.to; part = !inc && sD <= range.to && eD >= range.from; }
       var sk = key + "#" + (isNum(st) ? dayOf(st) : "x") + "#" + (isNum(en) ? dayOf(en) : "x"); seen[sk] = (seen[sk] || 0) + 1; if (seen[sk] > 1) dupRows++;
       var sp = c.spend >= 0 ? num(r[c.spend]) : 0, ui = c.lead >= 0 ? num(r[c.lead]) : 0;
-      var im = c.impressions >= 0 ? num(r[c.impressions]) : 0, ck = c.clicks >= 0 ? num(r[c.clicks]) : 0;
+      var im = c.impressions >= 0 ? num(r[c.impressions]) : 0, ck = c.clicks >= 0 ? num(r[c.clicks]) : 0, rch = c.reach >= 0 && !blank(r[c.reach]) ? num(r[c.reach]) : null;
       var ci = infoOf(camp, brandOf(camp)); ci.inMeta = true;
       if (c.lead === c.results && c.indicator >= 0 && ui > 0 && !blank(r[c.indicator])){
         var indv = clean(r[c.indicator]);
@@ -525,6 +598,7 @@ function processData(metaAOA, crmAOA, S, range){
       metaRows++;
       var a = metaAds[key];
       if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, imp: 0, clk: 0, brand: brandOf(camp)}); metaOrder.push(key); }
+      if (inc && rch !== null){ a.reach = (a.reach || 0) + rch; a.reachRows = (a.reachRows || 0) + 1; }
       if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1; metaResults += ui; metaRowsIn++; }
       else if (part){ a.partial = true; partialRows++; }
     }
@@ -585,13 +659,9 @@ function processData(metaAOA, crmAOA, S, range){
       if (camp2 && excl[campKey(camp2)]){ cnt.excluded++; infoOf(camp2, brand).crm++; }
       if (status) statusSeen[status]++;
       var cls = status ? classifyStatus(status, S) : {ql: false};
-      var tat = null, sla;
-      if (!isNum(created)) sla = "Invalid timestamp";
-      else if (fc === null) sla = "Pending";
-      else if (!isNum(fc) || fc < created) sla = "Invalid timestamp";
-      else { tat = Math.round((fc - created) / 6000) / 10; sla = tat <= S.slaMin ? "Within SLA" : "Delayed"; }
+      var tm = leadTiming(created, fc, S, hol, nowT), tat = tm.tat, sla = tm.sla;
       var L = {id: id, created: isNum(created) ? created : null, brand: brand, campaign: camp2, adset: adset2, ad: ad2, status: status, owner: owner,
-               fc: isNum(fc) ? fc : null, tat: tat, sla: sla, isQL: !!cls.ql, shown: shownBrand(brand), source: source};
+               fc: isNum(fc) ? fc : null, tat: tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: sla, isQL: !!cls.ql, shown: shownBrand(brand), source: source};
       leads.push(L);
       if (!camp2){ cnt.noCampCounted++; noCampByBrand[brand] = (noCampByBrand[brand] || 0) + 1; }
       var target;
@@ -607,7 +677,7 @@ function processData(metaAOA, crmAOA, S, range){
   }
   /* ---------- ads, campaigns, ad sets ---------- */
   var all = metaOrder.map(function(k){ return metaAds[k]; }).filter(function(a){
-      if (a.partial){ a.spend = null; a.ui = null; a.imp = null; a.clk = null; return true; }
+      if (a.partial){ a.spend = null; a.ui = null; a.imp = null; a.clk = null; a.reach = null; return true; }
       return !range || a.rowsIn > 0 || a.crm > 0; }).concat(crmOnlyOrder.map(function(k){ return crmOnly[k]; }));
   all.forEach(function(a, i){ a.order = i; a.bidx = bidx(a.brand); a.shown = shownBrand(a.brand); derive(a); });
   var cmpRows = function(a, b){ return (a.bidx - b.bidx) || ((isNum(b.spend) ? Math.round(b.spend) : 0) - (isNum(a.spend) ? Math.round(a.spend) : 0)) || (a.order - b.order); };
@@ -622,11 +692,13 @@ function processData(metaAOA, crmAOA, S, range){
       if (a.uiExcluded) gr.uiExcluded = true;
       gr.nAds++; gr.adsets[a.adset.toLowerCase()] = 1;
       if (a.src === "M"){ gr.metaAds++; if (a.partial) gr.partial = true; else { gr.spend += a.spend; gr.ui += a.ui; gr.imp += a.imp || 0; gr.clk += a.clk || 0; } } else gr.crmOnly += a.crm;
-      gr.crm += a.crm; gr.ql += a.ql; gr.ts += a.ts; gr.called += a.called; gr.win += a.win; gr.elig += a.elig; gr.pend += a.pend;
+      if (!hasCtr){ gr.imp = null; gr.clk = null; }
+      mergeLeads(gr, a); if (isNum(a.reach)){ gr.reach = (gr.reach || 0) + a.reach; gr.reachRows = (gr.reachRows || 0) + (a.reachRows || 0); }
     });
     return order.map(function(k, i){ var gr = m[k]; gr.order = i; gr.nAdsets = Object.keys(gr.adsets).length; delete gr.adsets;
       if (!gr.metaAds || gr.partial){ gr.spend = null; gr.ui = null; gr.imp = null; gr.clk = null; } return derive(gr); }).sort(cmpRows);
   }
+  if (!hasCtr) all.forEach(function(a){ a.imp = null; a.clk = null; derive(a); });   /* no Impressions / clicks columns: show N/A, not 0 */
   var ads = shown.slice().sort(cmpRows);
   var camps = group("campaign"), adsets = group("adset");
   /* ---------- brand summary ---------- */
@@ -635,7 +707,8 @@ function processData(metaAOA, crmAOA, S, range){
     var o = newAcc({brand: b, spend: 0, ui: 0, imp: 0, clk: 0, nAds: 0});
     shown.forEach(function(a){ if (a.brand !== b) return; o.nAds++; if (a.partial) o.partial = true; if (isNum(a.spend)) o.spend += a.spend; if (isNum(a.ui)) o.ui += a.ui;
       if (isNum(a.imp) && !a.partial) o.imp += a.imp; if (isNum(a.clk) && !a.partial) o.clk += a.clk;
-      o.crm += a.crm; o.ql += a.ql; o.ts += a.ts; o.called += a.called; o.win += a.win; o.elig += a.elig; o.pend += a.pend; });
+      mergeLeads(o, a); if (isNum(a.reach) && !a.partial){ o.reach = (o.reach || 0) + a.reach; o.reachRows = (o.reachRows || 0) + (a.reachRows || 0); } });
+    if (!hasCtr){ o.imp = null; o.clk = null; }
     o.noCamp = noCampByBrand[b] || 0; if (o.partial){ o.spend = null; o.ui = null; o.imp = null; o.clk = null; } derive(o); return o;
   });
   /* ---------- checks ---------- */
@@ -679,35 +752,35 @@ function processData(metaAOA, crmAOA, S, range){
     {k: "bad", label: "CRM rows without Lead id or with an unreadable Created On", n: cnt.noId + cnt.badCreated, kind: cnt.noId + cnt.badCreated ? "warn" : "ok"},
     {k: "metaDup", label: "Meta rows that look pasted twice (same ad and date)", n: dupRows, kind: dupRows ? "warn" : "ok"},
     {k: "unmapped", label: "Ads whose campaign matches none of the brand keywords", n: unmappedAds, kind: unmappedAds ? "warn" : "ok", detail: "Add a keyword in Settings › Brand keywords."},
-    {k: "pending", label: "Leads not called yet (listed brands)", n: pendingShown, kind: pendingShown ? "warn" : "ok"},
+    {k: "pending", label: "Leads Not Contacted (listed brands)", n: pendingShown, kind: pendingShown ? "warn" : "ok"},
     {k: "levels", label: "Campaigns · ad sets · ads in the report", n: camps.length + " · " + adsets.length + " · " + ads.length, kind: "info"},
     {k: "missing", label: "Required columns not found", n: missing.length, kind: missing.length ? "bad" : "ok", detail: missing.join(", ")}
   ];
   var statuses = statusFirst.map(function(s){ var c2 = classifyStatus(s, S); return {status: s, count: statusSeen[s], ql: c2.ql, reason: c2.reason, override: S.qlOverride[s.toLowerCase()] || ""}; });
   var needsCall = [], lite = [];
-  leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla]);
-    if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, sla: L.sla, status: L.status}); });
+  leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla, L.wh, L.pendO, L.pendW]);
+    if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, wh: L.wh, pendO: L.pendO, pendW: L.pendW, sla: L.sla, status: L.status}); });
   var dayList = Object.keys(dataDays).map(Number).sort(function(a, b){ return a - b; });
   return {range: range || null, avail: {min: dayList.length ? dayList[0] : null, max: dayList.length ? dayList[dayList.length - 1] : null, days: dayList},
           partialRows: partialRows, metaRowsIn: metaRowsIn,
           period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
           resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
           hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, needsCall: needsCall, lite: lite, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
-          slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform};
+          slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform, now: nowT, holidaysActive: Object.keys(hol).length};
 }
 // ENGINE END
 
 /* ================= state ================= */
 var LS_KEY = "ebg-lead-dash-settings-v1";
 var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, metaFiles: [], source: "none", R: null, team: null,
-             tab: "overview", brand: "All", range: {preset: "max"}, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false};
+             tab: "overview", brand: "All", range: {preset: "max"}, treeOpen: {}, colPick: null, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false};
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
   var d = clone(DEFAULT_SETTINGS); if (!s) return d;
   for (var k in d) if (k in s) d[k] = s[k];
   d.cols.meta = Object.assign(clone(DEFAULT_SETTINGS.cols.meta), (s.cols || {}).meta || {}); d.cols.crm = Object.assign(clone(DEFAULT_SETTINGS.cols.crm), (s.cols || {}).crm || {});
   return d; }
-function storeSettings(){ try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch (e) {} if (typeof dbSettingsChanged === "function") dbSettingsChanged(); }
+function storeSettings(noShare){ var ok = true; try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch (e) { ok = false; } if (!noShare && typeof dbSettingsChanged === "function") dbSettingsChanged(); return ok; }
 
 /* ================= formatting ================= */
 var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -723,7 +796,8 @@ function fDur(v){ if (!isNum(v)) return "N/A"; if (v < 59.95) return v.toFixed(1
   return h + (h === 1 ? " hr" : " hrs") + (r ? " " + r + " min" : ""); }
 function fMin(v){ return fDur(v); }
 function fShortINR(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v); if (CUR !== "₹") return fINR(v); if (a >= 1e7) return "₹" + (v / 1e7).toFixed(2) + " Cr"; if (a >= 1e5) return "₹" + (v / 1e5).toFixed(2) + " L"; return fINR(v); }
-var FMT = {int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
+function fINR2(v){ return isNum(v) ? (v < 0 ? "-" : "") + CUR + Math.abs(v).toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "N/A"; }
+var FMT = {dt: function(v){ return isNum(v) ? fTime(v) : "—"; }, inr2: fINR2, int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
 
 /* ================= DOM helpers ================= */
 function el(tag, attrs){ var e = document.createElement(tag); if (attrs) for (var k in attrs){ var v = attrs[k];
@@ -741,10 +815,11 @@ function sumRows(rows){
   var o = newAcc({spend: 0, ui: 0, imp: 0, clk: 0, nAds: 0, nAdsets: 0, metaAds: 0}); var anyMeta = false;
   var partial = false;
   rows.forEach(function(r){ if (r.partial) partial = true; if (isNum(r.spend)){ o.spend += r.spend; anyMeta = true; } if (isNum(r.ui)) o.ui += r.ui;
-    if (isNum(r.imp)) o.imp += r.imp; if (isNum(r.clk)) o.clk += r.clk;
-    o.crm += r.crm; o.ql += r.ql; o.ts += r.ts; o.called += r.called; o.win += r.win; o.elig += r.elig; o.pend += r.pend;
+    if (isNum(r.imp)){ o.imp += r.imp; o.anyImp = true; } if (isNum(r.clk)){ o.clk += r.clk; o.anyClk = true; }
+    mergeLeads(o, r); if (isNum(r.reach)){ o.reach = (o.reach || 0) + r.reach; o.reachRows = (o.reachRows || 0) + (r.reachRows || 0); }
     o.nAds += r.nAds || 0; o.nAdsets += r.nAdsets || 0; });
-  if (partial || (!anyMeta && rows.length && rows.every(function(r){ return !isNum(r.ui); }))){ o.spend = null; o.ui = null; o.imp = null; o.clk = null; o.partial = partial; }
+  if (!o.anyImp) o.imp = null; if (!o.anyClk) o.clk = null;
+  if (partial || (!anyMeta && rows.length && rows.every(function(r){ return !isNum(r.ui); }))){ o.spend = null; o.ui = null; o.imp = null; o.clk = null; o.reach = null; o.partial = partial; }
   return derive(o);
 }
 function remarks(r, level){
@@ -752,7 +827,7 @@ function remarks(r, level){
   if (r.partial) out.push("Meta export isn't split by day, so spend and Leads in UI aren't available for these dates.");
   var fl = R.campFlags && r.campaign ? R.campFlags[campKey(r.campaign)] : null;
   if (r.uiExcluded){ out.push("Results not counted as leads" + (fl && fl.indicators.length ? " (" + fl.indicators.join(", ") + ")" : "") + "; spend is still counted.");
-    if (r.crm > 0 && r.ql === 0) out.push("No QLs yet."); if (r.pend > 0) out.push(r.pend + " lead(s) not called yet."); return out.join(" "); }
+    if (r.crm > 0 && r.ql === 0) out.push("No QLs yet."); if (r.pend > 0) out.push(r.pend + " lead(s) Not Contacted."); return out.join(" "); }
 
   if (level === "ad"){ if (r.src === "C") out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Ad not in Meta export (other ad account, outside export dates, or renamed)."); }
   else if (!r.metaAds) out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Not in Meta export (other ad account, outside export dates, or renamed).");
@@ -762,10 +837,29 @@ function remarks(r, level){
   if (isNum(r.diff)){ if (r.diff > 0) out.push(r.diff + " lead(s) in Meta but not in CRM."); else if (r.diff < 0) out.push((-r.diff) + " more lead(s) in CRM than Meta shows."); }
   if (isNum(r.spend) && r.spend > 0 && r.ui === 0) out.push("Spend with zero leads.");
   if (r.crm > 0 && r.ql === 0) out.push("No QLs yet.");
-  if (r.pend > 0) out.push(r.pend + " lead(s) not called yet.");
-  if (isNum(r.tat) && r.tat > R.slaMin) out.push("Slow first call (avg " + (r.tat < 60 ? Math.round(r.tat) + " min" : fDur(r.tat)) + ").");
+  if (r.pend > 0) out.push(r.pend + " lead(s) Not Contacted.");
+  if (isNum(r.tat) && r.tat > R.slaMin) out.push("Slow first contact (avg overall TAT " + (r.tat < 60 ? Math.round(r.tat) + " min" : fDur(r.tat)) + ").");
   return out.join(" ");
 }
+/* TAT and contact columns shared by every report */
+function tatCols(){ var R = state.R;
+  return [
+    {k: "tat", label: "Overall TAT (avg)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "tatMed", label: "Overall TAT (median)", t: "min"},
+    {k: "whAvg", label: "Working-hrs TAT (avg)", t: "min"},
+    {k: "whMed", label: "Working-hrs TAT (median)", t: "min"},
+    {k: "pend", label: "Not Contacted", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }},
+    {k: "pendAgeO", label: "Not Contacted: avg wait", t: "min", def: false},
+    {k: "pendAgeW", label: "Not Contacted: avg wait (working hrs)", t: "min", def: false},
+    {k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}];
+}
+function mediaCols(){ return [
+    {k: "spend", label: "Amount spent", t: "inr"},
+    {k: "imp", label: "Impressions", t: "int"},
+    {k: "reachV", label: "Reach", t: "int", def: false},
+    {k: "clk", label: "Clicks", t: "int"},
+    {k: "ctr", label: "CTR", t: "pct"},
+    {k: "cpc", label: "CPC", t: "inr2"}]; }
 function metricCols(level){
   var R = state.R;
   return [
@@ -773,24 +867,26 @@ function metricCols(level){
     {k: "ui", label: "Leads in UI", t: "int", render: function(r){ return r.uiExcluded ? el("span", {cls: "pill mut", title: "Meta results aren't leads; not counted. Spend is still counted.", text: "Excluded"}) : document.createTextNode(fInt(r.ui)); }},
     {k: "diff", label: "Lead difference (UI − CRM)", t: "int"},
     {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
-    {k: "platform", label: "Ad platform", t: "text", get: function(r){ return r.nocamp ? "—" : R.platform; }, nosort: true},
+    {k: "platform", label: "Ad platform", t: "text", get: function(r){ return r.nocamp ? "—" : R.platform; }, nosort: true, def: false},
     {k: "cpl", label: "CPL", t: "inr"},
     {k: "ql", label: "Qualified leads", t: "int"},
-    {k: "cpql", label: "CPQL", t: "inr"},
-    {k: "spend", label: "Amount spent", t: "inr"},
-    {k: "ctr", label: "CTR", t: "pct"},
-    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
-    {k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }},
-    {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }},
-    {k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}
-  ];
+    {k: "cpql", label: "CPQL", t: "inr"}]
+    .concat(mediaCols()).concat(tatCols())
+    .concat([{k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}]);
+}
+function brandCols(){ var R = state.R;
+  return [{k: "brand", label: "Brand", t: "text", cls: "name", lock: true}].concat(mediaCols()).concat([
+    {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
+    {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
+    {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"},
+    {k: "noCamp", label: "CRM leads with no campaign", t: "int", def: false}]).concat(tatCols());
 }
 
 /* ================= generic table ================= */
 function table(id, cols, rows, opts){
   opts = opts || {};
   var srt = state.sort[id], data = rows.slice();
-  if (srt){ var col = cols.filter(function(c){ return c.k === srt.k; })[0];
+  if (srt && !opts.presorted){ var col = cols.filter(function(c){ return c.k === srt.k; })[0];
     if (col){ var gv = col.get || function(r){ return r[col.k]; };
       data.sort(function(a, b){ var x = gv(a), y = gv(b), nx = isNum(x), ny = isNum(y);
         if (nx && ny) return srt.dir * (x - y); if (nx) return -1; if (ny) return 1; return srt.dir * String(x || "").localeCompare(String(y || "")); }); } }
@@ -824,6 +920,234 @@ function searchBox(id, ph){
   return inp; }
 function matchQ(id, r, fields){ var q = (state.q[id] || "").trim().toLowerCase(); if (!q) return true; return fields.some(function(f){ return String(r[f] || "").toLowerCase().indexOf(q) >= 0; }); }
 
+/* ================= customize columns ================= */
+var COLS_KEY = "ebg-lead-dash-cols";
+var ID_KEYS = {brand: 1, campaign: 1, adset: 1, ad: 1, owner: 1, id: 1, period: 1, inc: 1, tree: 1, status: 1};
+function colPrefs(){ if (!state.colPrefs){ try { state.colPrefs = JSON.parse(localStorage.getItem(COLS_KEY) || "{}") || {}; } catch (e){ state.colPrefs = {}; } } return state.colPrefs; }
+function saveColPrefs(){ try { localStorage.setItem(COLS_KEY, JSON.stringify(state.colPrefs || {})); } catch (e) {} }
+function colLocked(c){ return !!(c.lock || ID_KEYS[c.k]); }
+/* columns to show for a table: saved choice, or each column's default */
+function visibleCols(id, cols){
+  var p = colPrefs()[id];
+  return cols.filter(function(c){
+    if (colLocked(c)) return true;
+    if (p && p.known && p.known.indexOf(c.k) >= 0) return p.visible.indexOf(c.k) >= 0;
+    return c.def !== false; });
+}
+function colTools(id, cols){
+  var vis = visibleCols(id, cols), open = state.colPick === id, wrap = el("div", {cls: "col-tools"});
+  var choosable = cols.filter(function(c){ return !colLocked(c); });
+  wrap.appendChild(el("button", {cls: "linkbtn", type: "button", "aria-expanded": open ? "true" : "false", onclick: function(){ state.colPick = open ? null : id; render(); }},
+    "Customize columns (" + vis.filter(function(c){ return !colLocked(c); }).length + " of " + choosable.length + ")"));
+  if (!open) return wrap;
+  var shown = {}; vis.forEach(function(c){ shown[c.k] = 1; });
+  var grid = el("div", {cls: "col-grid"}, cols.map(function(c){
+    var locked = colLocked(c);
+    return el("label", {cls: "toggle" + (locked ? " locked" : "")}, el("input", {type: "checkbox", value: c.k, checked: shown[c.k] ? true : null, disabled: locked ? true : null}),
+      el("span", {text: c.label + (locked ? " (always shown)" : "")})); }));
+  var panel = el("div", {cls: "col-panel", role: "group", "aria-label": "Choose columns"}, grid,
+    el("div", {cls: "actions"},
+      el("button", {cls: "btn", type: "button", onclick: function(){
+        var visible = [].slice.call(grid.querySelectorAll("input")).filter(function(i){ return i.checked; }).map(function(i){ return i.value; });
+        colPrefs()[id] = {visible: visible, known: cols.map(function(c){ return c.k; })}; saveColPrefs(); state.colPick = null; render(); toast("Columns updated"); }}, "Apply"),
+      el("button", {cls: "btn ghost", type: "button", onclick: function(){ delete colPrefs()[id]; saveColPrefs(); state.colPick = null; render(); toast("Default columns restored"); }}, "Reset to default"),
+      el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.colPick = null; render(); }}, "Cancel"),
+      el("span", {cls: "small", text: "Saved in this browser. Excel downloads use these columns unless you tick Export all columns."})));
+  wrap.appendChild(panel);
+  return wrap;
+}
+
+/* ================= campaign → ad set → ad hierarchy ================= */
+function sortRowsFor(id, cols, rows){
+  var srt = state.sort[id], data = rows.slice();
+  if (!srt) return data;
+  var col = cols.filter(function(c){ return c.k === srt.k; })[0]; if (!col) return data;
+  var gv = col.get || function(r){ return r[col.k]; };
+  data.sort(function(a, b){ var x = gv(a), y = gv(b), nx = isNum(x), ny = isNum(y);
+    if (nx && ny) return srt.dir * (x - y); if (nx) return -1; if (ny) return 1; return srt.dir * String(x || "").localeCompare(String(y || "")); });
+  return data;
+}
+function treeIndex(){
+  var R = state.R, sets = {}, ads = {};
+  R.adsets.forEach(function(a){ var k = (a.brand + "|" + a.campaign).toLowerCase(); (sets[k] = sets[k] || []).push(a); });
+  R.ads.forEach(function(a){ var k = (a.brand + "|" + a.campaign + "|" + a.adset).toLowerCase(); (ads[k] = ads[k] || []).push(a); });
+  return {sets: sets, ads: ads};
+}
+/* flatten the tree into display rows: open branches only (or everything, for Excel) */
+function treeRows(id, cols, campRows, all){
+  var R = state.R, ix = treeIndex(), out = [], q = (state.q[id] || "").trim().toLowerCase(), lvl = R.metaLevel;
+  var has = function(t){ return q && String(t || "").toLowerCase().indexOf(q) >= 0; };
+  sortRowsFor(id, cols, campRows).forEach(function(c){
+    var ck = (c.brand + "|" + c.campaign).toLowerCase(), sets = lvl >= 2 ? (ix.sets[ck] || []) : [];
+    var setHit = {}, anyHit = false;
+    if (q) sets.forEach(function(s){ var ak = (s.brand + "|" + s.campaign + "|" + s.adset).toLowerCase();
+      var hit = has(s.adset) || (lvl >= 3 && (ix.ads[ak] || []).some(function(a){ return has(a.ad); }));
+      if (hit){ setHit[ak] = 1; anyHit = true; } });
+    if (q && !has(c.campaign) && !anyHit) return;
+    var cOpen = all || !!state.treeOpen["c:" + ck] || (q && anyHit);
+    out.push(Object.assign({}, c, {_lvl: 1, _key: "c:" + ck, _kids: sets.length, _open: cOpen}));
+    if (!cOpen) return;
+    sortRowsFor(id, cols, sets).forEach(function(s){
+      var sk = (s.brand + "|" + s.campaign + "|" + s.adset).toLowerCase(), adl = lvl >= 3 ? (ix.ads[sk] || []) : [];
+      if (q && !has(c.campaign) && !setHit[sk]) return;
+      var sOpen = all || !!state.treeOpen["s:" + sk] || (q && setHit[sk] && !has(s.adset));
+      out.push(Object.assign({}, s, {_lvl: 2, _key: "s:" + sk, _kids: adl.length, _open: sOpen}));
+      if (!sOpen) return;
+      sortRowsFor(id, cols, adl).forEach(function(a){
+        if (q && !has(c.campaign) && !has(s.adset) && !has(a.ad)) return;
+        out.push(Object.assign({}, a, {_lvl: 3, _key: "a:" + a.key, _kids: 0})); });
+    });
+  });
+  return out;
+}
+function treeNameCol(){
+  return {k: "tree", label: "Campaign / Ad set / Ad", t: "text", cls: "name tree-name", lock: true,
+    get: function(r){ return r._lvl === 3 ? r.ad : r._lvl === 2 ? r.adset : r.campaign; },
+    render: function(r){
+      var name = r._lvl === 3 ? (r.ad || "(no ad name)") : r._lvl === 2 ? (r.adset || "(no ad set name)") : r.campaign;
+      var box = el("span", {cls: "tree-cell lvl" + r._lvl});
+      if (r._kids > 0) box.appendChild(el("button", {cls: "tree-tog", type: "button", "aria-expanded": r._open ? "true" : "false",
+        "aria-label": (r._open ? "Collapse " : "Expand ") + name, onclick: function(){ state.treeOpen[r._key] = !r._open; render(); }}, r._open ? "▾" : "▸"));
+      else box.appendChild(el("span", {cls: "tree-tog none", "aria-hidden": "true"}));
+      box.appendChild(el("span", {cls: "tree-lvl", text: ["", "Campaign", "Ad set", "Ad"][r._lvl]}));
+      box.appendChild(el("span", {text: name}));
+      return box; }};
+}
+function campaignTreeCols(){
+  var editable = !!state.raw;
+  return [{k: "inc", label: "Count results", t: "text", nosort: true, cls: "inc", get: function(){ return ""; }, totalText: "", render: function(r){
+      if (r._lvl !== 1) return document.createTextNode("");
+      if (r.nocamp || !editable) return document.createTextNode(r.nocamp ? "" : "✓");
+      var cb = el("input", {type: "checkbox", checked: r.uiExcluded ? null : true, "aria-label": (r.uiExcluded ? "Count results of " : "Stop counting results of ") + r.campaign,
+        title: r.uiExcluded ? "Tick to count this campaign's results as leads again" : "Untick if this campaign's results aren't leads (spend is still counted)"});
+      cb.addEventListener("change", function(){ setCampaignExcluded(r.campaign, !cb.checked); });
+      return cb; }},
+    {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, treeNameCol(),
+    {k: "nAdsets", label: "Ad sets", t: "int", naBlank: true, get: function(r){ return r._lvl === 1 || r._lvl === undefined ? r.nAdsets : null; }, render: function(r){ return document.createTextNode(r._lvl === 1 ? fInt(r.nAdsets) : ""); }},
+    {k: "nAds", label: "Ads", t: "int", naBlank: true, get: function(r){ return r._lvl === 3 ? null : r.nAds; }, render: function(r){ return document.createTextNode(r._lvl === 3 ? "" : fInt(r.nAds)); }}
+  ].concat(metricCols("agg"));
+}
+function viewCampaignTree(){
+  var R = state.R, id = "campaign", all = campaignTreeCols(), cols = visibleCols(id, all);
+  var camps = R.camps.filter(function(r){ return brandOK(r.brand); });
+  var rows = treeRows(id, cols, camps, false);
+  var T = sumRows(camps.filter(function(c){ return rows.some(function(x){ return x._lvl === 1 && x._key === "c:" + (c.brand + "|" + c.campaign).toLowerCase(); }); }));
+  T.brand = "TOTAL (" + rows.filter(function(r){ return r._lvl === 1; }).length + " campaigns)"; T.campaign = "";
+  state.limit[id] = Math.max(state.limit[id] || 0, 3000);
+  var lvlNote = R.metaLevel < 2 ? " This Meta export is at campaign level, so ad set and ad rows aren't available." : R.metaLevel < 3 ? " This Meta export has no ad-level columns, so ads aren't listed and CRM leads are matched at ad set level." : "";
+  var sec = el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "Campaigns → Ad sets → Ads"}),
+      el("span", {cls: "note", text: "Click ▸ to open a campaign's ad sets, and an ad set's ads. Each level's numbers are its own; the total row adds campaigns only, and CTR, CPC and CPL are recalculated from totals. Leads in UI is Meta's count; Leads in CRM is TeleCRM leads matched by campaign, ad set and ad name." + lvlNote})),
+    el("div", {cls: "tbl-tools"}, searchBox(id, "Search campaign, ad set or ad"),
+      el("span", {cls: "opt-row"},
+        R.metaLevel >= 2 ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ camps.forEach(function(c){ state.treeOpen["c:" + (c.brand + "|" + c.campaign).toLowerCase()] = true; });
+          if (R.metaLevel >= 3) R.adsets.forEach(function(s){ state.treeOpen["s:" + (s.brand + "|" + s.campaign + "|" + s.adset).toLowerCase()] = true; }); render(); }}, "Expand all") : null,
+        R.metaLevel >= 2 ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.treeOpen = {}; render(); }}, "Collapse all") : null,
+        el("span", {cls: "small", text: camps.length.toLocaleString("en-IN") + " campaigns"}))),
+    colTools(id, all),
+    table(id, cols, rows, {total: T, presorted: true, brandRule: true, rowCls: function(r){ var f = R.campFlags && R.campFlags[campKey(r.campaign)];
+      return "lvl-" + r._lvl + (r._lvl === 1 && f && f.nonLead && !f.excluded ? " flagged" : ""); }, empty: "No campaigns match this filter."}));
+  sec.appendChild(excludedSection());
+  return sec;
+}
+
+/* ================= holiday management (used by Working-Hours TAT) ================= */
+var WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function holDay(date){ return /^\d{4}-\d{2}-\d{2}$/.test(date || "") && !isNaN(Date.parse(date + "T00:00:00Z")) ? Math.floor(Date.parse(date + "T00:00:00Z") / 86400000) : null; }
+function holCanEdit(){ return !sb.cfg || sbCanWrite(); }
+/* validate a holiday; returns an error message or "" */
+function holidayError(name, date, exceptId){
+  name = clean(name); var d = holDay(date);
+  if (!name) return "Enter the holiday name.";
+  if (name.length > 80) return "Keep the name under 80 characters.";
+  if (d === null) return "Pick a valid date.";
+  var hs = state.settings.holidays || [];
+  var sameDate = hs.filter(function(h){ return h.id !== exceptId && h.date === date; })[0];
+  if (sameDate) return "There's already a holiday on " + fDay(d) + " (" + sameDate.name + ").";
+  var sameName = hs.filter(function(h){ return h.id !== exceptId && clean(h.name).toLowerCase() === name.toLowerCase() && h.date.slice(0, 4) === date.slice(0, 4); })[0];
+  if (sameName) return "“" + name + "” already exists in " + date.slice(0, 4) + " (" + fDay(holDay(sameName.date)) + ").";
+  return "";
+}
+function holidaysChanged(msg){
+  state.settings.holidays.sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  var local = storeSettings(true);
+  if (state.raw) rebuild();
+  var tail = state.raw ? " Working-hours TAT recalculated." : "";
+  if (dbSharesSettings()){
+    state.hol.msg = {kind: "ok", text: msg + tail + " Saving for the team…"}; render();
+    dbSettingsChanged(true).then(function(){ state.hol.msg = {kind: "ok", text: msg + tail + " Saved for the team."}; render(); })
+      .catch(function(e){ state.hol.msg = {kind: "err", text: "Couldn't save to the team database: " + (e.message || e) + ". The change applies on this screen only; try again."}; render(); });
+    return; }
+  state.hol.msg = local ? {kind: "ok", text: msg + tail + " Saved."} : {kind: "err", text: "Couldn't save in this browser (storage blocked). The change applies until you close this page."};
+  render();
+}
+function holidayPanel(){
+  var H = state.hol || (state.hol = {q: "", year: "All", edit: null, del: null, msg: null});
+  var S = state.settings; if (!Array.isArray(S.holidays)) S.holidays = [];
+  var canEdit = holCanEdit();
+  var box = el("div", {cls: "panel hol-panel", id: "holidays"});
+  box.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Holidays"}),
+    el("span", {cls: "note", text: "Working-hours TAT counts Mon–Sat, 10 AM–9 PM IST and skips Sundays and the active holidays below. Overall TAT is never affected." +
+      (sb.cfg ? (canEdit ? " Changes are shared with the whole team." : " Only admins and editors can change holidays.") : " Saved in this browser and with Save for team.")})));
+  if (canEdit){
+    var nm = el("input", {type: "text", id: "hol-name", maxlength: "80", placeholder: "e.g. Diwali"}), dt = el("input", {type: "date", id: "hol-date"});
+    var wd = el("span", {cls: "small", id: "hol-wd"});
+    dt.addEventListener("input", function(){ var d = holDay(dt.value); wd.textContent = d === null ? "" : WEEKDAYS[weekdayOf(d)] + (weekdayOf(d) === 0 ? " (Sundays are already excluded)" : ""); });
+    var add = el("form", {cls: "save-row hol-add"},
+      el("div", {cls: "field"}, el("label", {"for": "hol-name", text: "Holiday name"}), nm),
+      el("div", {cls: "field", style: "flex:0 0 190px"}, el("label", {"for": "hol-date", text: "Date"}), dt),
+      el("button", {cls: "btn", type: "submit", id: "hol-add"}, "Add holiday"), wd);
+    add.addEventListener("submit", function(e){ e.preventDefault();
+      var err = holidayError(nm.value, dt.value, null);
+      if (err){ H.msg = {kind: "err", text: err}; render(); return; }
+      S.holidays.push({id: "h" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: clean(nm.value), date: dt.value, active: true});
+      holidaysChanged("Added " + clean(nm.value) + " on " + fDay(holDay(dt.value)) + "."); });
+    box.appendChild(add);
+  }
+  if (H.msg) box.appendChild(el("div", {cls: "msg " + H.msg.kind, role: H.msg.kind === "err" ? "alert" : "status", text: H.msg.text}));
+  /* search and year filter */
+  var years = {}; S.holidays.forEach(function(h){ years[h.date.slice(0, 4)] = 1; });
+  var q = el("input", {cls: "search", type: "search", id: "hol-q", placeholder: "Search holidays by name", "aria-label": "Search holidays by name", value: H.q});
+  q.addEventListener("input", function(){ H.q = q.value; clearTimeout(holidayPanel._t); holidayPanel._t = setTimeout(function(){ render(); var x = document.getElementById("hol-q"); if (x){ x.focus(); x.setSelectionRange(x.value.length, x.value.length); } }, 180); });
+  var yr = el("select", {id: "hol-year", "aria-label": "Filter by year"}, ["All"].concat(Object.keys(years).sort()).map(function(y){ return el("option", {value: y, selected: H.year === y ? true : null, text: y === "All" ? "All years" : y}); }));
+  yr.addEventListener("change", function(){ H.year = yr.value; render(); });
+  var list = S.holidays.filter(function(h){ return (H.year === "All" || h.date.slice(0, 4) === H.year) && (!H.q.trim() || h.name.toLowerCase().indexOf(H.q.trim().toLowerCase()) >= 0); });
+  box.appendChild(el("div", {cls: "tbl-tools"}, q, el("span", {cls: "opt-row"}, yr,
+    el("span", {cls: "small", text: list.length + " of " + S.holidays.length + " · " + S.holidays.filter(function(h){ return h.active !== false; }).length + " active"}))));
+  var tb = el("tbody");
+  list.forEach(function(h){
+    var d = holDay(h.date), editing = H.edit === h.id, tr;
+    if (editing){
+      var en = el("input", {type: "text", value: h.name, maxlength: "80", "aria-label": "Holiday name"}), ed = el("input", {type: "date", value: h.date, "aria-label": "Holiday date"});
+      tr = el("tr", {cls: "editing"}, el("td", null, en), el("td", {colspan: "3"}, ed), el("td", {text: h.active !== false ? "Active" : "Inactive"}),
+        el("td", {cls: "nowrap"}, el("span", {cls: "confirm"},
+          el("button", {cls: "btn", type: "button", onclick: function(){ var err = holidayError(en.value, ed.value, h.id); if (err){ H.msg = {kind: "err", text: err}; render(); return; }
+            h.name = clean(en.value); h.date = ed.value; H.edit = null; holidaysChanged("Saved " + h.name + "."); }}, "Save"),
+          el("button", {cls: "btn ghost", type: "button", onclick: function(){ H.edit = null; H.msg = null; render(); }}, "Cancel"))));
+    } else {
+      var acts = !canEdit ? null : H.del === h.id
+        ? el("span", {cls: "confirm"}, el("span", {text: "Delete " + h.name + "?"}),
+            el("button", {cls: "btn", type: "button", onclick: function(){ S.holidays = S.holidays.filter(function(x){ return x.id !== h.id; }); H.del = null; holidaysChanged("Deleted " + h.name + "."); }}, "Delete"),
+            el("button", {cls: "btn ghost", type: "button", onclick: function(){ H.del = null; render(); }}, "Keep"))
+        : el("span", {cls: "confirm"},
+            el("button", {cls: "linkbtn", type: "button", onclick: function(){ H.edit = h.id; H.del = null; H.msg = null; render(); }}, "Edit"),
+            el("button", {cls: "linkbtn", type: "button", onclick: function(){ H.del = h.id; H.edit = null; render(); }}, "Delete"));
+      var stat = canEdit
+        ? el("button", {cls: "pill-btn " + (h.active !== false ? "on" : "off"), type: "button", "aria-pressed": h.active !== false ? "true" : "false", title: h.active !== false ? "Click to deactivate" : "Click to activate",
+            onclick: function(){ h.active = h.active === false; holidaysChanged((h.active ? "Activated " : "Deactivated ") + h.name + "."); }}, h.active !== false ? "Active" : "Inactive")
+        : el("span", {cls: "pill " + (h.active !== false ? "good" : "mut"), text: h.active !== false ? "Active" : "Inactive"});
+      tr = el("tr", {cls: h.active === false ? "inactive" : ""}, el("td", {cls: "name", text: h.name}), el("td", {cls: "nowrap", text: d !== null ? fDay(d) : h.date}),
+        el("td", {cls: "nowrap", text: d !== null ? WEEKDAYS[weekdayOf(d)] + (weekdayOf(d) === 0 ? " (already off)" : "") : "—"}), el("td", {cls: "nowrap", text: h.date.slice(0, 4)}),
+        el("td", null, stat), el("td", {cls: "nowrap"}, acts));
+    }
+    tb.appendChild(tr);
+  });
+  box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:none"}, el("table", null,
+    el("thead", null, el("tr", null, ["Holiday", "Date", "Weekday", "Year", "Status", "Actions"].map(function(x){ return el("th", {scope: "col", style: "cursor:default", text: x}); }))), tb)));
+  if (!list.length) box.appendChild(el("div", {cls: "empty", text: S.holidays.length ? "No holidays match this search." : "No holidays yet. Add one above."}));
+  return box;
+}
+
 /* ================= charts (HTML bars, one scale per chart) ================= */
 function barChart(title, items, series, opts){
   opts = opts || {};
@@ -848,38 +1172,46 @@ function kpi(label, value, sub, tone){ return el("div", {cls: "kpi " + (tone || 
 function viewOverview(){
   var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows);
   var sec = el("section", {cls: "panel"});
-  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (state.brand === "All" ? "All listed brands" : state.brand) + " · " + rangeText(true)}),
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (state.brand === "All" ? "All listed brands" : state.brand + " dashboard") + " · " + rangeText(true)}),
     el("span", {cls: "note", text: "Blended figures are totals ÷ totals. Leads in UI = sum of Meta " + (R.resultsCol || "Results") + "; Leads in CRM = TeleCRM rows."})));
   var exList = (R.excluded || []).filter(function(x){ return x.excluded && brandOK(x.brand); });
   if (exList.length) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: exList.length + " campaign" + (exList.length > 1 ? "s have" : " has") + " results excluded: " +
       fInt(exList.reduce(function(s, x){ return s + (x.ui || 0); }, 0)) + " non-lead results (landing page views, clicks…) aren't counted as Leads in UI. Their spend (" +
       fINR(exList.reduce(function(s, x){ return s + (x.spend || 0); }, 0)) + ") is still in Amount spent and CPL."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "campaigns"; render(); var e = document.querySelector(".excl-head"); if (e) e.scrollIntoView({block: "start"}); }}, "Review")));
-  sec.appendChild(el("div", {cls: "kpis"},
+  var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
+  sec.appendChild(grp("Media", [
     kpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows"),
-    kpi("CTR", fPct(T.ctr), R.hasCtr ? fInt(T.clk) + " clicks · " + fInt(T.imp) + " impressions" : "Add Impressions + Link clicks to the Meta export"),
+    kpi("Impressions", fInt(T.imp), R.hasCtr ? "Meta" : "Not in the Meta export"),
+    kpi("Reach", isNum(T.reachV) ? fInt(T.reachV) : "N/A", isNum(T.reachV) ? "Meta" : "Reach can't be added across rows; see Meta"),
+    kpi("Clicks", fInt(T.clk), R.clicksCol || "Link clicks"),
+    kpi("CTR", fPct(T.ctr), "Clicks ÷ impressions"),
+    kpi("CPC", fINR2(T.cpc), "Spend ÷ clicks")]));
+  sec.appendChild(grp("Leads", [
     kpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results")),
     kpi("Leads in CRM", fInt(T.crm), "TeleCRM"),
     kpi("Lead difference", isNum(T.pct) ? fPct(T.pct) : "N/A", isNum(T.diff) ? (T.diff > 0 ? T.diff + " missing in CRM" : (-T.diff) + " extra in CRM") : "", isNum(T.pct) && Math.abs(T.pct) > R.diffAlert ? "bad" : ""),
     kpi("CPL", fINR(T.cpl), "Spend ÷ UI leads"),
     kpi("Qualified leads", fInt(T.ql), isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""),
-    kpi("CPQL", fINR(T.cpql), "Spend ÷ QLs"),
-    kpi("Avg first call", fMin(T.tat), T.called + " leads called", isNum(T.tat) && T.tat > R.slaMin ? "bad" : ""),
-    kpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : ""),
-    kpi("Calls pending", fInt(T.pend), "not called yet", T.pend ? "warn" : "")));
+    kpi("CPQL", fINR(T.cpql), "Spend ÷ QLs")]));
+  sec.appendChild(grp("Speed to lead", [
+    kpi("Overall TAT", fMin(T.tat), "avg · median " + fMin(T.tatMed) + " · " + T.called + " contacted", isNum(T.tat) && T.tat > R.slaMin ? "bad" : ""),
+    kpi("Working-hrs TAT", fMin(T.whAvg), "avg · median " + fMin(T.whMed) + " · Mon–Sat 10 AM–9 PM"),
+    kpi("Not Contacted", fInt(T.pend), T.pend ? "waiting " + fMin(T.pendAgeO) + " avg · " + fMin(T.pendAgeW) + " in working hrs" : "none waiting", T.pend ? "warn" : ""),
+    kpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads (overall TAT)", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : "")]));
   /* brand summary */
   var br = R.brandRows.filter(function(b){ return brandOK(b.brand); });
-  var bcols = [{k: "brand", label: "Brand", t: "text", cls: "name"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ctr", label: "CTR", t: "pct"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
-    {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
-    {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"},
-    {k: "noCamp", label: "CRM leads with no campaign", t: "int"},
-    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
-    {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }},
-    {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }}];
   var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
-  if (!br.some(function(b){ return isNum(b.ui) && b.ui > 0; })) { /* keep zeros */ }
-  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Brand summary"})));
-  sec.appendChild(table("brands", bcols, br, {total: state.brand === "All" ? bt : null}));
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: state.brand === "All" ? "Brand summary" : state.brand + " summary"})));
+  sec.appendChild(colTools("brands", brandCols()));
+  sec.appendChild(table("brands", visibleCols("brands", brandCols()), br, {total: state.brand === "All" ? bt : null}));
+  /* lead status breakdown for the selected brand(s) */
+  var sn = {}; br.forEach(function(b){ for (var k in b.statusN) sn[k] = (sn[k] || 0) + b.statusN[k]; });
+  var qlOf = function(st){ return st !== "(no status)" && classifyStatus(st, state.settings).ql; };
+  var srows = Object.keys(sn).map(function(k){ return {status: k, n: sn[k], share: T.crm ? sn[k] / T.crm : null, ql: qlOf(k) ? "QL" : "Not QL"}; }).sort(function(x, y){ return y.n - x.n; });
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Lead status breakdown"}), el("span", {cls: "note", text: "TeleCRM status of the leads above. QL is decided on the QL statuses tab."})));
+  sec.appendChild(table("statusmix", [{k: "status", label: "Lead status", t: "text", cls: "name"}, {k: "n", label: "Leads", t: "int"}, {k: "share", label: "Share", t: "pct"},
+    {k: "ql", label: "Counts as", t: "text", render: function(r){ return el("span", {cls: "pill " + (r.ql === "QL" ? "good" : "mut"), text: r.ql}); }}], srows, {empty: "No CRM leads for this filter."}));
   /* charts: by brand (All) or by campaign (one brand) */
   var items;
   if (state.brand === "All") items = R.brandRows.filter(function(b){ return b.crm || b.ui; }).map(function(b){ return Object.assign({label: b.brand}, b); });
@@ -890,7 +1222,7 @@ function viewOverview(){
     barChart("CPL and CPQL " + by, items, [{k: "cpl", label: "CPL", cls: "s1", fmt: fINR}, {k: "cpql", label: "CPQL", cls: "s3", fmt: fINR}]),
     barChart("First-call SLA " + by, items, [{k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", cls: "s3", fmt: fPct}], {max: 1, mark: R.slaTarget, legend: true,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "Target " + Math.round(R.slaTarget * 100) + "%")]}),
-    barChart("Avg first call TAT " + by, items, [{k: "tat", label: "Time from lead created to first call", cls: "s1", fmt: fMin}], {legend: true, mark: R.slaMin,
+    barChart("Overall vs working-hours TAT " + by, items, [{k: "tat", label: "Overall TAT (avg)", cls: "s1", fmt: fMin}, {k: "whAvg", label: "Working-hrs TAT (avg)", cls: "s3", fmt: fMin}], {legend: true, mark: R.slaMin,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + R.slaMin + " min")]})));
   return sec;
 }
@@ -916,7 +1248,8 @@ function viewLevel(level){
     el("div", {cls: "sec-head"}, el("h2", {text: title}), el("span", {cls: "note", text: "Sorted by brand, then spend. Click a column to sort. The total row follows the brand filter and search."})),
     el("div", {cls: "tbl-tools"}, searchBox(id, "Search " + (level === "ad" ? "campaign, ad set or ad" : level === "adset" ? "campaign or ad set" : "campaign")),
       el("span", {cls: "small", text: rows.length.toLocaleString("en-IN") + " " + (level === "ad" ? "ads" : level === "adset" ? "ad sets" : "campaigns")})),
-    table(id, cols, rows, {total: T, brandRule: true, rowCls: level === "campaign" ? function(r){ var f = R.campFlags && R.campFlags[campKey(r.campaign)]; return f && f.nonLead && !f.excluded ? "flagged" : ""; } : null}));
+    colTools(id, cols),
+    table(id, visibleCols(id, cols), rows, {total: T, brandRule: true, rowCls: level === "campaign" ? function(r){ var f = R.campFlags && R.campFlags[campKey(r.campaign)]; return f && f.nonLead && !f.excluded ? "flagged" : ""; } : null}));
   if (level === "campaign") sec.appendChild(excludedSection());
   return sec;
 }
@@ -953,21 +1286,17 @@ function viewTAT(){
   var R = state.R, ow = ownerRows(brandOK), owners = ow.rows, T = ow.total, ocols = ownerCols();
   var list = R.needsCall.filter(function(x){ return brandOK(x.brand) && (state.callFilter === "All" || x.sla === state.callFilter) && matchQ("calls", x, ["id", "owner", "campaign", "ad", "status"]); });
   var counts = {All: 0, Pending: 0, Delayed: 0, "Invalid timestamp": 0}; R.needsCall.forEach(function(x){ if (!brandOK(x.brand)) return; counts.All++; counts[x.sla]++; });
-  var lcols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap"}, {k: "created", label: "Created", t: "text", cls: "nowrap", get: function(r){ return fTime(r.created); }},
-    {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "ad", label: "Ad", t: "text", cls: "name"},
-    {k: "owner", label: "Owner", t: "text", cls: "nowrap"}, {k: "fc", label: "First call", t: "text", cls: "nowrap", get: function(r){ return r.fc ? fTime(r.fc) : "—"; }},
-    {k: "tat", label: "TAT", t: "min"},
-    {k: "sla", label: "SLA status", t: "text", render: function(r){ return el("span", {cls: "pill " + (r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : "mut"), text: r.sla}); }},
-    {k: "status", label: "Lead status", t: "text", cls: "nowrap"}];
   var filt = el("div", {cls: "chips"}, ["All", "Pending", "Delayed", "Invalid timestamp"].map(function(f){
     return el("button", {cls: "chip", type: "button", "aria-pressed": state.callFilter === f ? "true" : "false", onclick: function(){ state.callFilter = f; state.limit.calls = 300; render(); }},
-      f === "All" ? "All needing a call" : f, el("span", {cls: "c", text: (counts[f] || 0).toLocaleString("en-IN")})); }));
+      f === "All" ? "All needing attention" : slaLabel(f), el("span", {cls: "c", text: (counts[f] || 0).toLocaleString("en-IN")})); }));
   return el("section", {cls: "panel"},
-    el("div", {cls: "sec-head"}, el("h2", {text: "First-call TAT by owner"}), el("span", {cls: "note", text: "TAT = TeleCRM Created On → First Attempted Call. SLA % = within ÷ (within + delayed + pending), so leads not yet called count against the SLA."})),
-    table("owners", ocols, owners, {total: T}),
-    el("div", {cls: "sec-head"}, el("h2", {text: "Leads needing a call"}), el("span", {cls: "note", text: "Pending, delayed or with unreadable call times." + (R.needsCallCapped ? " Saved team reports keep the first " + R.needsCall.length.toLocaleString("en-IN") + "." : "")})),
+    el("div", {cls: "sec-head"}, el("h2", {text: "TAT by owner"}), el("span", {cls: "note", text: "Overall TAT = Created On → First Attempted Call, all hours. Working-hrs TAT counts only Mon–Sat, 10 AM–9 PM IST, skipping Sundays and active holidays (Settings › Holidays). Not Contacted leads show how long they have been waiting, separately. SLA % uses overall TAT: within ÷ (within + call delayed + not contacted)."})),
+    colTools("owners", ocols),
+    table("owners", visibleCols("owners", ocols), owners, {total: T}),
+    el("div", {cls: "sec-head"}, el("h2", {text: "Leads needing attention"}), el("span", {cls: "note", text: "Not Contacted, Call delayed or with unreadable call times." + (R.needsCallCapped ? " Saved team reports keep the first " + R.needsCall.length.toLocaleString("en-IN") + "." : "")})),
     el("div", {cls: "tbl-tools"}, filt, searchBox("calls", "Search lead id, owner, campaign or status")),
-    table("calls", lcols, list, {empty: "No leads need a call for this filter."}));
+    colTools("calls", callCols()),
+    table("calls", visibleCols("calls", callCols()), list, {empty: "No leads need attention for this filter."}));
 }
 function viewChecks(){
   var R = state.R, box = el("div", {cls: "checks"});
@@ -1039,7 +1368,7 @@ function viewSettings(){
     el("div", {cls: "actions"},
       el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
       el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
-  return form;
+  return el("div", {cls: "panel"}, form, holidayPanel());
 }
 function applySettings(){
   var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };
@@ -1062,7 +1391,7 @@ function periodLabel(k, gran){ var x = ymd(k);
   if (gran === "month") return MON[x.m] + " " + x.y;
   return "Week of " + x.d + " " + MON[x.m] + " " + x.y; }
 function trendData(gran, ok){
-  var R = state.R, S = state.settings, raw = state.raw, brandOf = makeBrandOf(S), rng = rangeOf(state.range), B = {}, partial = 0;
+  var R = state.R, S = state.settings, raw = state.raw, brandOf = makeBrandOf(S), rng = rangeOf(state.range), B = {}, partial = 0, hol = holidaySet(S), nowT = R.now || istNow();
   var ex = {}; (R.excluded || []).forEach(function(x){ if (x.excluded) ex[x.key] = 1; });
   var listed = {}; S.brands.forEach(function(b){ listed[b] = 1; });
   var keep = function(b){ return ((b in listed) || S.showOther) && ok(b); };
@@ -1087,9 +1416,8 @@ function trendData(gran, ok){
       var d = dayOf(created); if (rng && (d < rng.from || d > rng.to)) continue;
       var camp2 = g(row, k.campaign), cb = g(row, k.brand), brand = camp2 ? (brandOf(camp2) || "Unmapped") : (cb ? (brandOf(cb) || "Unmapped") : "No campaign");
       if (!keep(brand)) continue;
-      var status = g(row, k.status), fc = k.firstCall >= 0 ? parseDT(row[k.firstCall]) : null, tat = null, sla;
-      if (fc === null) sla = "Pending"; else if (!isNum(fc) || fc < created) sla = "Invalid timestamp"; else { tat = Math.round((fc - created) / 6000) / 10; sla = tat <= S.slaMin ? "Within SLA" : "Delayed"; }
-      addLead(get(periodKey(d, gran)), {isQL: status ? !!classifyStatus(status, S).ql : false, tat: tat, sla: sla});
+      var status = g(row, k.status), fc = k.firstCall >= 0 ? parseDT(row[k.firstCall]) : null, tm = leadTiming(created, fc, S, hol, nowT);
+      addLead(get(periodKey(d, gran)), {isQL: status ? !!classifyStatus(status, S).ql : false, tat: tm.tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: tm.sla});
     } }
   var rows = Object.keys(B).map(Number).sort(function(a, b){ return a - b; }).map(function(key){ var o = derive(B[key]);
     if (!o.hasMeta){ o.spend = null; o.ui = null; o.imp = null; o.clk = null; derive(o); }
@@ -1100,12 +1428,14 @@ function trendData(gran, ok){
   return {rows: rows, partial: partial};
 }
 function trendCols(){ var R = state.R, up = function(k){ return function(r){ return isNum(r[k]) && r[k] > 0.15 ? "bad" : isNum(r[k]) && r[k] < -0.15 ? "good" : null; }; };
-  return [{k: "period", label: "Period", t: "text", cls: "nowrap", w: 22}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ctr", label: "CTR", t: "pct"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
+  return [{k: "period", label: "Period", t: "text", cls: "nowrap", w: 22, lock: true}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "imp", label: "Impressions", t: "int", def: false}, {k: "clk", label: "Clicks", t: "int", def: false}, {k: "ctr", label: "CTR", t: "pct"}, {k: "cpc", label: "CPC", t: "inr2", def: false}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
     {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
     {k: "cpl", label: "CPL", t: "inr"}, {k: "cplChg", label: "CPL vs previous", t: "pct", flag: up("cplChg")},
     {k: "ql", label: "Qualified leads", t: "int"}, {k: "qlRate", label: "QL rate", t: "pct"},
     {k: "cpql", label: "CPQL", t: "inr"}, {k: "cpqlChg", label: "CPQL vs previous", t: "pct", flag: up("cpqlChg")},
-    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
+    {k: "tat", label: "Overall TAT (avg)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }}, {k: "tatMed", label: "Overall TAT (median)", t: "min", def: false},
+    {k: "whAvg", label: "Working-hrs TAT (avg)", t: "min"}, {k: "whMed", label: "Working-hrs TAT (median)", t: "min", def: false},
+    {k: "pend", label: "Not Contacted", t: "int"},
     {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}]; }
 function viewTrends(){
   var gran = state.trendGran || "week", T = trendData(gran, brandOK), rows = T.rows;
@@ -1119,12 +1449,13 @@ function viewTrends(){
     el("div", {cls: "tbl-tools"}, chips, el("span", {cls: "small", text: rows.length + " " + unit + (rows.length === 1 ? "" : "s")})));
   if (T.partial) sec.appendChild(el("div", {cls: "banner warn", text: T.partial.toLocaleString("en-IN") + " Meta rows cover more than one " + unit + " (or run past the selected dates), so their spend and Leads in UI aren't split into " + unit + "s. Export from Meta with Breakdown › By time › Day."}));
   var tot = sumRows(rows); tot.period = "TOTAL"; tot.qlRate = tot.crm ? tot.ql / tot.crm : null;
-  sec.appendChild(table("trends", trendCols(), rows, {total: rows.length ? tot : null, empty: "No data in these dates."}));
+  sec.appendChild(colTools("trends", trendCols()));
+  sec.appendChild(table("trends", visibleCols("trends", trendCols()), rows, {total: rows.length ? tot : null, empty: "No data in these dates."}));
   sec.appendChild(el("div", {cls: "charts"},
     barChart("CPL and CPQL by " + unit, items, [{k: "cpl", label: "CPL", cls: "s1", fmt: fINR}, {k: "cpql", label: "CPQL", cls: "s3", fmt: fINR}]),
     barChart("Leads in UI vs CRM by " + unit, items, [{k: "ui", label: "Leads in UI (Meta)", cls: "s1", fmt: fInt}, {k: "crm", label: "Leads in CRM", cls: "s2", fmt: fInt}]),
     barChart("QL rate by " + unit, items, [{k: "qlRate", label: "Qualified leads ÷ CRM leads", cls: "s3", fmt: fPct}], {max: 1, legend: true}),
-    barChart("Avg first call TAT by " + unit, items, [{k: "tat", label: "Time from lead created to first call", cls: "s1", fmt: fMin}], {legend: true, mark: state.R.slaMin,
+    barChart("TAT by " + unit, items, [{k: "tat", label: "Overall TAT (avg)", cls: "s1", fmt: fMin}, {k: "whAvg", label: "Working-hrs TAT (avg)", cls: "s3", fmt: fMin}], {legend: true, mark: state.R.slaMin,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + state.R.slaMin + " min")]})));
   return sec;
 }
@@ -1312,7 +1643,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, trends: viewTrends, campaigns: function(){ return viewLevel("campaign"); }, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); },
+  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); },
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   window.scrollTo(0, y);
@@ -1444,9 +1775,9 @@ function normaliseMeta(aoa, hi, S){
     var st = g(r, c.start), en = c.end >= 0 ? r[c.end] : st;
     var a = parseDT(st), b = parseDT(en);
     if (isNum(a)){ a = dayOf(a); from = from === null ? a : Math.min(from, a); } if (isNum(b)){ b = dayOf(b); to = to === null ? b : Math.max(to, b); }
-    rows.push([r[c.campaign], g(r, c.adset), g(r, c.ad), g(r, c.spend), g(r, c.lead), st, en, c.lead === c.results ? g(r, c.indicator) : "", g(r, c.impressions), g(r, c.clicks)]);
+    rows.push([r[c.campaign], g(r, c.adset), g(r, c.ad), g(r, c.spend), g(r, c.lead), st, en, c.lead === c.results ? g(r, c.indicator) : "", g(r, c.impressions), g(r, c.clicks), g(r, c.reach)]);
   }
-  return {rows: rows, ctr: c.impressions >= 0 && c.clicks >= 0, level: level, currency: cur ? cur[1].toUpperCase() : "", missing: (c.spend < 0 ? ["Amount spent"] : []).concat(c.lead < 0 ? ["Results / Leads"] : []),
+  return {rows: rows, ctr: c.impressions >= 0 && c.clicks >= 0, reach: c.reach >= 0, level: level, currency: cur ? cur[1].toUpperCase() : "", missing: (c.spend < 0 ? ["Amount spent"] : []).concat(c.lead < 0 ? ["Results / Leads"] : []),
           leadCol: c.lead >= 0 ? String(H[c.lead]).trim() : "", from: from, to: to,
           campaigns: rows.reduce(function(m, r){ m[clean(r[0]).toLowerCase()] = 1; return m; }, {})};
 }
@@ -1457,8 +1788,9 @@ function combineMeta(files){
   var head = ["Campaign name"].concat(level >= 2 ? ["Ad set name"] : []).concat(level >= 3 ? ["Ad name"] : [])
     .concat(["Amount spent" + (code ? " (" + code + ")" : ""), "Results", "Reporting starts", "Reporting ends", "Result indicator"]);
   var ctr = files.every(function(f){ return f.ctr; }); if (ctr) head = head.concat(["Impressions", "Link clicks"]);
+  var rch = files.every(function(f){ return f.reach; }); if (rch) head = head.concat(["Reach"]);
   out = [head];
-  files.forEach(function(f){ f.rows.forEach(function(r){ out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : [])); }); });
+  files.forEach(function(f){ f.rows.forEach(function(r){ out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : []).concat(rch ? [r[10]] : [])); }); });
   return {aoa: out, level: level, currencies: Object.keys(curs)};
 }
 function renderMetaList(){
@@ -1559,45 +1891,57 @@ function loadExcelJS(){
     document.head.appendChild(s); });
   return loadExcelJS._p;
 }
-var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["trends", "Trends (by day / week / month, as on the Trends tab)"], ["campaigns", "Campaign level"], ["adsets", "Ad set level"], ["ads", "Ad level"],
-  ["owners", "TAT by owner"], ["calls", "Leads needing a call"], ["excluded", "Campaigns with results excluded"], ["ql", "QL statuses"], ["checks", "Data checks"], ["unmatched", "Unmatched CRM leads"]];
+var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["trends", "Trends (by day / week / month, as on the Trends tab)"], ["campaigns", "Campaign → Ad set → Ad (hierarchy)"], ["camplist", "Campaign level (flat)"], ["adsets", "Ad set level"], ["ads", "Ad level"],
+  ["owners", "TAT by owner"], ["calls", "Leads needing attention"], ["excluded", "Campaigns with results excluded"], ["ql", "QL statuses"], ["checks", "Data checks"], ["unmatched", "Unmatched CRM leads"]];
 var EXPORT_KEY = "ebg-lead-dash-export";
 function exportPrefs(){
   var p = null; try { p = JSON.parse(localStorage.getItem(EXPORT_KEY) || "null"); } catch (e) {}
   var d = {sheets: {}}; EXPORT_SHEETS.forEach(function(s){ d.sheets[s[0]] = true; });
   if (p && p.sheets) Object.keys(d.sheets).forEach(function(k){ if (k in p.sheets) d.sheets[k] = !!p.sheets[k]; });
+  d.allCols = !!(p && p.allCols);
   return d; }
 function ownerRows(ok){
   var R = state.R, by = {}, order = [];
-  R.lite.forEach(function(x){ if (!ok(x[0])) return; var o = by[x[1]]; if (!o){ o = by[x[1]] = {owner: x[1], leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; order.push(x[1]); }
-    o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; } if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending") o.pend++; else o.inv++; });
-  var fin = function(o){ o.tat = o.called ? o.ts / o.called : null; o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; };
+  var blank = function(owner){ return {owner: owner, leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0, tats: [], whs: [], wsum: 0, pendO: 0, pendW: 0}; };
+  R.lite.forEach(function(x){ if (!ok(x[0])) return; var o = by[x[1]]; if (!o){ o = by[x[1]] = blank(x[1]); order.push(x[1]); }
+    o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; o.tats.push(x[2]); } if (isNum(x[4])){ o.wsum += x[4]; o.whs.push(x[4]); }
+    if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending"){ o.pend++; o.pendO += x[5] || 0; o.pendW += x[6] || 0; } else o.inv++; });
+  var fin = function(o){ o.tat = o.called ? o.ts / o.called : null; o.tatMed = median(o.tats); o.whAvg = o.whs.length ? o.wsum / o.whs.length : null; o.whMed = median(o.whs);
+    o.pendAgeO = o.pend ? o.pendO / o.pend : null; o.pendAgeW = o.pend ? o.pendW / o.pend : null;
+    o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; };
   var owners = order.map(function(k){ return fin(by[k]); }).sort(function(a, b){ return b.leads - a.leads; });
-  var T = {owner: "TOTAL", leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0}; owners.forEach(function(o){ ["leads", "called", "ts", "win", "del", "pend", "inv"].forEach(function(k){ T[k] += o[k]; }); });
+  var T = blank("TOTAL"); owners.forEach(function(o){ ["leads", "called", "ts", "win", "del", "pend", "inv", "wsum", "pendO", "pendW"].forEach(function(k){ T[k] += o[k]; }); T.tats = T.tats.concat(o.tats); T.whs = T.whs.concat(o.whs); });
   return {rows: owners, total: fin(T)};
 }
 function ownerCols(){ var R = state.R;
-  return [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name"}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Called", t: "int"},
-    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
-    {k: "win", label: "Within SLA", t: "int"}, {k: "del", label: "Delayed", t: "int"}, {k: "pend", label: "Pending", t: "int", flag: function(r){ return r.pend ? "warn" : null; }},
+  return [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name", lock: true}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Contacted", t: "int"},
+    {k: "tat", label: "Overall TAT (avg)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }}, {k: "tatMed", label: "Overall TAT (median)", t: "min"},
+    {k: "whAvg", label: "Working-hrs TAT (avg)", t: "min"}, {k: "whMed", label: "Working-hrs TAT (median)", t: "min"},
+    {k: "win", label: "Within SLA", t: "int"}, {k: "del", label: "Call delayed", t: "int"}, {k: "pend", label: "Not Contacted", t: "int", flag: function(r){ return r.pend ? "warn" : null; }},
+    {k: "pendAgeO", label: "Not Contacted: avg wait", t: "min", def: false}, {k: "pendAgeW", label: "Not Contacted: avg wait (working hrs)", t: "min", def: false},
     {k: "inv", label: "Invalid timestamp", t: "int"}, {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}]; }
+function callCols(){ return [{k: "id", label: "Lead id", t: "text", cls: "nowrap", lock: true}, {k: "created", label: "Created", t: "dt", cls: "nowrap"},
+    {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "ad", label: "Ad", t: "text", cls: "name"},
+    {k: "owner", label: "Owner", t: "text", cls: "nowrap"}, {k: "fc", label: "First contact", t: "dt", cls: "nowrap"},
+    {k: "tat", label: "Overall TAT", t: "min"}, {k: "wh", label: "Working-hrs TAT", t: "min"},
+    {k: "pendO", label: "Waiting (overall)", t: "min"}, {k: "pendW", label: "Waiting (working hrs)", t: "min"},
+    {k: "slaL", label: "Contact status", t: "text", get: function(r){ return slaLabel(r.sla); }, flag: function(r){ return r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : null; },
+      render: function(r){ return el("span", {cls: "pill " + (r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : "mut"), text: slaLabel(r.sla)}); }},
+    {k: "status", label: "Lead status", t: "text", cls: "nowrap"}]; }
 
 /* one description of every sheet, used by both the formatted writer and the plain fallback */
 function exportSpecs(brand, want){
   var R = state.R, ok = function(b){ return brand === "All" || b === brand; }, specs = [];
   var scopeTxt = brand === "All" ? "All listed brands" : brand;
-  var bcols = [{k: "brand", label: "Brand", t: "text"}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ctr", label: "CTR", t: "pct"}, {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
-    {k: "diff", label: "Lead difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
-    {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"}, {k: "noCamp", label: "CRM leads with no campaign", t: "int"},
-    {k: "tat", label: "Avg first call TAT", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
-    {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}, {k: "pend", label: "Calls pending", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }}];
+  var pick = function(id, cols){ return want.allCols ? cols : visibleCols(id, cols); };
+  var bcols = pick("brands", brandCols());
   var lvl = function(level){
     var src = level === "campaign" ? R.camps : level === "adset" ? R.adsets : R.ads, rows = src.filter(function(r){ return ok(r.brand); });
     var lead = [{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign name", t: "text", w: 44}];
     if (level === "campaign") lead.push({k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"});
     if (level === "adset") lead.push({k: "adset", label: "Ad set name", t: "text", w: 40}, {k: "nAds", label: "Ads", t: "int"});
     if (level === "ad") lead.push({k: "adset", label: "Ad set name", t: "text", w: 36}, {k: "ad", label: "Ad name", t: "text", w: 40});
-    var cols = lead.concat(metricCols(level === "ad" ? "ad" : "agg").map(function(c){ return c.k === "remarks" ? Object.assign({}, c, {wrap: true, w: 60}) : c; }));
+    var cols = pick(level, lead.concat(metricCols(level === "ad" ? "ad" : "agg"))).map(function(c){ return c.k === "remarks" ? Object.assign({}, c, {wrap: true, w: 60}) : c; });
     var T = sumRows(rows); T.brand = "TOTAL (" + rows.length + ")"; T.campaign = ""; T.adset = ""; T.ad = "";
     return {cols: cols, rows: rows, total: T};
   };
@@ -1614,23 +1958,29 @@ function exportSpecs(brand, want){
       kpis: [["Amount spent", T.spend, "inr", ads.length + " ad rows"], ["CTR", T.ctr, "pct", R.hasCtr ? fInt(T.clk) + " clicks ÷ " + fInt(T.imp) + " impressions" : "Impressions / clicks not in the Meta export"], ["Leads in UI", T.ui, "int", "Meta " + (R.resultsCol || "Results")], ["Leads in CRM", T.crm, "int", "TeleCRM"],
         ["Lead difference (UI − CRM)", T.diff, "int", ""], ["Difference %", T.pct, "pct", "Flagged above " + Math.round(R.diffAlert * 100) + "%"], ["CPL", T.cpl, "inr", "Spend ÷ Leads in UI"],
         ["Qualified leads", T.ql, "int", isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""], ["CPQL", T.cpql, "inr", "Spend ÷ QLs"],
-        ["Avg first call TAT", T.tat, "min", T.called + " leads called"], ["SLA % (≤ " + R.slaMin + " min)", T.sla, "pct", T.win + " of " + T.elig + " leads; target " + Math.round(R.slaTarget * 100) + "%"],
-        ["Calls pending", T.pend, "int", "Not called yet"]],
+        ["Impressions", T.imp, "int", ""], ["Clicks", T.clk, "int", R.clicksCol || ""], ["CPC", T.cpc, "inr2", "Spend ÷ clicks"],
+        ["Overall TAT (avg)", T.tat, "min", T.called + " leads contacted; all hours"], ["Overall TAT (median)", T.tatMed, "min", ""],
+        ["Working-hrs TAT (avg)", T.whAvg, "min", "Mon–Sat 10 AM–9 PM IST, excluding Sundays and active holidays"], ["Working-hrs TAT (median)", T.whMed, "min", ""],
+        ["SLA % (≤ " + R.slaMin + " min)", T.sla, "pct", T.win + " of " + T.elig + " leads; target " + Math.round(R.slaTarget * 100) + "%"],
+        ["Not Contacted", T.pend, "int", T.pend ? "Waiting " + fDur(T.pendAgeO) + " on average (" + fDur(T.pendAgeW) + " in working hours)" : ""]],
       table: {title: "Brand summary", cols: bcols, rows: br, total: brand === "All" ? bt : null}});
   }
   if (want.trends){ var gran = state.trendGran || "week", td = trendData(gran, ok), tt = sumRows(td.rows); tt.period = "TOTAL"; tt.qlRate = tt.crm ? tt.ql / tt.crm : null;
     specs.push({name: "Trends", title: "Trends by " + gran, note: "Weeks start on Monday. Campaigns with excluded results count their spend but not their results." + (td.partial ? " " + td.partial + " Meta rows span more than one " + gran + " and are not split." : ""),
-      cols: trendCols(), rows: td.rows, total: td.rows.length ? tt : null, freeze: 1}); }
-  if (want.campaigns){ var c1 = lvl("campaign"); specs.push({name: "Campaigns", title: "Campaign level report", cols: c1.cols, rows: c1.rows, total: c1.total, freeze: 2, brandRule: true,
+      cols: pick("trends", trendCols()), rows: td.rows, total: td.rows.length ? tt : null, freeze: 1}); }
+  if (want.camplist){ var c1 = lvl("campaign"); specs.push({name: "Campaigns", title: "Campaign level report", cols: c1.cols, rows: c1.rows, total: c1.total, freeze: 2, brandRule: true,
     rowFill: function(r){ var fl = R.campFlags && R.campFlags[campKey(r.campaign)]; return fl && fl.nonLead && !fl.excluded ? "warn" : null; }}); }
   if (want.adsets){ var c2 = lvl("adset"); specs.push({name: "Ad sets", title: "Ad set level report", cols: c2.cols, rows: c2.rows, total: c2.total, freeze: 2, brandRule: true}); }
   if (want.ads){ var c3 = lvl("ad"); specs.push({name: "Ads", title: "Ad level report", cols: c3.cols, rows: c3.rows, total: c3.total, freeze: 2, brandRule: true}); }
-  if (want.owners){ var ow = ownerRows(ok); specs.push({name: "TAT by owner", title: "First-call TAT by owner", note: "SLA % = within ÷ (within + delayed + pending), so leads not yet called count against the SLA.", cols: ownerCols(), rows: ow.rows, total: ow.total, freeze: 1}); }
-  if (want.calls){ specs.push({name: "Leads needing a call", title: "Leads needing a call", note: "Pending, delayed (over " + R.slaMin + " min) or with unreadable call times.", freeze: 1,
-    cols: [{k: "id", label: "Lead id", t: "text"}, {k: "created", label: "Created", t: "dt"}, {k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text", w: 40}, {k: "ad", label: "Ad", t: "text", w: 36},
-      {k: "owner", label: "Owner", t: "text"}, {k: "fc", label: "First call", t: "dt"}, {k: "tat", label: "TAT", t: "min"},
-      {k: "sla", label: "SLA status", t: "text", flag: function(r){ return r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : null; }}, {k: "status", label: "Lead status", t: "text"}],
+  if (want.owners){ var ow = ownerRows(ok); specs.push({name: "TAT by owner", title: "TAT by owner", note: "Overall TAT counts all hours; working-hrs TAT counts Mon–Sat 10 AM–9 PM IST without Sundays and active holidays. SLA % = within ÷ (within + call delayed + not contacted).", cols: pick("owners", ownerCols()), rows: ow.rows, total: ow.total, freeze: 1}); }
+  if (want.calls){ specs.push({name: "Leads needing attention", title: "Leads needing attention", note: "Not Contacted, Call delayed (overall TAT over " + R.slaMin + " min) or with unreadable call times.", freeze: 1,
+    cols: pick("calls", callCols()).map(function(c){ return c.k === "campaign" || c.k === "ad" ? Object.assign({}, c, {w: 40}) : c; }),
     rows: R.needsCall.filter(function(x){ return ok(x.brand); })}); }
+  if (want.campaigns){ var tcols = pick("campaign", campaignTreeCols()).map(function(c){ return c.k === "remarks" ? Object.assign({}, c, {wrap: true, w: 60}) : c.k === "tree" ? Object.assign({}, c, {w: 52}) : c; });
+    var tc = R.camps.filter(function(r){ return ok(r.brand); }), saveQ = state.q.campaign; state.q.campaign = "";
+    var trows = treeRows("campaign", tcols, tc, true); state.q.campaign = saveQ;
+    var tt2 = sumRows(tc); tt2.brand = "TOTAL (" + tc.length + " campaigns)";
+    specs.push({name: "Campaign hierarchy", title: "Campaign → Ad set → Ad", note: "Use the + / − buttons at the left (Excel outline) to open and close levels. The total adds campaigns only.", cols: tcols, rows: trows, total: tt2, freeze: 3, tree: true}); }
   if (want.excluded){ specs.push({name: "Excluded results", title: "Campaigns with results excluded", note: "Their Meta results aren't counted as Leads in UI; their spend and CRM leads are still counted.",
     cols: [{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text", w: 44},
       {k: "st", label: "Status", t: "text", get: function(x){ return x.excluded ? (x.manual ? "Excluded by you" : "Auto-excluded") : "Counted (review)"; }, flag: function(x){ return x.excluded ? null : "warn"; }},
@@ -1659,7 +2009,7 @@ function xlCols(cols){
 function xlVal(c, r){ return c.get ? c.get(r) : r[c.k]; }
 var XL = {ink: "FF111111", headFg: "FFFFFFFF", sub: "FF686868", faint: "FF9A9A9A", line: "FFDDDDDD", zebra: "FFF7F7F5", total: "FFECECE8",
   bad: "FFB42318", badBg: "FFFBE7E5", warn: "FF8A5D0B", warnBg: "FFFBF1DD", good: "FF1F7A4A", goodBg: "FFE6F2EB"};
-function xlNumFmt(t){ var c = (CUR || "₹").trim(); return t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
+function xlNumFmt(t){ var c = (CUR || "₹").trim(); return t === "inr2" ? '"' + c + '"#,##0.00' : t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
 function xlSolid(argb){ return {type: "pattern", pattern: "solid", fgColor: {argb: argb}}; }
 function xlCellVal(c, v){
   if (c.t === "text") return v == null ? "" : String(v);
@@ -1678,16 +2028,19 @@ function xlTable(ws, r0, cols, rows, o, widths){
   hr.height = 30;
   var prev = null;
   rows.forEach(function(r, ri){
-    var row = ws.getRow(r0 + 1 + ri), brandTop = o.brandRule && prev && prev.brand !== r.brand, rowFill = o.rowFill ? o.rowFill(r) : null;
+    var row = ws.getRow(r0 + 1 + ri), brandTop = o.brandRule && prev && prev.brand !== r.brand && (!r._lvl || r._lvl === 1), rowFill = o.rowFill ? o.rowFill(r) : null;
+    if (r._lvl > 1) row.outlineLevel = r._lvl - 1;
     cols.forEach(function(c, i){
-      var cell = row.getCell(i + 1), v = xlVal(c, r), val = c.k === "ui" && r.uiExcluded ? "Excluded" : xlCellVal(c, v), fl = c.flag ? c.flag(r) : null;
+      var cell = row.getCell(i + 1), v = xlVal(c, r), val = c.k === "ui" && r.uiExcluded ? "Excluded" : c.naBlank && !isNum(v) ? "" : xlCellVal(c, v), fl = c.flag ? c.flag(r) : null;
       cell.value = val; var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "") cell.numFmt = fmt;
       cell.font = {size: 10, color: {argb: val === "N/A" ? XL.faint : XL.ink}};
-      cell.alignment = {vertical: "top", horizontal: c.t === "text" && !c.align ? "left" : "right", wrapText: !!c.wrap};
+      cell.alignment = {vertical: "top", horizontal: c.t === "text" && !c.align ? "left" : "right", wrapText: !!c.wrap, indent: c.k === "tree" && r._lvl ? (r._lvl - 1) * 2 : 0};
+      if (c.k === "tree" && r._lvl) cell.value = (["", "", "Ad set: ", "Ad: "][r._lvl]) + (val || (r._lvl === 2 ? "(no ad set name)" : r._lvl === 3 ? "(no ad name)" : ""));
       if (fl === "bad"){ cell.font = {size: 10, bold: true, color: {argb: XL.bad}}; cell.fill = xlSolid(XL.badBg); }
       else if (fl === "warn"){ cell.font = {size: 10, bold: true, color: {argb: XL.warn}}; cell.fill = xlSolid(XL.warnBg); }
       else if (fl === "good"){ cell.font = {size: 10, color: {argb: XL.good}}; }
-      if (!fl && rowFill === "warn") cell.fill = xlSolid(XL.warnBg); else if (!fl && ri % 2) cell.fill = xlSolid(XL.zebra);
+      if (!fl && rowFill === "warn") cell.fill = xlSolid(XL.warnBg); else if (!fl && r._lvl === 2) cell.fill = xlSolid(XL.zebra); else if (!fl && r._lvl === 3) cell.fill = xlSolid("FFEEEEEA"); else if (!fl && !r._lvl && ri % 2) cell.fill = xlSolid(XL.zebra);
+      if (r._lvl === 1 && !fl) cell.font = Object.assign({}, cell.font, {bold: true});
       cell.border = {bottom: {style: "hair", color: {argb: XL.line}}}; if (brandTop) cell.border.top = {style: "medium", color: {argb: XL.ink}};
       var len = c.t === "dt" ? 17 : val === "" ? 0 : c.t === "text" ? String(val).length : (c.t === "pct" ? 7 : String(Math.round(Math.abs(Number(val) || 0))).length + 4);
       widths[i] = Math.max(widths[i] || 0, Math.min(c.w || (c.t === "text" ? 34 : 16), len + 2));
@@ -1732,7 +2085,7 @@ function buildWorkbookExcelJS(ExcelJS, specs, sub){
         cell.alignment = {vertical: "middle", horizontal: i === 1 ? "right" : "left"}; }); kh.height = 22; r++;
       sp.kpis.forEach(function(k, i){ var row = ws.getRow(r), a = row.getCell(1), b = row.getCell(2), c = row.getCell(3);
         a.value = k[0]; a.font = {size: 10, bold: true, color: {argb: XL.ink}};
-        if (k[2] === "min") b.value = isNum(k[1]) ? fDur(k[1]) : "N/A"; else { b.value = isNum(k[1]) ? (k[2] === "pct" ? Math.round(k[1] * 10000) / 10000 : Math.round(k[1] * 100) / 100) : "N/A"; if (isNum(k[1])) b.numFmt = xlNumFmt(k[2]); }
+        if (k[2] === "min") b.value = isNum(k[1]) ? fDur(k[1]) : "N/A"; else if (k[2] === "inr2" && isNum(k[1])) { b.value = Math.round(k[1] * 100) / 100; b.numFmt = xlNumFmt("inr2"); } else { b.value = isNum(k[1]) ? (k[2] === "pct" ? Math.round(k[1] * 10000) / 10000 : Math.round(k[1] * 100) / 100) : "N/A"; if (isNum(k[1])) b.numFmt = xlNumFmt(k[2]); }
         b.font = {size: 11, bold: true, color: {argb: XL.ink}}; b.alignment = {horizontal: "right"};
         c.value = k[3] || ""; c.font = {size: 9, color: {argb: XL.sub}};
         [a, b, c].forEach(function(x){ x.border = {bottom: {style: "hair", color: {argb: XL.line}}}; if (i % 2) x.fill = xlSolid(XL.zebra); }); r++; });
@@ -1745,7 +2098,8 @@ function buildWorkbookExcelJS(ExcelJS, specs, sub){
       ws = wb.addWorksheet(sp.name.slice(0, 31), {views: [{state: "frozen", xSplit: sp.freeze || 0, ySplit: 4, showGridLines: false}], pageSetup: page});
       xlTitle(ws, sp.title, sub, sp.note);
       var cols = xlCols(sp.cols);
-      xlTable(ws, 4, cols, sp.rows, {total: sp.total, brandRule: sp.brandRule, rowFill: sp.rowFill, autoFilter: true}, widths);
+      if (sp.tree) ws.properties.outlineProperties = {summaryBelow: false, summaryRight: false};
+      xlTable(ws, 4, cols, sp.rows, {total: sp.total, brandRule: sp.brandRule, rowFill: sp.rowFill, autoFilter: !sp.tree}, widths);
       ws.pageSetup.printTitlesRow = "4:4";
     }
     widths.forEach(function(w, i){ ws.getColumn(i + 1).width = Math.max(8, w || 10); });
@@ -1800,6 +2154,8 @@ function renderExportPanel(){
     el("button", {cls: "linkbtn", type: "button", onclick: function(){ setAll(true); }}, "All"), el("button", {cls: "linkbtn", type: "button", onclick: function(){ setAll(false); }}, "None")));
   x.appendChild(el("div", {cls: "opt-grid"}, EXPORT_SHEETS.map(function(s){
     return el("label", {cls: "toggle"}, el("input", {type: "checkbox", name: "ex-sheet", value: s[0], checked: P.sheets[s[0]] ? true : null}), el("span", {text: s[1]})); })));
+  x.appendChild(el("label", {cls: "toggle"}, el("input", {type: "checkbox", id: "ex-all", checked: P.allCols ? true : null}),
+    el("span", {text: "Export all columns (ignore Customize columns)"})));
   x.appendChild(el("div", {cls: "actions"},
     el("button", {cls: "btn", type: "button", id: "ex-go", onclick: runExport}, "Download .xlsx"),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ x.hidden = true; }}, "Cancel"),
@@ -1810,7 +2166,8 @@ function runExport(){
   var x = document.getElementById("export"), want = {}, any = false;
   x.querySelectorAll("input[name=ex-sheet]").forEach(function(i){ want[i.value] = i.checked; if (i.checked) any = true; });
   if (!any){ toast("Tick at least one sheet"); return; }
-  try { localStorage.setItem(EXPORT_KEY, JSON.stringify({sheets: want})); } catch (e) {}
+  var allc = document.getElementById("ex-all"); want.allCols = !!(allc && allc.checked);
+  try { localStorage.setItem(EXPORT_KEY, JSON.stringify({sheets: want, allCols: want.allCols})); } catch (e) {}
   var sc = x.querySelector("input[name=ex-scope]:checked"), brand = sc ? sc.value : "All";
   var specs = exportSpecs(brand, want), now = new Date();
   var sub = "EBG Group · Meta Ads vs TeleCRM · " + rangeText(false) + " · " + (brand === "All" ? "All listed brands" : brand) + " · Generated " + now.toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
@@ -1953,7 +2310,7 @@ function decodeAOA(e){ var out = [e.h]; for (var r = 0; r < e.n; r++) out.push(e
 /* keep only the columns the report reads: no names, phone numbers or emails leave the browser */
 function leanData(raw, S){
   var mh = findMetaHeader(raw.meta, S.cols.meta), meta = [[]];
-  if (mh >= 0){ var c = detectMetaColumns(raw.meta[mh], S.cols.meta), keep = ["campaign", "adset", "ad", "spend", "lead", "start", "end", "indicator", "impressions", "clicks"].filter(function(f){ return c[f] >= 0; });
+  if (mh >= 0){ var c = detectMetaColumns(raw.meta[mh], S.cols.meta), keep = ["campaign", "adset", "ad", "spend", "lead", "start", "end", "indicator", "impressions", "clicks", "reach"].filter(function(f){ return c[f] >= 0; });
     meta = [keep.map(function(f){ return raw.meta[mh][c[f]]; })];
     for (var i = mh + 1; i < raw.meta.length; i++){ var row = raw.meta[i] || []; if (!clean(row[c.campaign])) continue; meta.push(keep.map(function(f){ return row[c[f]]; })); } }
   var ch = findHeaderRow(raw.crm, S.cols.crm.id), crm = [[]];
@@ -2253,7 +2610,8 @@ function dbRowsFromRaw(){
       mm[[camp, adset, ad, d0, d1].join("\u0001")] = {campaign: camp, adset: adset, ad: ad, day: isoDay(d0), day_end: isoDay(d1),
         spend: c.spend >= 0 ? Math.round(num(r[c.spend]) * 100) / 100 : 0, results: c.lead >= 0 ? num(r[c.lead]) : 0,
         result_indicator: c.indicator >= 0 && c.lead === c.results ? clean(r[c.indicator]) : "", currency: code, brand: brandOf(camp),
-        impressions: c.impressions >= 0 ? Math.round(num(r[c.impressions])) : 0, clicks: c.clicks >= 0 ? Math.round(num(r[c.clicks])) : 0};
+        impressions: c.impressions >= 0 ? Math.round(num(r[c.impressions])) : 0, clicks: c.clicks >= 0 ? Math.round(num(r[c.clicks])) : 0,
+        reach: c.reach >= 0 && !blank(r[c.reach]) ? Math.round(num(r[c.reach])) : null};
     }
     out.meta = Object.keys(mm).map(function(k){ return mm[k]; });
   }
@@ -2296,7 +2654,7 @@ function dbUpload(onStep){
 function dbLoad(range, onProgress){
   var S = state.settings, cc = S.cols.crm, p = {meta: 0, crm: 0};
   var tell = function(){ if (onProgress) onProgress(p); };
-  var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks").order("id");
+  var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach").order("id");
     return range ? q.lte("day", isoDay(range.to)).gte("day_end", isoDay(range.from)) : q; };
   var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner").order("lead_id");
     return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
@@ -2305,8 +2663,8 @@ function dbLoad(range, onProgress){
     sb.client.from("team_settings").select("settings,updated_at,updated_by").eq("id", 1).maybeSingle().then(function(r){ return r.error ? null : r.data; })])
   .then(function(res){
     var cur = res[0].length ? res[0][0].currency : "INR";
-    var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks"]]
-      .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0)]; }));
+    var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach"]]
+      .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach)]; }));
     var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner]]
       .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner]; }));
     sb.days = (res[2] || []).map(function(r){ return dayOf(Date.parse(r.d + "T00:00:00Z")); }).sort(function(a, b){ return a - b; });
@@ -2332,14 +2690,23 @@ function dbOpen(quiet){
 }
 function renderDbStatus(){ var e = document.getElementById("db-status"); if (e) e.textContent = sb.busy || ""; var h = document.getElementById("db-busy"); if (h){ h.textContent = sb.busy || ""; h.hidden = !sb.busy; } }
 /* editors' settings changes are shared with the team while looking at database data */
-function dbSettingsChanged(){
-  if (state.source !== "db" || !sbCanWrite()) return;
-  clearTimeout(dbSettingsChanged._t);
-  dbSettingsChanged._t = setTimeout(function(){
-    sb.client.from("team_settings").upsert({id: 1, settings: state.settings, updated_by: sb.email, updated_at: new Date().toISOString()}, {onConflict: "id"})
-      .then(function(r){ if (r.error) toast("Settings not shared: " + r.error.message); else toast("Settings shared with the team"); });
-  }, 900);
+function dbSharesSettings(){ return state.source === "db" && sbCanWrite(); }
+function dbPushSettings(){
+  dbSettingsChanged._pending = false;
+  return sb.client.from("team_settings").upsert({id: 1, settings: state.settings, updated_by: sb.email, updated_at: new Date().toISOString()}, {onConflict: "id"})
+    .then(function(r){ if (r.error) throw r.error; });
 }
+/* editors' settings changes are shared with the team; quiet = caller shows its own message */
+function dbSettingsChanged(now, quiet){
+  if (!dbSharesSettings()) return Promise.resolve(false);
+  clearTimeout(dbSettingsChanged._t); dbSettingsChanged._pending = true;
+  if (now) return dbPushSettings().then(function(){ return true; });
+  dbSettingsChanged._t = setTimeout(function(){
+    dbPushSettings().then(function(){ if (!quiet) toast("Settings shared with the team"); }).catch(function(e){ toast("Settings not shared: " + (e.message || e)); });
+  }, 900);
+  return Promise.resolve(true);
+}
+window.addEventListener("pagehide", function(){ if (dbSettingsChanged._pending && dbSharesSettings()) dbPushSettings().catch(function(){}); });
 function dbRefreshLists(){
   if (sb.status !== "ready") return Promise.resolve();
   return Promise.all([
