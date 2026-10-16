@@ -374,7 +374,7 @@ var DEFAULT_SETTINGS = {
   holidays: DEFAULT_HOLIDAYS.map(function(h){ return {id: "h" + h[1].replace(/-/g, ""), name: h[0], date: h[1], active: true}; }),
   cols: {
     meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
-    crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name"}
+    crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name", manager:"Assignee Manager name"}
   }
 };
 function isNum(x){ return typeof x === "number" && isFinite(x); }
@@ -551,6 +551,7 @@ function derive(o){
 }
 /* range = {from, to} as day numbers (inclusive), or null for all dates */
 function processData(metaAOA, crmAOA, S, range, nowOverride){
+  var hasManager = false;
   var hol = holidaySet(S), nowT = isNum(nowOverride) ? nowOverride : istNow();
   var dataDays = {}, partialRows = 0, metaRowsIn = 0;
   var listed = {}; S.brands.forEach(function(b, i){ listed[b] = i; });
@@ -627,7 +628,8 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     var HC = crmAOA[ch];
     var k = {id: findCol(HC, cc.id), created: findCol(HC, cc.created), source: findCol(HC, cc.source), camp: findCol(HC, cc.campaign),
              adset: findCol(HC, cc.adset), ad: findCol(HC, cc.ad), status: findCol(HC, cc.status), brand: findCol(HC, cc.brand),
-             fc: findCol(HC, cc.firstCall), owner: findCol(HC, cc.owner)};
+             fc: findCol(HC, cc.firstCall), owner: findCol(HC, cc.owner), manager: findCol(HC, cc.manager)};
+    hasManager = k.manager >= 0;
     ["created", "camp", "adset", "ad"].forEach(function(f){ if (k[f] < 0) missing.push("TeleCRM: " + cc[{created: "created", camp: "campaign", adset: "adset", ad: "ad"}[f]]); });
     var srcSet = {}; S.metaSources.forEach(function(s){ if (s) srcSet[String(s).trim().toLowerCase()] = 1; });
     var idFirst = {};
@@ -641,7 +643,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       if (isNum(created)) dataDays[dayOf(created)] = 1;
       if (range && !(isNum(created) && dayOf(created) >= range.from && dayOf(created) <= range.to)){ cnt.outsideSel++; continue; }
       var camp2 = clean(g(row, k.camp)), adset2 = clean(g(row, k.adset)), ad2 = clean(g(row, k.ad)), status = clean(g(row, k.status));
-      var crmBrand = clean(g(row, k.brand)), fc = k.fc >= 0 ? parseDT(row[k.fc]) : null, owner = clean(g(row, k.owner)) || "(unassigned)";
+      var crmBrand = clean(g(row, k.brand)), fc = k.fc >= 0 ? parseDT(row[k.fc]) : null, owner = clean(g(row, k.owner)) || "(unassigned)", manager = clean(g(row, k.manager)) || "(no manager)";
       var first = true;
       if (id){ if (id in idFirst){ first = false; cnt.dupExtra++; } else idFirst[id] = j; } else cnt.noId++;
       if (!isNum(created)) cnt.badCreated++;
@@ -661,7 +663,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       var cls = status ? classifyStatus(status, S) : {ql: false};
       var tm = leadTiming(created, fc, S, hol, nowT), tat = tm.tat, sla = tm.sla;
       var L = {id: id, created: isNum(created) ? created : null, brand: brand, campaign: camp2, adset: adset2, ad: ad2, status: status, owner: owner,
-               fc: isNum(fc) ? fc : null, tat: tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: sla, isQL: !!cls.ql, shown: shownBrand(brand), source: source};
+               fc: isNum(fc) ? fc : null, tat: tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: sla, isQL: !!cls.ql, shown: shownBrand(brand), source: source, manager: manager};
       leads.push(L);
       if (!camp2){ cnt.noCampCounted++; noCampByBrand[brand] = (noCampByBrand[brand] || 0) + 1; }
       var target;
@@ -758,14 +760,14 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
   ];
   var statuses = statusFirst.map(function(s){ var c2 = classifyStatus(s, S); return {status: s, count: statusSeen[s], ql: c2.ql, reason: c2.reason, override: S.qlOverride[s.toLowerCase()] || ""}; });
   var needsCall = [], lite = [];
-  leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla, L.wh, L.pendO, L.pendW]);
-    if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, wh: L.wh, pendO: L.pendO, pendW: L.pendW, sla: L.sla, status: L.status}); });
+  leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla, L.wh, L.pendO, L.pendW, L.manager]);
+    if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, manager: L.manager, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, wh: L.wh, pendO: L.pendO, pendW: L.pendW, sla: L.sla, status: L.status}); });
   var dayList = Object.keys(dataDays).map(Number).sort(function(a, b){ return a - b; });
   return {range: range || null, avail: {min: dayList.length ? dayList[0] : null, max: dayList.length ? dayList[dayList.length - 1] : null, days: dayList},
           partialRows: partialRows, metaRowsIn: metaRowsIn,
           period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
           resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
-          hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, needsCall: needsCall, lite: lite, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
+          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, needsCall: needsCall, lite: lite, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
           slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform, now: nowT, holidaysActive: Object.keys(hol).length};
 }
 // ENGINE END
@@ -775,6 +777,12 @@ var LS_KEY = "ebg-lead-dash-settings-v1";
 var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, metaFiles: [], source: "none", R: null, team: null,
              tab: "overview", brand: "All", range: {preset: "max"}, treeOpen: {}, colPick: null, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false};
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
+/* saved settings + any defaults added since (keeps new column names) */
+function mergeSettings(saved){
+  var d = Object.assign(clone(DEFAULT_SETTINGS), saved || {});
+  d.cols = {meta: Object.assign(clone(DEFAULT_SETTINGS.cols.meta), ((saved || {}).cols || {}).meta || {}), crm: Object.assign(clone(DEFAULT_SETTINGS.cols.crm), ((saved || {}).cols || {}).crm || {})};
+  return d;
+}
 function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
   var d = clone(DEFAULT_SETTINGS); if (!s) return d;
   for (var k in d) if (k in s) d[k] = s[k];
@@ -1283,18 +1291,32 @@ function excludedSection(){
     table("excl", cols, list, {empty: "No campaigns have results excluded. Untick Count results on a campaign above if its results aren't leads."}));
 }
 function viewTAT(){
-  var R = state.R, ow = ownerRows(brandOK), owners = ow.rows, T = ow.total, ocols = ownerCols();
-  var list = R.needsCall.filter(function(x){ return brandOK(x.brand) && (state.callFilter === "All" || x.sla === state.callFilter) && matchQ("calls", x, ["id", "owner", "campaign", "ad", "status"]); });
+  var R = state.R, ow = ownerRows(brandOK), owners = ow.rows, T = ow.total, ocols = ownerCols(), ownerBlock;
+  if (R.hasManager){
+    var mr = managerRows(brandOK), mcols = managerTreeCols(), vis = visibleCols("owners", mcols), flat = managerFlat(vis, mr.rows, false);
+    var mT = mr.total; mT.owner = "TOTAL (" + mr.rows.length + " managers · " + owners.length + " assignees)";
+    state.limit.owners = Math.max(state.limit.owners || 0, 3000);
+    ownerBlock = [
+      el("div", {cls: "sec-head"}, el("h2", {text: "TAT by manager"}), el("span", {cls: "note", text: "Click a manager to see their assignees. A manager's row adds up their assignees' leads; TAT and SLA are recalculated from those leads, not averaged. Managers come from TeleCRM's Assignee Manager name. Overall TAT counts all hours; working-hrs TAT counts Mon–Sat, 10 AM–9 PM IST without Sundays and active holidays."})),
+      el("div", {cls: "tbl-tools"}, searchBox("owners", "Search manager or assignee"),
+        el("span", {cls: "opt-row"},
+          el("button", {cls: "linkbtn", type: "button", onclick: function(){ mr.rows.forEach(function(m){ state.treeOpen["m:" + m.manager.toLowerCase()] = true; }); render(); }}, "Show all assignees"),
+          el("button", {cls: "linkbtn", type: "button", onclick: function(){ Object.keys(state.treeOpen).forEach(function(k){ if (k.indexOf("m:") === 0) delete state.treeOpen[k]; }); render(); }}, "Managers only"),
+          el("span", {cls: "small", text: mr.rows.length + " managers · " + owners.length + " assignees"}))),
+      colTools("owners", mcols),
+      table("owners", vis, flat, {total: mT, presorted: true, rowCls: function(r){ return "lvl-" + r._lvl; }, empty: "No leads for this filter."})];
+  } else ownerBlock = [
+      el("div", {cls: "sec-head"}, el("h2", {text: "TAT by owner"}), el("span", {cls: "note", text: "Add the Assignee Manager name column to the TeleCRM export to see TAT by manager. Overall TAT counts all hours; working-hrs TAT counts Mon–Sat, 10 AM–9 PM IST without Sundays and active holidays."})),
+      colTools("owners", ocols), table("owners", visibleCols("owners", ocols), owners, {total: T})];
+  var list = R.needsCall.filter(function(x){ return brandOK(x.brand) && (state.callFilter === "All" || x.sla === state.callFilter) && matchQ("calls", x, ["id", "owner", "manager", "campaign", "ad", "status"]); });
   var counts = {All: 0, Pending: 0, Delayed: 0, "Invalid timestamp": 0}; R.needsCall.forEach(function(x){ if (!brandOK(x.brand)) return; counts.All++; counts[x.sla]++; });
   var filt = el("div", {cls: "chips"}, ["All", "Pending", "Delayed", "Invalid timestamp"].map(function(f){
     return el("button", {cls: "chip", type: "button", "aria-pressed": state.callFilter === f ? "true" : "false", onclick: function(){ state.callFilter = f; state.limit.calls = 300; render(); }},
       f === "All" ? "All needing attention" : slaLabel(f), el("span", {cls: "c", text: (counts[f] || 0).toLocaleString("en-IN")})); }));
   return el("section", {cls: "panel"},
-    el("div", {cls: "sec-head"}, el("h2", {text: "TAT by owner"}), el("span", {cls: "note", text: "Overall TAT = Created On → First Attempted Call, all hours. Working-hrs TAT counts only Mon–Sat, 10 AM–9 PM IST, skipping Sundays and active holidays (Settings › Holidays). Not Contacted leads show how long they have been waiting, separately. SLA % uses overall TAT: within ÷ (within + call delayed + not contacted)."})),
-    colTools("owners", ocols),
-    table("owners", visibleCols("owners", ocols), owners, {total: T}),
+    ownerBlock,
     el("div", {cls: "sec-head"}, el("h2", {text: "Leads needing attention"}), el("span", {cls: "note", text: "Not Contacted, Call delayed or with unreadable call times." + (R.needsCallCapped ? " Saved team reports keep the first " + R.needsCall.length.toLocaleString("en-IN") + "." : "")})),
-    el("div", {cls: "tbl-tools"}, filt, searchBox("calls", "Search lead id, owner, campaign or status")),
+    el("div", {cls: "tbl-tools"}, filt, searchBox("calls", "Search lead id, owner, manager, campaign or status")),
     colTools("calls", callCols()),
     table("calls", visibleCols("calls", callCols()), list, {empty: "No leads need attention for this filter."}));
 }
@@ -1900,19 +1922,60 @@ function exportPrefs(){
   if (p && p.sheets) Object.keys(d.sheets).forEach(function(k){ if (k in p.sheets) d.sheets[k] = !!p.sheets[k]; });
   d.allCols = !!(p && p.allCols);
   return d; }
+function ownerAcc(name){ return {owner: name, leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0, tats: [], whs: [], wsum: 0, pendO: 0, pendW: 0}; }
+function ownerAdd(o, x){ o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; o.tats.push(x[2]); } if (isNum(x[4])){ o.wsum += x[4]; o.whs.push(x[4]); }
+  if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending"){ o.pend++; o.pendO += x[5] || 0; o.pendW += x[6] || 0; } else o.inv++; }
+function ownerMerge(T, o){ ["leads", "called", "ts", "win", "del", "pend", "inv", "wsum", "pendO", "pendW"].forEach(function(k){ T[k] += o[k]; }); T.tats = T.tats.concat(o.tats); T.whs = T.whs.concat(o.whs); }
+function ownerFin(o){ o.tat = o.called ? o.ts / o.called : null; o.tatMed = median(o.tats); o.whAvg = o.whs.length ? o.wsum / o.whs.length : null; o.whMed = median(o.whs);
+  o.pendAgeO = o.pend ? o.pendO / o.pend : null; o.pendAgeW = o.pend ? o.pendW / o.pend : null;
+  o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; }
 function ownerRows(ok){
   var R = state.R, by = {}, order = [];
-  var blank = function(owner){ return {owner: owner, leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0, tats: [], whs: [], wsum: 0, pendO: 0, pendW: 0}; };
-  R.lite.forEach(function(x){ if (!ok(x[0])) return; var o = by[x[1]]; if (!o){ o = by[x[1]] = blank(x[1]); order.push(x[1]); }
-    o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; o.tats.push(x[2]); } if (isNum(x[4])){ o.wsum += x[4]; o.whs.push(x[4]); }
-    if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending"){ o.pend++; o.pendO += x[5] || 0; o.pendW += x[6] || 0; } else o.inv++; });
-  var fin = function(o){ o.tat = o.called ? o.ts / o.called : null; o.tatMed = median(o.tats); o.whAvg = o.whs.length ? o.wsum / o.whs.length : null; o.whMed = median(o.whs);
-    o.pendAgeO = o.pend ? o.pendO / o.pend : null; o.pendAgeW = o.pend ? o.pendW / o.pend : null;
-    o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; };
-  var owners = order.map(function(k){ return fin(by[k]); }).sort(function(a, b){ return b.leads - a.leads; });
-  var T = blank("TOTAL"); owners.forEach(function(o){ ["leads", "called", "ts", "win", "del", "pend", "inv", "wsum", "pendO", "pendW"].forEach(function(k){ T[k] += o[k]; }); T.tats = T.tats.concat(o.tats); T.whs = T.whs.concat(o.whs); });
-  return {rows: owners, total: fin(T)};
+  R.lite.forEach(function(x){ if (!ok(x[0])) return; var o = by[x[1]]; if (!o){ o = by[x[1]] = ownerAcc(x[1]); order.push(x[1]); } ownerAdd(o, x); });
+  var owners = order.map(function(k){ return ownerFin(by[k]); }).sort(function(a, b){ return b.leads - a.leads; });
+  var T = ownerAcc("TOTAL"); owners.forEach(function(o){ ownerMerge(T, o); });
+  return {rows: owners, total: ownerFin(T)};
 }
+/* manager → assignee: each manager row is the sum of their own assignees' leads */
+function managerRows(ok){
+  var R = state.R, mg = {}, order = [];
+  R.lite.forEach(function(x){ if (!ok(x[0])) return; var m = x[7] || "(no manager)", g = mg[m];
+    if (!g){ g = mg[m] = {row: ownerAcc(m), kids: {}, kidOrder: []}; order.push(m); }
+    var o = g.kids[x[1]]; if (!o){ o = g.kids[x[1]] = ownerAcc(x[1]); g.kidOrder.push(x[1]); }
+    ownerAdd(o, x); ownerAdd(g.row, x); });
+  var T = ownerAcc("TOTAL");
+  var mgrs = order.map(function(m){ var g = mg[m]; ownerMerge(T, g.row); var r = ownerFin(g.row);
+    r.manager = m; r.nAssignees = g.kidOrder.length;
+    r._kidsList = g.kidOrder.map(function(k){ var o = ownerFin(g.kids[k]); o.manager = m; return o; }); return r; });
+  return {rows: mgrs, total: ownerFin(T)};
+}
+function managerTreeCols(){ var base = ownerCols().filter(function(c){ return c.k !== "owner"; });
+  return [{k: "tree", label: "Manager / Assignee", t: "text", cls: "name tree-name", lock: true, get: function(r){ return r.owner; },
+    render: function(r){
+      var box = el("span", {cls: "tree-cell lvl" + r._lvl}), name = r.owner;
+      if (r._lvl === 1){
+        box.appendChild(el("button", {cls: "tree-tog", type: "button", "aria-expanded": r._open ? "true" : "false", "aria-label": (r._open ? "Hide " : "Show ") + name + "'s assignees",
+          onclick: function(){ state.treeOpen[r._key] = !r._open; render(); }}, r._open ? "▾" : "▸"));
+        box.appendChild(el("span", {cls: "tree-lvl", text: "Manager"}));
+        box.appendChild(el("button", {cls: "linkbtn mgr-name", type: "button", onclick: function(){ state.treeOpen[r._key] = !r._open; render(); }}, name));
+        box.appendChild(el("span", {cls: "small", text: " · " + r.nAssignees + (r.nAssignees === 1 ? " assignee" : " assignees")}));
+      } else { box.appendChild(el("span", {cls: "tree-tog none", "aria-hidden": "true"})); box.appendChild(el("span", {cls: "tree-lvl", text: "Assignee"})); box.appendChild(el("span", {text: name})); }
+      return box; }}].concat(base);
+}
+function managerFlat(cols, mgrs, all){
+  var out = [], q = (state.q.owners || "").trim().toLowerCase();
+  var hit = function(t){ return q && String(t || "").toLowerCase().indexOf(q) >= 0; };
+  sortRowsFor("owners", cols, mgrs).forEach(function(m){
+    var kids = m._kidsList, kidHit = q ? kids.filter(function(k){ return hit(k.owner); }) : [];
+    if (q && !hit(m.manager) && !kidHit.length) return;
+    var key = "m:" + m.manager.toLowerCase(), open = all || !!state.treeOpen[key] || (q && kidHit.length > 0 && !hit(m.manager));
+    out.push(Object.assign({}, m, {_lvl: 1, _key: key, _kids: kids.length, _open: open}));
+    if (!open) return;
+    sortRowsFor("owners", cols, q && !hit(m.manager) ? kidHit : kids).forEach(function(k){ out.push(Object.assign({}, k, {_lvl: 2, _key: key + "|" + k.owner, _kids: 0, _pfx: "Assignee: "})); });
+  });
+  return out;
+}
+
 function ownerCols(){ var R = state.R;
   return [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name", lock: true}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Contacted", t: "int"},
     {k: "tat", label: "Overall TAT (avg)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }}, {k: "tatMed", label: "Overall TAT (median)", t: "min"},
@@ -1922,7 +1985,7 @@ function ownerCols(){ var R = state.R;
     {k: "inv", label: "Invalid timestamp", t: "int"}, {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}]; }
 function callCols(){ return [{k: "id", label: "Lead id", t: "text", cls: "nowrap", lock: true}, {k: "created", label: "Created", t: "dt", cls: "nowrap"},
     {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "ad", label: "Ad", t: "text", cls: "name"},
-    {k: "owner", label: "Owner", t: "text", cls: "nowrap"}, {k: "fc", label: "First contact", t: "dt", cls: "nowrap"},
+    {k: "owner", label: "Owner", t: "text", cls: "nowrap"}, {k: "manager", label: "Manager", t: "text", cls: "nowrap", def: !!(state.R && state.R.hasManager)}, {k: "fc", label: "First contact", t: "dt", cls: "nowrap"},
     {k: "tat", label: "Overall TAT", t: "min"}, {k: "wh", label: "Working-hrs TAT", t: "min"},
     {k: "pendO", label: "Waiting (overall)", t: "min"}, {k: "pendW", label: "Waiting (working hrs)", t: "min"},
     {k: "slaL", label: "Contact status", t: "text", get: function(r){ return slaLabel(r.sla); }, flag: function(r){ return r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : null; },
@@ -1972,6 +2035,8 @@ function exportSpecs(brand, want){
     rowFill: function(r){ var fl = R.campFlags && R.campFlags[campKey(r.campaign)]; return fl && fl.nonLead && !fl.excluded ? "warn" : null; }}); }
   if (want.adsets){ var c2 = lvl("adset"); specs.push({name: "Ad sets", title: "Ad set level report", cols: c2.cols, rows: c2.rows, total: c2.total, freeze: 2, brandRule: true}); }
   if (want.ads){ var c3 = lvl("ad"); specs.push({name: "Ads", title: "Ad level report", cols: c3.cols, rows: c3.rows, total: c3.total, freeze: 2, brandRule: true}); }
+  if (want.owners && R.hasManager){ var mr2 = managerRows(ok), mc2 = pick("owners", managerTreeCols()), mf2 = managerFlat(mc2, mr2.rows, true); mr2.total.owner = "TOTAL";
+    specs.push({name: "TAT by manager", title: "TAT by manager and assignee", note: "Use the + / − outline buttons to open managers. Manager rows add up their assignees' leads; TAT and SLA are recalculated.", cols: mc2, rows: mf2, total: mr2.total, freeze: 1, tree: true}); }
   if (want.owners){ var ow = ownerRows(ok); specs.push({name: "TAT by owner", title: "TAT by owner", note: "Overall TAT counts all hours; working-hrs TAT counts Mon–Sat 10 AM–9 PM IST without Sundays and active holidays. SLA % = within ÷ (within + call delayed + not contacted).", cols: pick("owners", ownerCols()), rows: ow.rows, total: ow.total, freeze: 1}); }
   if (want.calls){ specs.push({name: "Leads needing attention", title: "Leads needing attention", note: "Not Contacted, Call delayed (overall TAT over " + R.slaMin + " min) or with unreadable call times.", freeze: 1,
     cols: pick("calls", callCols()).map(function(c){ return c.k === "campaign" || c.k === "ad" ? Object.assign({}, c, {w: 40}) : c; }),
@@ -2035,7 +2100,7 @@ function xlTable(ws, r0, cols, rows, o, widths){
       cell.value = val; var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "") cell.numFmt = fmt;
       cell.font = {size: 10, color: {argb: val === "N/A" ? XL.faint : XL.ink}};
       cell.alignment = {vertical: "top", horizontal: c.t === "text" && !c.align ? "left" : "right", wrapText: !!c.wrap, indent: c.k === "tree" && r._lvl ? (r._lvl - 1) * 2 : 0};
-      if (c.k === "tree" && r._lvl) cell.value = (["", "", "Ad set: ", "Ad: "][r._lvl]) + (val || (r._lvl === 2 ? "(no ad set name)" : r._lvl === 3 ? "(no ad name)" : ""));
+      if (c.k === "tree" && r._lvl) cell.value = (r._pfx !== undefined ? r._pfx : ["", "", "Ad set: ", "Ad: "][r._lvl]) + (val || (r._lvl === 2 ? "(no ad set name)" : r._lvl === 3 ? "(no ad name)" : ""));
       if (fl === "bad"){ cell.font = {size: 10, bold: true, color: {argb: XL.bad}}; cell.fill = xlSolid(XL.badBg); }
       else if (fl === "warn"){ cell.font = {size: 10, bold: true, color: {argb: XL.warn}}; cell.fill = xlSolid(XL.warnBg); }
       else if (fl === "good"){ cell.font = {size: 10, color: {argb: XL.good}}; }
@@ -2422,7 +2487,7 @@ function openTeamDataset(meta, quiet){
   return teamDriver().get(meta).then(function(bytes){ return unpackText(bytes, meta.enc); }).then(function(txt){
     var obj = JSON.parse(txt);
     state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)};
-    if (obj.settings) state.settings = Object.assign(clone(DEFAULT_SETTINGS), obj.settings);
+    if (obj.settings) state.settings = mergeSettings(obj.settings);
     state.files = meta.files || {}; state.source = "team"; state.team = {id: meta.id, name: meta.name, savedAt: meta.savedAt, files: meta.files}; state.savedInfo = null;
     state.metaFiles = []; state.pending = {meta: null, crm: null}; renderMetaList();
     document.getElementById("st-crm").textContent = ""; document.getElementById("drop-crm").classList.remove("ok");
@@ -2447,7 +2512,7 @@ function loadLegacyTeam(cur){
   var db = state.caps.db, parts = [], chain = Promise.resolve();
   for (var i = 0; i < cur.n; i++) (function(k){ chain = chain.then(function(){ return db.doc("report_chunks/" + cur.ver + "-" + k).get().then(function(s){ if (!s.exists) throw new Error("part " + k + " missing"); parts.push(s.data().s); }); }); })(i);
   return chain.then(function(){ var obj = JSON.parse(parts.join("")); if (!(obj.v >= 2)) throw new Error("old format");
-    state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)}; if (obj.settings) state.settings = Object.assign(clone(DEFAULT_SETTINGS), obj.settings);
+    state.raw = {meta: decodeAOA(obj.meta), crm: decodeAOA(obj.crm)}; if (obj.settings) state.settings = mergeSettings(obj.settings);
     state.files = obj.files || {}; state.source = "team"; state.team = {id: cur.ver, name: "Team report", savedAt: obj.savedAt, files: obj.files};
     state.brand = "All"; state.limit = {}; rebuild(); render(); });
 }
@@ -2629,7 +2694,7 @@ function dbRowsFromRaw(){
       var lid = id || ("noid:" + (isNum(created) ? created : "") + "|" + camp2 + "|" + g(row, k.ad) + "|" + g(row, k.owner) + "|" + j);
       var tat = isNum(created) && isNum(fc) && fc >= created ? Math.round((fc - created) / 6000) / 10 : null;
       cm[lid] = {lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
-        status: status, crm_brand: crmBrand, first_call: tsStr(fc), owner: g(row, k.owner), brand: camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign"),
+        status: status, crm_brand: crmBrand, first_call: tsStr(fc), owner: g(row, k.owner), manager: g(row, k.manager), brand: camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign"),
         is_ql: status ? !!classifyStatus(status, S).ql : false, tat_min: tat};
       if (isNum(created)){ var cd = dayOf(created); out.from = out.from === null ? cd : Math.min(out.from, cd); out.to = out.to === null ? cd : Math.max(out.to, cd); }
     }
@@ -2659,7 +2724,7 @@ function dbLoad(range, onProgress){
   var tell = function(){ if (onProgress) onProgress(p); };
   var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach").order("id");
     return range ? q.lte("day", isoDay(range.to)).gte("day_end", isoDay(range.from)) : q; };
-  var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner").order("lead_id");
+  var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner,manager").order("lead_id");
     return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
   return Promise.all([sbAll(mq, function(n){ p.meta = n; tell(); }), sbAll(cq, function(n){ p.crm = n; tell(); }),
     sb.client.from("data_days").select("d").then(function(r){ if (r.error) throw r.error; return r.data; }),
@@ -2668,10 +2733,10 @@ function dbLoad(range, onProgress){
     var cur = res[0].length ? res[0][0].currency : "INR";
     var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach"]]
       .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach)]; }));
-    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner]]
-      .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner]; }));
+    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager]]
+      .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner, l.manager || ""]; }));
     sb.days = (res[2] || []).map(function(r){ return dayOf(Date.parse(r.d + "T00:00:00Z")); }).sort(function(a, b){ return a - b; });
-    if (res[3] && res[3].settings){ state.settings = Object.assign(clone(DEFAULT_SETTINGS), res[3].settings); sb.settingsAt = res[3].updated_at; }
+    if (res[3] && res[3].settings){ state.settings = mergeSettings(res[3].settings); sb.settingsAt = res[3].updated_at; }
     return {meta: meta, crm: crm, metaRows: res[0].length, crmRows: res[1].length};
   });
 }

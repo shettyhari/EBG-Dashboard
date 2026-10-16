@@ -78,6 +78,7 @@ create table if not exists public.crm_leads (
   crm_brand   text not null default '',
   first_call  timestamp,
   owner       text not null default '',
+  manager     text not null default '',
   brand       text not null default '',   -- report brand from the dashboard's brand keywords
   is_ql       boolean not null default false,
   tat_min     numeric(10, 1),
