@@ -224,7 +224,20 @@ tr.flagged td{background:var(--warn-bg)}
 .group h3{font-size:15px;font-weight:500}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--btn-bg);color:var(--btn-fg);padding:10px 16px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
 .confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
-.user-box{display:inline-flex;gap:10px;align-items:center;font-size:12.5px;color:var(--muted)}
+.user-box{position:relative;display:inline-flex;align-items:center}
+.prof-btn{display:inline-flex;align-items:center;gap:8px;background:none;border:1px solid var(--line);padding:5px 10px 5px 5px;cursor:pointer;font-size:13px;color:var(--ink);border-radius:0;max-width:240px}
+.prof-btn[aria-expanded="true"]{border-color:var(--ink)}
+.prof-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avatar{flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:var(--btn-bg);color:var(--btn-fg);display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;letter-spacing:.02em}
+.avatar.lg{width:44px;height:44px;font-size:15px}
+.prof-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:50;width:min(340px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--ink);box-shadow:0 12px 32px rgba(0,0,0,.18);padding:16px;display:grid;gap:12px;text-align:left}
+.prof-head{display:flex;gap:12px;align-items:center}
+.prof-title{font-family:var(--font-display);font-size:17px;color:var(--ink);font-weight:500}
+.prof-row{display:flex;gap:8px;align-items:flex-end}
+.prof-row .field{flex:1}
+.prof-pop input{border:1px solid var(--line);background:var(--panel);padding:8px 10px;border-radius:0;width:100%}
+.prof-pop .btn{justify-content:center}
+@media (max-width:640px){ .prof-pop{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));top:calc(64px + env(safe-area-inset-top,0px));width:auto;max-height:calc(100vh - 90px);overflow-y:auto} .prof-name{max-width:110px} }
 .msg{font-size:13px;padding:10px 12px;border:1px solid}
 .msg.ok{color:var(--good);border-color:var(--good);background:var(--good-bg)}
 .msg.err{color:var(--bad);border-color:var(--bad);background:var(--bad-bg)}
@@ -256,7 +269,7 @@ tr.flagged td{background:var(--warn-bg)}
     </div>
     <div class="actions">
       <span id="user-box" class="user-box" hidden></span>
-      <button class="btn" id="btn-load" type="button">Lead data upload</button>
+      <button class="btn" id="btn-load" type="button" hidden>Lead data upload</button>
       <button class="btn ghost" id="btn-saved" type="button" hidden>Saved data</button>
       <span id="save-wrap" hidden><button class="btn ghost" id="btn-save" type="button">Save for team</button></span>
       <button class="btn ghost" id="btn-xlsx" type="button" hidden>Download Excel</button>
@@ -1166,13 +1179,52 @@ function setChrome(on){
   document.querySelector(".filters").hidden = !on; document.querySelector("nav.tabs").hidden = !on;
   document.getElementById("source-line").hidden = !on;
 }
+function displayName(){ var m = sb.user && sb.user.user_metadata || {}; return clean(m.full_name || m.name || "") || sb.email.split("@")[0]; }
+function initials(){ var n = displayName().replace(/[^A-Za-z0-9 ]+/g, " ").trim().split(/\s+/); return ((n[0] || "?")[0] + (n.length > 1 ? n[n.length - 1][0] : (n[0] || "")[1] || "")).toUpperCase(); }
+var ROLE_TXT = {admin: "Admin · uploads data, manages Saved data and the team", editor: "Editor · uploads lead data", viewer: "Viewer · sees the dashboard"};
 function renderUserBox(){
   var b = document.getElementById("user-box"); b.textContent = "";
-  if (!sb.cfg || !sb.email){ b.hidden = true; return; }
+  if (!sb.cfg || !sb.email){ b.hidden = true; sb.profileOpen = false; return; }
   b.hidden = false;
-  b.appendChild(el("span", {text: sb.email + (sb.role ? " · " + sb.role : "")}));
-  b.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ sbSignOut(); }}, "Sign out"));
+  var btn = el("button", {cls: "prof-btn", type: "button", id: "prof-btn", "aria-haspopup": "dialog", "aria-expanded": sb.profileOpen ? "true" : "false", title: sb.email,
+    onclick: function(e){ e.stopPropagation(); sb.profileOpen = !sb.profileOpen; sb.profMsg = null; renderUserBox(); }},
+    el("span", {cls: "avatar", "aria-hidden": "true", text: initials()}), el("span", {cls: "prof-name", text: displayName()}), el("span", {"aria-hidden": "true", text: "▾"}));
+  b.appendChild(btn);
+  if (!sb.profileOpen) return;
+  var pop = el("div", {cls: "prof-pop", role: "dialog", "aria-label": "Your profile", onclick: function(e){ e.stopPropagation(); }});
+  var since = sb.user && sb.user.created_at ? new Date(sb.user.created_at).toLocaleDateString("en-IN", {dateStyle: "medium"}) : "";
+  var last = sb.user && sb.user.last_sign_in_at ? new Date(sb.user.last_sign_in_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) : "";
+  pop.appendChild(el("div", {cls: "prof-head"}, el("span", {cls: "avatar lg", "aria-hidden": "true", text: initials()}),
+    el("div", null, el("div", {cls: "prof-title", text: displayName()}), el("div", {cls: "small", text: sb.email}),
+      sb.role ? el("span", {cls: "pill good", style: "margin-top:6px", text: sb.role.charAt(0).toUpperCase() + sb.role.slice(1)}) : null)));
+  if (sb.role) pop.appendChild(el("div", {cls: "small", text: ROLE_TXT[sb.role] || ""}));
+  if (since || last) pop.appendChild(el("div", {cls: "small", text: (since ? "Member since " + since : "") + (since && last ? " · " : "") + (last ? "Last sign-in " + last : "")}));
+  /* display name */
+  var nm = el("input", {type: "text", id: "pf-name", maxlength: "60", value: (sb.user && sb.user.user_metadata && sb.user.user_metadata.full_name) || "", placeholder: "Your name"});
+  var saveName = el("button", {cls: "btn ghost", type: "submit"}, "Save");
+  var f1 = el("form", {cls: "prof-row"}, el("div", {cls: "field"}, el("label", {"for": "pf-name", text: "Display name"}), nm), saveName);
+  f1.addEventListener("submit", function(e){ e.preventDefault(); saveName.disabled = true;
+    sb.client.auth.updateUser({data: {full_name: clean(nm.value)}}).then(function(r){ if (r.error) throw r.error; sb.user = r.data.user; sb.profMsg = {kind: "ok", text: "Name saved."}; renderUserBox(); })
+      .catch(function(er){ sb.profMsg = {kind: "err", text: friendlyAuthError(er)}; renderUserBox(); }); });
+  pop.appendChild(f1);
+  /* password */
+  var p1 = el("input", {type: "password", id: "pf-pw", autocomplete: "new-password", placeholder: "New password (8+ characters)"});
+  var p2 = el("input", {type: "password", id: "pf-pw2", autocomplete: "new-password", placeholder: "Repeat new password"});
+  var savePw = el("button", {cls: "btn ghost", type: "submit"}, "Change password");
+  var f2 = el("form", {style: "display:grid;gap:8px"}, el("label", {cls: "small", "for": "pf-pw", text: "Change password"}), p1, p2, savePw);
+  f2.addEventListener("submit", function(e){ e.preventDefault();
+    if (p1.value.length < 8){ sb.profMsg = {kind: "err", text: "Use at least 8 characters."}; renderUserBox(); return; }
+    if (p1.value !== p2.value){ sb.profMsg = {kind: "err", text: "The two passwords don't match."}; renderUserBox(); return; }
+    savePw.disabled = true;
+    sb.client.auth.updateUser({password: p1.value}).then(function(r){ if (r.error) throw r.error; sb.profMsg = {kind: "ok", text: "Password changed. Use it next time you sign in."}; renderUserBox(); })
+      .catch(function(er){ sb.profMsg = {kind: "err", text: friendlyAuthError(er)}; renderUserBox(); }); });
+  pop.appendChild(f2);
+  if (sb.profMsg) pop.appendChild(el("div", {cls: "msg " + sb.profMsg.kind, role: sb.profMsg.kind === "err" ? "alert" : "status", text: sb.profMsg.text}));
+  pop.appendChild(el("button", {cls: "btn", type: "button", id: "pf-out", onclick: function(){ sb.profileOpen = false; sbSignOut(); }}, "Sign out"));
+  b.appendChild(pop);
 }
+document.addEventListener("click", function(){ if (sb.profileOpen){ sb.profileOpen = false; renderUserBox(); } });
+document.addEventListener("keydown", function(e){ if (e.key === "Escape" && sb.profileOpen){ sb.profileOpen = false; renderUserBox(); var b = document.getElementById("prof-btn"); if (b) b.focus(); } });
 /* who sees which header buttons */
 function applyAccess(){
   var load = document.getElementById("btn-load"), sv = document.getElementById("btn-saved");
@@ -1181,8 +1233,9 @@ function applyAccess(){
     sv.hidden = !(sb.status === "ready" && sb.role === "admin");
     if (sv.hidden) document.getElementById("saved").hidden = true;
     if (load.hidden) document.getElementById("upload").hidden = true;
-  } else if (window.claude && window.claude.use){
-    sv.hidden = !state.canSave || sv.hidden;
+  } else {
+    if (!state.booting) load.hidden = false;
+    if (window.claude && window.claude.use) sv.hidden = !state.canSave || sv.hidden;
   }
   renderUserBox(); renderUploadDb();
 }
@@ -2108,6 +2161,7 @@ function sbInit(){
 }
 function sbSession(session){
   sb.email = session && session.user ? String(session.user.email || "").toLowerCase() : "";
+  sb.user = session && session.user ? session.user : null;
   if (!session){ sb.status = "signedout"; sb.role = null; return Promise.resolve(); }
   return sb.client.from("team_members").select("role").eq("email", sb.email).maybeSingle().then(function(r){
     if (r.error){ sb.status = "error"; sb.err = r.error.message; return; }
