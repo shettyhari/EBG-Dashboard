@@ -63,7 +63,7 @@ header.top .wrap{padding-block:28px 22px;display:flex;flex-wrap:wrap;gap:20px 32
 .source-line{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:12.5px;color:var(--muted)}
 .tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--line);background:var(--panel);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg)}
 .tag.team{border-color:var(--good);color:var(--good)}
-.tag.mine{border-color:var(--ink);color:var(--ink)}
+.tag.upload{border-color:var(--ink);color:var(--ink)}
 .chips{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
 .chip{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);padding:7px 12px;font-size:12.5px;cursor:pointer;border-radius:0;display:inline-flex;gap:8px;align-items:center}
 .chip .c{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px}
@@ -158,69 +158,6 @@ section.panel{display:grid;gap:22px;min-width:0}
 @media (min-width:760px){.kpis{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media (min-width:1100px){.kpi-group .kpis{grid-template-columns:repeat(6,minmax(0,1fr))}}
 .kpi-group{display:grid;gap:8px;min-width:0}
-/* explanations */
-th.has-help{text-decoration:underline dotted var(--faint);text-underline-offset:4px;cursor:help}
-.info{margin-left:6px;width:16px;height:16px;border-radius:50%;border:1px solid var(--faint);background:none;color:var(--muted);font-size:10px;line-height:14px;padding:0;cursor:pointer;font-family:var(--font-body);text-transform:none;letter-spacing:0;vertical-align:1px}
-.kpi-help{font-size:12px;color:var(--fg);background:var(--band);padding:8px 10px;line-height:1.4}
-td.remarks .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-/* insights */
-.insights{border:1px solid var(--line);border-left:3px solid var(--ink);background:var(--panel);padding:14px 16px;display:grid;gap:10px}
-.ins{display:flex;gap:10px;align-items:baseline;font-size:13.5px;line-height:1.45;flex-wrap:wrap}
-.ins .t{flex:1 1 280px;min-width:0}
-.ins .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;transform:translateY(-1px);background:var(--muted)}
-.ins.bad .dot{background:var(--bad)} .ins.warn .dot{background:var(--warn)} .ins.good .dot{background:var(--good)}
-/* tabs: main + secondary */
-.tab-sep{flex:1 1 auto;min-width:16px}
-.tab.sub{font-size:12.5px}
-/* quick dates */
-.dp{display:flex;gap:6px;align-items:center}
-.dp-quick{display:flex;gap:6px}
-.dp-quick .chip{padding:7px 10px}
-/* phone cards */
-.cards{display:grid;gap:10px}
-.card{border:1px solid var(--line);background:var(--panel);padding:12px 14px;display:grid;gap:10px;min-width:0}
-.card.total{border-color:var(--ink);background:var(--row-hover)}
-.card.lvl2{margin-left:14px;background:var(--row-hover)} .card.lvl3{margin-left:28px;background:var(--band)}
-.card.flagged{background:var(--warn-bg)}
-.card-h{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
-.card-n{font-weight:500;color:var(--ink);font-size:14px;min-width:0;overflow-wrap:anywhere;display:grid;gap:2px}
-.card-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
-.cm{min-width:0}
-.cl{font-size:11px;color:var(--muted)}
-.cv{font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums;font-family:var(--font-display)}
-.cm.flag-bad .cv{color:var(--bad)} .cm.flag-warn .cv{color:var(--warn)} .cm.flag-good .cv{color:var(--good)}
-.card-r{font-size:12px;color:var(--muted)}
-.card-more summary{font-size:12.5px;cursor:pointer;color:var(--ink)}
-.card-more .card-g{margin-top:8px}
-.card-inc input{width:18px;height:18px}
-/* bottom navigation (phones) */
-.bnav{display:none}
-@media (max-width:720px){
-  header.top .wrap{padding-block:14px 12px;gap:12px}
-  header.top .title-block .eyebrow{display:none}
-  .title-block h1{font-size:26px}
-  .period{font-size:12px}
-  header.top .actions{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px;scrollbar-width:none}
-  header.top .actions .btn{padding:8px 11px;font-size:12px}
-  .prof-name{display:none}
-  .source-line > span:not(.tag){display:none}
-  .source-line{gap:6px 10px}
-  .period{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
-  nav.tabs{display:none}
-  .dp{flex-wrap:wrap}
-  .dp-quick{width:100%;overflow-x:auto;flex-wrap:nowrap}
-  main .wrap{padding-block:16px 96px}
-  .bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-  .bnav[hidden]{display:none}
-  .bn{flex:1 1 0;display:grid;justify-items:center;gap:2px;padding:8px 2px 9px;background:none;border:0;color:var(--muted);font-size:10.5px;cursor:pointer}
-  .bn.on{color:var(--ink);font-weight:600}
-  .bn-sheet{position:absolute;right:8px;bottom:calc(100% + 8px);background:var(--panel);border:1px solid var(--ink);box-shadow:0 10px 28px rgba(0,0,0,.2);display:grid;min-width:190px}
-  .bn-item{background:none;border:0;border-bottom:1px solid var(--line);padding:13px 16px;text-align:left;font-size:14px;cursor:pointer;color:var(--fg)}
-  .bn-item.on{font-weight:600;color:var(--ink)}
-  .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
-  .sec-head h2{font-size:19px}
-  .sec-head .note{font-size:12px}
-}
 .col-tools{display:grid;gap:10px;justify-items:start}
 .col-panel{border:1px solid var(--ink);background:var(--panel);padding:14px;display:grid;gap:12px;width:100%}
 .col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:8px 18px}
@@ -405,18 +342,16 @@ tr.flagged td{background:var(--warn-bg)}
     <button class="tab" role="tab" data-tab="overview" aria-selected="true">Overview</button>
     <button class="tab" role="tab" data-tab="trends" aria-selected="false">Trends</button>
     <button class="tab" role="tab" data-tab="campaigns" aria-selected="false">Campaigns</button>
-    <button class="tab" role="tab" data-tab="tat" aria-selected="false">Lead follow-up</button>
-    <span class="tab-sep" aria-hidden="true"></span>
-    <button class="tab sub" role="tab" data-tab="adsets" aria-selected="false">Ad sets</button>
-    <button class="tab sub" role="tab" data-tab="ads" aria-selected="false">Ads</button>
-    <button class="tab sub" role="tab" data-tab="checks" aria-selected="false">Data checks</button>
-    <button class="tab sub" role="tab" data-tab="ql" aria-selected="false">QL rules</button>
-    <button class="tab sub" role="tab" data-tab="settings" aria-selected="false">Settings</button>
+    <button class="tab" role="tab" data-tab="adsets" aria-selected="false">Ad sets</button>
+    <button class="tab" role="tab" data-tab="ads" aria-selected="false">Ads</button>
+    <button class="tab" role="tab" data-tab="tat" aria-selected="false">TAT &amp; calls</button>
+    <button class="tab" role="tab" data-tab="checks" aria-selected="false">Data checks</button>
+    <button class="tab" role="tab" data-tab="ql" aria-selected="false">QL statuses</button>
+    <button class="tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>
   </div>
 </nav>
 
 <main><div class="wrap" id="view"></div></main>
-<nav id="bnav" class="bnav" aria-label="Sections" hidden></nav>
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -910,9 +845,9 @@ function remarks(r, level){
 function tatCols(){ var R = state.R;
   return [
     {k: "tat", label: "Overall TAT (avg)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }},
-    {k: "tatMed", label: "Overall TAT (median)", t: "min", def: false},
+    {k: "tatMed", label: "Overall TAT (median)", t: "min"},
     {k: "whAvg", label: "Working-hrs TAT (avg)", t: "min"},
-    {k: "whMed", label: "Working-hrs TAT (median)", t: "min", def: false},
+    {k: "whMed", label: "Working-hrs TAT (median)", t: "min"},
     {k: "pend", label: "Not Contacted", t: "int", flag: function(r){ return r.pend > 0 ? "warn" : null; }},
     {k: "pendAgeO", label: "Not Contacted: avg wait", t: "min", def: false},
     {k: "pendAgeW", label: "Not Contacted: avg wait (working hrs)", t: "min", def: false},
@@ -920,30 +855,29 @@ function tatCols(){ var R = state.R;
 }
 function mediaCols(){ return [
     {k: "spend", label: "Amount spent", t: "inr"},
-    {k: "imp", label: "Impressions", t: "int", def: false},
+    {k: "imp", label: "Impressions", t: "int"},
     {k: "reachV", label: "Reach", t: "int", def: false},
-    {k: "clk", label: "Clicks", t: "int", def: false},
+    {k: "clk", label: "Clicks", t: "int"},
     {k: "ctr", label: "CTR", t: "pct"},
-    {k: "cpc", label: "CPC", t: "inr2", def: false}]; }
+    {k: "cpc", label: "CPC", t: "inr2"}]; }
 function metricCols(level){
   var R = state.R;
   return [
     {k: "crm", label: "Leads in CRM", t: "int"},
     {k: "ui", label: "Leads in UI", t: "int", render: function(r){ return r.uiExcluded ? el("span", {cls: "pill mut", title: "Meta results aren't leads; not counted. Spend is still counted.", text: "Excluded"}) : document.createTextNode(fInt(r.ui)); }},
-    {k: "diff", label: "Lead difference (UI − CRM)", t: "int", def: false},
+    {k: "diff", label: "Lead difference (UI − CRM)", t: "int"},
     {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
     {k: "platform", label: "Ad platform", t: "text", get: function(r){ return r.nocamp ? "—" : R.platform; }, nosort: true, def: false},
     {k: "cpl", label: "CPL", t: "inr"},
     {k: "ql", label: "Qualified leads", t: "int"},
     {k: "cpql", label: "CPQL", t: "inr"}]
     .concat(mediaCols()).concat(tatCols())
-    .concat([{k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: "",
-      render: function(r){ var t = remarks(r, level); return el("span", {cls: "clamp", title: t || null, text: t}); }}]);
+    .concat([{k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}]);
 }
 function brandCols(){ var R = state.R;
   return [{k: "brand", label: "Brand", t: "text", cls: "name", lock: true}].concat(mediaCols()).concat([
     {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
-    {k: "diff", label: "Difference (UI − CRM)", t: "int", def: false}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
+    {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
     {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"},
     {k: "noCamp", label: "CRM leads with no campaign", t: "int", def: false}]).concat(tatCols());
 }
@@ -959,8 +893,7 @@ function table(id, cols, rows, opts){
   var lim = state.limit[id] || 300, shown = data.slice(0, lim);
   var thead = el("thead", null, el("tr", null, cols.map(function(c){
     var isNumCol = c.t !== "text", s = srt && srt.k === c.k ? (srt.dir > 0 ? "↑" : "↓") : "";
-    var hp = helpFor(c.k);
-    return el("th", {cls: (isNumCol ? "r" : "") + (hp ? " has-help" : ""), title: hp || null, scope: "col", "aria-sort": srt && srt.k === c.k ? (srt.dir > 0 ? "ascending" : "descending") : null,
+    return el("th", {cls: isNumCol ? "r" : "", scope: "col", "aria-sort": srt && srt.k === c.k ? (srt.dir > 0 ? "ascending" : "descending") : null,
       onclick: c.nosort ? null : function(){ var cur = state.sort[id];
         if (!cur || cur.k !== c.k) state.sort[id] = {k: c.k, dir: c.t === "text" ? 1 : -1}; else if (cur.dir === (c.t === "text" ? 1 : -1)) cur.dir = -cur.dir; else delete state.sort[id];
         render(); }}, c.label, s ? el("span", {cls: "arr", text: s}) : null); })));
@@ -973,9 +906,6 @@ function table(id, cols, rows, opts){
       var cls = [c.t !== "text" ? "r num nowrap" : "", c.cls || "", (v === null || v === undefined || txt === "N/A") && c.t !== "text" ? "na" : "", fl ? "flag-" + fl : ""].join(" ").trim();
       var td = el("td", {cls: cls}); if (c.render && !isTotal) td.appendChild(c.render(r)); else td.textContent = txt; tr.appendChild(td); });
     return tr; }
-  var moreBtn = data.length > lim ? el("div", {cls: "more"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.limit[id] = lim + 500; render(); }},
-    "Show " + Math.min(500, data.length - lim) + " more of " + (data.length - lim).toLocaleString("en-IN"))) : null;
-  if (isPhone() && !opts.noCards) return cardList(id, cols, shown, opts, moreBtn);
   if (opts.total) tb.appendChild(rowEl(opts.total, true));
   shown.forEach(function(r, i){ tb.appendChild(rowEl(r, false, i ? shown[i - 1] : null)); });
   var wrap = el("div", null, el("div", {cls: "tbl-wrap"}, el("table", null, thead, tb)));
@@ -1218,138 +1148,6 @@ function holidayPanel(){
   return box;
 }
 
-/* ================= ease of use: explanations, insights, phone layout ================= */
-function isPhone(){ return !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches); }
-var METRIC_HELP = {
-  crm: "TeleCRM leads for these dates (one row = one lead).",
-  ui: "Leads Meta reports (sum of the Results column). Non-lead results such as landing page views are left out.",
-  diff: "Leads in UI minus Leads in CRM. Negative means CRM has more leads than Meta shows.",
-  pct: "Lead difference ÷ Leads in UI. Turns red above the alert level in Settings.",
-  cpl: "Cost per lead: Amount spent ÷ Leads in UI.",
-  ql: "CRM leads whose status shows buying intent (see the QL rules tab).",
-  cpql: "Cost per qualified lead: Amount spent ÷ qualified leads. The truest cost of a good lead.",
-  qlRate: "Qualified leads ÷ CRM leads.",
-  spend: "Meta amount spent for these dates.",
-  imp: "Times your ads were shown (Meta).",
-  reachV: "People reached (Meta). Shown only for a single Meta row, because reach can't be added across days or ads.",
-  clk: "Link clicks (Meta).",
-  ctr: "Click-through rate: clicks ÷ impressions.",
-  cpc: "Cost per click: Amount spent ÷ clicks.",
-  tat: "Average time from lead created to first call attempt, counting all hours.",
-  tatMed: "Middle value of overall TAT: half the leads were called faster than this. Less affected by a few very late calls.",
-  whAvg: "Average time to first call counting only working hours: Mon–Sat, 10 AM–9 PM IST, without Sundays and holidays.",
-  whMed: "Middle value of working-hours TAT.",
-  pend: "Leads with no call attempt yet (Not Contacted).",
-  pendAgeO: "How long Not Contacted leads have been waiting on average, all hours.",
-  pendAgeW: "How long Not Contacted leads have been waiting on average, in working hours only.",
-  sla: "Share of leads called within the SLA minutes (overall TAT). Below the target turns amber.",
-  noCamp: "CRM leads with no Facebook campaign (website, WhatsApp…), shown under their CRM brand.",
-  nAdsets: "Ad sets in this campaign.", nAds: "Ads under this row.",
-  leads: "Leads assigned to this owner.", called: "Leads this owner has called (Contacted).",
-  win: "Leads called within the SLA.", del: "Leads first called after the SLA (Call delayed).", inv: "Leads with a missing or impossible call time.",
-  cplChg: "Change in CPL compared with the previous period. Red = got more expensive.",
-  cpqlChg: "Change in CPQL compared with the previous period. Red = got more expensive.",
-  remarks: "Automatic notes on what needs attention for this row.",
-  inc: "Untick when a campaign's Meta results aren't leads (e.g. landing page views). Its spend still counts."
-};
-function helpFor(k){ return METRIC_HELP[k] || ""; }
-function infoKpi(label, value, sub, tone, key){
-  var k = kpi(label, value, sub, tone), h = helpFor(key);
-  if (h){ var lab = k.querySelector(".eyebrow"), tip = el("div", {cls: "kpi-help", hidden: true, text: h});
-    lab.appendChild(el("button", {cls: "info", type: "button", "aria-label": "What is " + label + "?", title: h, onclick: function(e){ e.stopPropagation(); tip.hidden = !tip.hidden; }}, "i"));
-    k.appendChild(tip); }
-  return k;
-}
-/* plain-language "what needs attention" list for the current brand and dates */
-function insightsFor(rows, br, T){
-  var R = state.R, out = [], camps = R.camps.filter(function(c){ return brandOK(c.brand) && !c.nocamp; });
-  if (T.pend > 0) out.push({tone: "warn", text: fInt(T.pend) + " lead" + (T.pend > 1 ? "s haven't" : " hasn't") + " been called yet" + (isNum(T.pendAgeW) ? ", waiting " + fDur(T.pendAgeW) + " of working time on average" : "") + ".",
-    act: "See who to call", go: function(){ state.tab = "tat"; state.callFilter = "Pending"; render(); }});
-  if (isNum(T.sla) && T.sla < R.slaTarget) out.push({tone: "bad", text: "Only " + fPct(T.sla) + " of leads were called within " + R.slaMin + " min (target " + Math.round(R.slaTarget * 100) + "%).",
-    act: "Owner TAT", go: function(){ state.tab = "tat"; render(); }});
-  var dead = camps.filter(function(c){ return isNum(c.spend) && c.spend > 0 && !c.uiExcluded && (c.ui || 0) === 0 && c.crm === 0; });
-  if (dead.length) out.push({tone: "bad", text: dead.length + " campaign" + (dead.length > 1 ? "s" : "") + " spent " + fINR(dead.reduce(function(s, c){ return s + c.spend; }, 0)) + " with no leads: " + dead.slice(0, 2).map(function(c){ return c.campaign; }).join(", ") + (dead.length > 2 ? "…" : "") + ".",
-    act: "Campaigns", go: function(){ state.tab = "campaigns"; render(); }});
-  var qcamps = camps.filter(function(c){ return isNum(c.cpql) && c.ql >= 3; });
-  if (qcamps.length >= 2 && isNum(T.cpql)){
-    var worst = qcamps.slice().sort(function(a, b){ return b.cpql - a.cpql; })[0], best = qcamps.slice().sort(function(a, b){ return a.cpql - b.cpql; })[0];
-    if (worst.cpql > T.cpql * 1.5) out.push({tone: "warn", text: "Most expensive qualified leads: " + worst.campaign + " at " + fINR(worst.cpql) + " per QL (average " + fINR(T.cpql) + ").",
-      act: "Campaigns", go: function(){ state.tab = "campaigns"; render(); }});
-    if (best !== worst) out.push({tone: "good", text: "Best performer: " + best.campaign + " at " + fINR(best.cpql) + " per QL from " + fInt(best.ql) + " QLs.",
-      act: "Campaigns", go: function(){ state.tab = "campaigns"; render(); }});
-  }
-  br.filter(function(b){ return isNum(b.pct) && Math.abs(b.pct) > R.diffAlert && (b.ui || 0) >= 10; }).slice(0, 2).forEach(function(b){
-    out.push({tone: "warn", text: b.brand + ": " + (b.diff > 0 ? fInt(b.diff) + " Meta leads (" + fPct(b.pct) + ") are missing in TeleCRM. Check the lead sync." : "TeleCRM has " + fInt(-b.diff) + " more leads than Meta shows."),
-      act: state.brand === b.brand ? null : "Open " + b.brand, go: function(){ state.brand = b.brand; render(); }}); });
-  var bad = (R.checks || []).filter(function(c){ return c.kind === "bad"; }).length;
-  if (bad) out.push({tone: "bad", text: bad + " data problem" + (bad > 1 ? "s" : "") + " to fix before trusting these numbers.", act: "Data checks", go: function(){ state.tab = "checks"; render(); }});
-  return out.slice(0, 6);
-}
-function insightsBox(rows, br, T){
-  var list = insightsFor(rows, br, T);
-  var box = el("div", {cls: "insights"}, el("div", {cls: "eyebrow", text: "Needs attention"}));
-  if (!list.length){ box.appendChild(el("div", {cls: "ins good"}, el("span", {cls: "dot"}), el("span", {text: "Nothing urgent: leads are being called on time and every campaign is producing leads."}))); return box; }
-  list.forEach(function(x){ box.appendChild(el("div", {cls: "ins " + x.tone}, el("span", {cls: "dot", "aria-hidden": "true"}), el("span", {cls: "t", text: x.text}),
-    x.act ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ x.go(); window.scrollTo(0, 0); }}, x.act) : null)); });
-  return box;
-}
-/* phone: every report table becomes a list of cards (key numbers first, the rest one tap away) */
-var CARD_KEYS = ["spend", "ui", "crm", "leads", "called", "cpl", "ql", "cpql", "ctr", "tat", "whAvg", "pend", "sla", "del", "n", "share", "slaL", "pendO", "pendW", "qlRate", "count"];
-var NAME_KEYS = ["tree", "id", "owner", "period", "status", "ad", "adset", "campaign", "brand", "label"];
-function cardList(id, cols, shown, opts, more){
-  var nameCol = null; NAME_KEYS.some(function(k){ nameCol = cols.filter(function(c){ return c.k === k; })[0]; return !!nameCol; });
-  if (!nameCol) nameCol = cols[0];
-  var incCol = cols.filter(function(c){ return c.k === "inc"; })[0], brandCol = nameCol.k !== "brand" ? cols.filter(function(c){ return c.k === "brand"; })[0] : null;
-  var metric = cols.filter(function(c){ return c !== nameCol && c.k !== "inc" && c.k !== "brand" && c.k !== "remarks"; });
-  var key = [], rest = [];
-  CARD_KEYS.forEach(function(k){ var c = metric.filter(function(x){ return x.k === k; })[0]; if (c && key.length < 6) key.push(c); });
-  metric.forEach(function(c){ if (key.indexOf(c) < 0) rest.push(c); });
-  if (key.length < 4) { key = key.concat(rest.splice(0, 4 - key.length)); }
-  var remCol = cols.filter(function(c){ return c.k === "remarks"; })[0];
-  var cell = function(c, r, isTotal){
-    var v = c.get ? c.get(r, isTotal) : r[c.k], fl = !isTotal && c.flag ? c.flag(r) : null;
-    var node = c.render && !isTotal ? c.render(r) : document.createTextNode(isTotal && c.totalText !== undefined ? c.totalText : (FMT[c.t] || FMT.text)(v));
-    return el("div", {cls: "cm" + (fl ? " flag-" + fl : "")}, el("div", {cls: "cl", text: c.label}), el("div", {cls: "cv"}, node));
-  };
-  var card = function(r, isTotal){
-    var lvl = r._lvl || 0, cls = "card" + (isTotal ? " total" : "") + (lvl ? " lvl" + lvl : "") + (opts.rowCls && !isTotal ? " " + (opts.rowCls(r) || "") : "");
-    var head = el("div", {cls: "card-h"},
-      el("div", {cls: "card-n"}, isTotal ? document.createTextNode(String((nameCol.get ? null : r[nameCol.k]) || r.brand || r.owner || r.period || "TOTAL")) : (nameCol.render ? nameCol.render(r) : document.createTextNode(String((nameCol.get ? nameCol.get(r) : r[nameCol.k]) || "—"))),
-        brandCol && !isTotal ? el("div", {cls: "small", text: r.brand}) : null),
-      incCol && !isTotal ? el("div", {cls: "card-inc"}, incCol.render(r)) : null);
-    var c = el("div", {cls: cls}, head, el("div", {cls: "card-g"}, key.map(function(k){ return cell(k, r, isTotal); })));
-    if (remCol && !isTotal){ var rm = remCol.get(r); if (rm) c.appendChild(el("div", {cls: "card-r", text: rm})); }
-    if (rest.length && !isTotal) c.appendChild(el("details", {cls: "card-more"}, el("summary", {text: "All metrics"}), el("div", {cls: "card-g"}, rest.map(function(k){ return cell(k, r, false); }))));
-    return c;
-  };
-  var wrap = el("div", {cls: "cards"});
-  if (opts.total) wrap.appendChild(card(opts.total, true));
-  shown.forEach(function(r){ wrap.appendChild(card(r, false)); });
-  if (!shown.length) wrap.appendChild(el("div", {cls: "empty", text: opts.empty || "Nothing to show for this filter."}));
-  if (more) wrap.appendChild(more);
-  return wrap;
-}
-/* bottom bar on phones */
-var NAV_MAIN = [["overview", "Overview", "M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-18v6h8V3z"], ["trends", "Trends", "M3 17l6-6 4 4 8-8M15 7h6v6"],
-  ["campaigns", "Campaigns", "M4 5h16M4 12h10M4 19h6"], ["tat", "Follow-up", "M6 3h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 4 5a2 2 0 0 1 2-2z"]];
-var NAV_MORE = [["adsets", "Ad sets"], ["ads", "Ads"], ["checks", "Data checks"], ["ql", "QL rules"], ["settings", "Settings"]];
-function renderBottomNav(){
-  var n = document.getElementById("bnav"); if (!n) return; n.textContent = "";
-  n.hidden = gated() || !state.R;
-  if (n.hidden) return;
-  var more = NAV_MORE.some(function(x){ return x[0] === state.tab; });
-  NAV_MAIN.forEach(function(x){
-    var b = el("button", {cls: "bn" + (state.tab === x[0] ? " on" : ""), type: "button", "aria-current": state.tab === x[0] ? "page" : null, onclick: function(){ state.tab = x[0]; state.navMore = false; render(); window.scrollTo(0, 0); }});
-    b.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + x[2] + '"/></svg>';
-    b.appendChild(el("span", {text: x[1]})); n.appendChild(b); });
-  var mb = el("button", {cls: "bn" + (more ? " on" : ""), type: "button", "aria-expanded": state.navMore ? "true" : "false", onclick: function(){ state.navMore = !state.navMore; renderBottomNav(); }});
-  mb.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
-  mb.appendChild(el("span", {text: "More"})); n.appendChild(mb);
-  if (state.navMore) n.appendChild(el("div", {cls: "bn-sheet", role: "menu"}, NAV_MORE.map(function(x){
-    return el("button", {cls: "bn-item" + (state.tab === x[0] ? " on" : ""), type: "button", role: "menuitem", onclick: function(){ state.tab = x[0]; state.navMore = false; render(); window.scrollTo(0, 0); }}, x[1]); })));
-}
-(function(){ var last = isPhone(); window.addEventListener("resize", function(){ var now = isPhone(); if (now !== last){ last = now; if (state.R) render(); } }); })();
-
 /* ================= charts (HTML bars, one scale per chart) ================= */
 function barChart(title, items, series, opts){
   opts = opts || {};
@@ -1381,27 +1179,26 @@ function viewOverview(){
       fInt(exList.reduce(function(s, x){ return s + (x.ui || 0); }, 0)) + " non-lead results (landing page views, clicks…) aren't counted as Leads in UI. Their spend (" +
       fINR(exList.reduce(function(s, x){ return s + (x.spend || 0); }, 0)) + ") is still in Amount spent and CPL."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "campaigns"; render(); var e = document.querySelector(".excl-head"); if (e) e.scrollIntoView({block: "start"}); }}, "Review")));
-  sec.appendChild(insightsBox(rows, R.brandRows.filter(function(b){ return brandOK(b.brand); }), T));
   var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
   sec.appendChild(grp("Media", [
-    infoKpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows", "spend"),
-    infoKpi("Impressions", fInt(T.imp), R.hasCtr ? "Meta" : "Not in the Meta export", "imp"),
-    infoKpi("Reach", isNum(T.reachV) ? fInt(T.reachV) : "N/A", isNum(T.reachV) ? "Meta" : "Reach can't be added across rows; see Meta", "reachV"),
-    infoKpi("Clicks", fInt(T.clk), R.clicksCol || "Link clicks", "clk"),
-    infoKpi("CTR", fPct(T.ctr), "Clicks ÷ impressions", "ctr"),
-    infoKpi("CPC", fINR2(T.cpc), "Spend ÷ clicks", "cpc")]));
+    kpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows"),
+    kpi("Impressions", fInt(T.imp), R.hasCtr ? "Meta" : "Not in the Meta export"),
+    kpi("Reach", isNum(T.reachV) ? fInt(T.reachV) : "N/A", isNum(T.reachV) ? "Meta" : "Reach can't be added across rows; see Meta"),
+    kpi("Clicks", fInt(T.clk), R.clicksCol || "Link clicks"),
+    kpi("CTR", fPct(T.ctr), "Clicks ÷ impressions"),
+    kpi("CPC", fINR2(T.cpc), "Spend ÷ clicks")]));
   sec.appendChild(grp("Leads", [
-    infoKpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results"), "ui"),
-    infoKpi("Leads in CRM", fInt(T.crm), "TeleCRM", "crm"),
-    infoKpi("Lead difference", isNum(T.pct) ? fPct(T.pct) : "N/A", isNum(T.diff) ? (T.diff > 0 ? T.diff + " missing in CRM" : (-T.diff) + " extra in CRM") : "", isNum(T.pct) && Math.abs(T.pct) > R.diffAlert ? "bad" : "", "pct"),
-    infoKpi("CPL", fINR(T.cpl), "Spend ÷ UI leads", "cpl"),
-    infoKpi("Qualified leads", fInt(T.ql), isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : "", "ql"),
-    infoKpi("CPQL", fINR(T.cpql), "Spend ÷ QLs", "cpql")]));
+    kpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results")),
+    kpi("Leads in CRM", fInt(T.crm), "TeleCRM"),
+    kpi("Lead difference", isNum(T.pct) ? fPct(T.pct) : "N/A", isNum(T.diff) ? (T.diff > 0 ? T.diff + " missing in CRM" : (-T.diff) + " extra in CRM") : "", isNum(T.pct) && Math.abs(T.pct) > R.diffAlert ? "bad" : ""),
+    kpi("CPL", fINR(T.cpl), "Spend ÷ UI leads"),
+    kpi("Qualified leads", fInt(T.ql), isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""),
+    kpi("CPQL", fINR(T.cpql), "Spend ÷ QLs")]));
   sec.appendChild(grp("Speed to lead", [
-    infoKpi("Overall TAT", fMin(T.tat), "avg · median " + fMin(T.tatMed) + " · " + T.called + " contacted", isNum(T.tat) && T.tat > R.slaMin ? "bad" : "", "tat"),
-    infoKpi("Working-hrs TAT", fMin(T.whAvg), "avg · median " + fMin(T.whMed) + " · Mon–Sat 10 AM–9 PM", "whAvg"),
-    infoKpi("Not Contacted", fInt(T.pend), T.pend ? "waiting " + fMin(T.pendAgeO) + " avg · " + fMin(T.pendAgeW) + " in working hrs" : "none waiting", T.pend ? "warn" : "", "pend"),
-    infoKpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads (overall TAT)", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : "", "sla")]));
+    kpi("Overall TAT", fMin(T.tat), "avg · median " + fMin(T.tatMed) + " · " + T.called + " contacted", isNum(T.tat) && T.tat > R.slaMin ? "bad" : ""),
+    kpi("Working-hrs TAT", fMin(T.whAvg), "avg · median " + fMin(T.whMed) + " · Mon–Sat 10 AM–9 PM"),
+    kpi("Not Contacted", fInt(T.pend), T.pend ? "waiting " + fMin(T.pendAgeO) + " avg · " + fMin(T.pendAgeW) + " in working hrs" : "none waiting", T.pend ? "warn" : ""),
+    kpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads (overall TAT)", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : "")]));
   /* brand summary */
   var br = R.brandRows.filter(function(b){ return brandOK(b.brand); });
   var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
@@ -1669,7 +1466,7 @@ function renderHeader(){
   document.getElementById("period").textContent = "Showing " + rangeText(false) + (p.metaStart !== null ? " · Meta data " + fDay(p.metaStart) + " – " + fDay(p.metaEnd) : " · No data in these dates yet") + " · Leads in UI vs TeleCRM";
   renderDatePicker();
   var sl = document.getElementById("source-line"); sl.textContent = "";
-  if (state.source === "upload") sl.appendChild(el("span", {cls: "tag mine", text: "Your upload · not saved for team"}));
+  if (state.source === "upload") sl.appendChild(el("span", {cls: "tag upload", text: "Your upload · not saved for team"}));
   if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team data" + (state.team && state.team.name ? " · " + state.team.name : "")}));
   if (state.source === "db") sl.appendChild(el("span", {cls: "tag team", title: sb.email, text: "Team database" + (sb.role ? " · " + sb.role : "")}));
   if (sb.busy) sl.appendChild(el("span", {cls: "small", text: sb.busy}));
@@ -1793,7 +1590,6 @@ function applyAccess(){
   renderUserBox(); renderUploadDb();
 }
 function renderLogin(){
-  var bn = document.getElementById("bnav"); if (bn) bn.hidden = true;
   document.getElementById("period").textContent = "Meta UI vs TeleCRM · brand, campaign, ad set and ad level";
   ["btn-load", "btn-saved", "btn-xlsx", "save-wrap"].forEach(function(id){ document.getElementById(id).hidden = true; });
   ["upload", "saved", "export"].forEach(function(id){ document.getElementById(id).hidden = true; });
@@ -1849,7 +1645,6 @@ function render(){
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
   var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); },
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings};
-  renderBottomNav();
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   window.scrollTo(0, y);
 }
@@ -1904,9 +1699,6 @@ function renderDatePicker(){
     onclick: function(){ if (state.dp){ state.dp = null; } else { var r = rangeOf(state.range) || (state.R.avail.min !== null ? {from: state.R.avail.min, to: state.R.avail.max} : {from: todayDay(), to: todayDay()});
       var v = ymd(r.to); state.dp = {preset: state.range.preset, from: r.from, to: r.to, pick: 0, view: dayFrom(v.y, v.m - 1, 1)}; } renderDatePicker(); }});
   btn.innerHTML = CAL_ICON; btn.appendChild(el("span", {text: rangeText(false)})); btn.appendChild(el("span", {"aria-hidden": "true", text: "▾"}));
-  var quick = el("div", {cls: "dp-quick", role: "group", "aria-label": "Quick dates"}, [["yesterday", "Yesterday"], ["last7", "7 days"], ["last30", "30 days"], ["this_month", "This month"], ["max", "All"]].map(function(q){
-    return el("button", {cls: "chip", type: "button", "aria-pressed": state.range.preset === q[0] ? "true" : "false", onclick: function(){ setRange({preset: q[0]}); }}, q[1]); }));
-  host.appendChild(quick);
   host.appendChild(btn);
   if (!state.dp) return;
   var D = state.dp, av = state.R.avail, has = {}; (av.days || []).forEach(function(d){ has[d] = 1; });
