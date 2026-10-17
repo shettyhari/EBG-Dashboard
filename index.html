@@ -371,7 +371,16 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .bcard .bn{display:grid;gap:1px;font-size:13.5px;font-weight:600;white-space:nowrap}
 .bcard .bn small{font-weight:400;font-size:11.5px;opacity:.75}
 .filters{gap:12px}
-.filters .bcards{flex:1 1 auto;min-width:0}
+.filters .brand-wrap{flex:0 1 auto;min-width:0}
+.brand-pick{display:inline-flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 6px 6px 14px;box-shadow:var(--shadow);max-width:100%}
+.bp-dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+.bp-lbl{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+#brand-select{border:0;background:transparent;color:var(--ink);font:600 14px var(--font-body);padding:6px 8px;min-width:220px;max-width:100%;cursor:pointer;border-radius:8px}
+#brand-select:focus-visible{outline:2px solid var(--accent)}
+#brand-select option{background:var(--panel);color:var(--ink)}
+.ov-classic .kpi-group{display:grid;gap:10px}
+.ov-classic .kpi .v{font-weight:700;letter-spacing:-.02em}
+.ov-classic .charts{gap:18px}
 .source-line{gap:8px 14px}
 
 /* ---------- cards, KPIs, panels ---------- */
@@ -606,7 +615,7 @@ header.top{position:relative;z-index:12}
       <div id="upload-db"></div>
     </div>
     <div class="source-line" id="source-line"></div>
-    <div class="filters"><div class="bcards" id="brand-chips" role="group" aria-label="Brand filter"></div></div>
+    <div class="filters"><div class="brand-wrap" id="brand-chips"></div></div>
   </div>
 </div>
 
@@ -1832,107 +1841,60 @@ function topN(list, n, key, labelKey){
 function card(title, extra, body, span, i){ return el("div", {cls: "card2 anim " + span, style: "--i:" + (i || 0)}, el("div", {cls: "card-head"}, el("h3", {text: title}), extra || null), body); }
 
 function viewOverview(){
-  DRAWS = [];
-  var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows), P = prevTotals();
-  var one = state.brand !== "All";
-  var sec = el("section", {cls: "panel ov"});
+  var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows);
+  var sec = el("section", {cls: "panel ov-classic"});
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (state.brand === "All" ? "All listed brands" : state.brand + " dashboard") + " · " + rangeText(true)}),
+    el("span", {cls: "note", text: "Blended figures are totals ÷ totals. Leads in UI = sum of Meta " + (R.resultsCol || "Results") + "; Leads in CRM = TeleCRM rows."})));
   var exList = (R.excluded || []).filter(function(x){ return x.excluded && brandOK(x.brand); });
-  if (exList.length) sec.appendChild(el("div", {cls: "banner anim"}, el("span", {text: exList.length + " campaign" + (exList.length > 1 ? "s have" : " has") + " results excluded: " +
+  if (exList.length) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: exList.length + " campaign" + (exList.length > 1 ? "s have" : " has") + " results excluded: " +
       fInt(exList.reduce(function(s, x){ return s + (x.ui || 0); }, 0)) + " non-lead results (landing page views, clicks…) aren't counted as Leads in UI. Their spend (" +
       fINR(exList.reduce(function(s, x){ return s + (x.spend || 0); }, 0)) + ") is still in Amount spent and CPL."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "campaigns"; render(); var e = document.querySelector(".excl-head"); if (e) e.scrollIntoView({block: "start"}); }}, "Review")));
-  /* daily series for sparklines */
-  var daily = trendData("day", brandOK).rows, ser = function(k){ return daily.map(function(r){ return r[k]; }); };
-  var pv = function(k){ return P ? P[k] : null; };
-  var K = [
-    {key: "spend", label: "Ad spend", v: T.spend, p: pv("spend"), fmt: fShortINR, dir: 0, icon: "spend", g: "g1", color: "var(--c1)", spark: ser("spend"), sub: rows.length + " ad rows", title: fINR(T.spend)},
-    {key: "imp", label: "Impressions", v: T.imp, p: pv("imp"), fmt: fCompact, dir: 1, icon: "eye", g: "g2", color: "var(--c2)", spark: ser("imp"), sub: R.hasCtr ? "Meta" : "Not in the export", title: fInt(T.imp)},
-    {key: "reach", label: "Reach", v: T.reachV, p: pv("reachV"), fmt: fCompact, dir: 1, icon: "users", g: "g3", color: "var(--c3)", sub: isNum(T.reachV) ? "Meta" : "Can't add across rows"},
-    {key: "clk", label: "Clicks", v: T.clk, p: pv("clk"), fmt: fCompact, dir: 1, icon: "click", g: "g4", color: "var(--c6)", spark: ser("clk"), sub: R.clicksCol || "Link clicks", title: fInt(T.clk)},
-    {key: "ctr", label: "CTR", v: T.ctr, p: pv("ctr"), fmt: fPct2, dir: 1, icon: "ctr", g: "g5", color: "var(--c4)", spark: ser("ctr"), sub: "Clicks ÷ impressions"},
-    {key: "cpc", label: "CPC", v: T.cpc, p: pv("cpc"), fmt: fINR2, dir: -1, icon: "tag", g: "g6", color: "var(--c4)", spark: ser("cpc"), sub: "Spend ÷ clicks"},
-    {key: "ui", label: "Meta leads (UI)", v: T.ui, p: pv("ui"), fmt: fInt, dir: 1, icon: "lead", g: "g7", color: "var(--c2)", spark: ser("ui"), sub: "Meta " + (R.resultsCol || "Results")},
-    {key: "cpl", label: "Cost per lead", v: T.cpl, p: pv("cpl"), fmt: fINR, dir: -1, icon: "target", g: "g8", color: "var(--c5)", spark: ser("cpl"), sub: "Spend ÷ UI leads"},
-    {key: "crm", label: "CRM leads", v: T.crm, p: pv("crm"), fmt: fInt, dir: 1, icon: "crm", g: "g9", color: "var(--c3)", spark: ser("crm"),
-      sub: isNum(T.pct) ? (T.diff > 0 ? T.diff + " missing vs Meta" : (-T.diff) + " extra vs Meta") : "TeleCRM", tone: isNum(T.pct) && Math.abs(T.pct) > R.diffAlert ? "bad" : ""},
-    {key: "ql", label: "Qualified leads", v: T.ql, p: pv("ql"), fmt: fInt, dir: 1, icon: "star", g: "g10", color: "var(--c1)", spark: ser("ql"), sub: T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""},
-    {key: "cpql", label: "Cost per QL", v: T.cpql, p: pv("cpql"), fmt: fINR, dir: -1, icon: "coin", g: "g11", color: "var(--c7)", spark: ser("cpql"), sub: "Spend ÷ QLs"},
-    {key: "qlr", label: "QL rate", v: T.crm ? T.ql / T.crm : null, p: P && P.crm ? P.ql / P.crm : null, fmt: fPct, dir: 1, icon: "pct", g: "g3", color: "var(--c3)", spark: ser("qlRate"), sub: "QLs ÷ CRM leads"},
-    {key: "tat", label: "Overall TAT", v: T.tat, p: pv("tat"), fmt: fMin, dir: -1, icon: "clock", g: "g4", color: "var(--c6)", spark: ser("tat"), sub: "median " + fMin(T.tatMed), tone: isNum(T.tat) && T.tat > R.slaMin ? "bad" : ""},
-    {key: "wh", label: "Working-hrs TAT", v: T.whAvg, p: pv("whAvg"), fmt: fMin, dir: -1, icon: "brief", g: "g12", color: "var(--c8)", spark: ser("whAvg"), sub: "Mon–Sat 10 AM–9 PM"},
-    {key: "pend", label: "Not Contacted", v: T.pend, p: pv("pend"), fmt: fInt, dir: -1, icon: "phone", g: "g11", color: "var(--c7)", spark: ser("pend"), sub: T.pend ? "waiting " + fMin(T.pendAgeO) + " avg" : "none waiting", tone: T.pend ? "warn" : ""},
-    {key: "sla", label: "SLA ≤ " + R.slaMin + " min", v: T.sla, p: pv("sla"), fmt: fPct, dir: 1, icon: "shield", g: "g3", color: "var(--c3)", spark: ser("sla"), sub: T.win + " of " + T.elig + " leads", tone: isNum(T.sla) && T.sla < R.slaTarget ? "warn" : ""}];
-  sec.appendChild(el("div", {cls: "kgrid", "aria-label": "Key metrics"}, K.map(function(k, i){ return kcard(k, i); })));
-  if (!P) sec.appendChild(el("div", {cls: "small", style: "margin-top:-8px", text: rangeOf(state.range) ? "No data for the previous " + (rangeOf(state.range).to - rangeOf(state.range).from + 1) + " days, so there's no comparison." : "Pick a date range to compare with the previous period."}));
-  else if (state.Rprev && state.Rprev.period && state.Rprev.period.metaStart === null && !P.crm) sec.appendChild(el("div", {cls: "small", text: "No data in the previous period to compare."}));
-
-  var grid = el("div", {cls: "dash-grid"}); sec.appendChild(grid);
-  /* trend */
-  var gran = state.trendGran || "day", TD = trendData(gran, brandOK).rows;
-  TD.forEach(function(r){ r.short = r.period.replace("Week of ", "").replace(/ 20\d\d$/, "").replace(/^(\w{3})\w* (\d{4})$/, "$1 $2"); });
-  state.trendOn = state.trendOn || {spend: true, ui: true, crm: true, ql: true};
-  var SER = [{k: "spend", label: "Ad spend", type: "bar", color: "var(--c1)", fmt: fINR, axFmt: fShortINRaxis},
-    {k: "ui", label: "Meta leads", type: "line", color: "var(--c2)", fmt: fInt},
-    {k: "crm", label: "CRM leads", type: "line", color: "var(--c3)", fmt: fInt},
-    {k: "ql", label: "Qualified leads", type: "line", color: "var(--c4)", fmt: fInt}];
-  var segG = el("div", {cls: "seg", role: "group", "aria-label": "Group by"}, [["day", "Day"], ["week", "Week"], ["month", "Month"]].map(function(gx){
-    return el("button", {type: "button", "aria-pressed": gran === gx[0] ? "true" : "false", onclick: function(){ state.trendGran = gx[0]; try { localStorage.setItem("ebg-lead-dash-gran", gx[0]); } catch (e) {} render(); }}, gx[1]); }));
-  var pills = el("div", {cls: "pills", role: "group", "aria-label": "Series"}, SER.map(function(se){
-    return el("button", {type: "button", "aria-pressed": state.trendOn[se.k] ? "true" : "false", onclick: function(){ state.trendOn[se.k] = !state.trendOn[se.k]; render(); }}, el("i", {style: "background:" + se.color}), se.label); }));
-  var chartBody = TD.length ? comboChart(TD, SER, state.trendOn) : el("div", {cls: "empty", text: "No data in these dates."});
-  grid.appendChild(card("Performance trend", segG, [pills, chartBody], "span-8", 1));
-  /* leads by brand / campaign */
-  var groups = one ? R.camps.filter(function(c){ return c.brand === state.brand; }) : R.brandRows.filter(function(b){ return b.crm || b.ui || b.spend; });
-  var lk = one ? "campaign" : "brand";
-  var leadItems = topN(groups, 6, "crm", lk);
-  grid.appendChild(card(one ? "CRM leads by campaign" : "CRM leads by brand", null, donut(leadItems, T.crm, "CRM leads"), "span-4", 2));
-  /* contact status */
-  var inv = Math.max(0, T.crm - T.elig), del = Math.max(0, T.elig - T.win - T.pend);
-  grid.appendChild(card("Contact status", el("span", {cls: "small", text: "SLA " + R.slaMin + " min"}), donut([
-    {label: "Within SLA", v: T.win, color: "var(--c3)"}, {label: "Call delayed", v: del, color: "var(--c4)"},
-    {label: "Not Contacted", v: T.pend, color: "var(--c7)"}, {label: "Invalid timestamp", v: inv, color: "var(--c8)"}].filter(function(x){ return x.v > 0 || x.label !== "Invalid timestamp"; }), T.crm, "leads"), "span-4", 3));
-  /* spend share */
-  var sp = groups.filter(function(g){ return isNum(g.spend) && g.spend > 0; }).sort(function(a, b){ return b.spend - a.spend; }).slice(0, 8), spT = sp.reduce(function(s, g){ return s + g.spend; }, 0), spMx = sp.length ? sp[0].spend : 1;
-  grid.appendChild(card(one ? "Spend by campaign" : "Spend by brand", el("span", {cls: "small", text: fShortINR(T.spend)}),
-    sp.length ? el("div", {cls: "hbars"}, sp.map(function(g, i){ var c = one ? PAL[i % PAL.length] : brandColor(g.brand);
-      return el("div", {cls: "hbar", title: g[lk] + ": " + fINR(g.spend) + " · CPL " + fINR(g.cpl)}, el("span", {cls: "n", text: g[lk]}),
-        el("div", {cls: "t"}, el("div", {cls: "f", style: "width:" + (g.spend / spMx * 100).toFixed(1) + "%;background:" + c + ";--i:" + i})), el("span", {cls: "p", text: (g.spend / spT * 100).toFixed(1) + "%"})); }))
-      : el("div", {cls: "empty", text: "No spend in these dates."}), "span-4", 4));
-  /* top campaigns */
-  var tc = R.camps.filter(function(c){ return brandOK(c.brand) && !c.nocamp; }).sort(function(a, b){ return (b.crm - a.crm) || ((b.ui || 0) - (a.ui || 0)); }).slice(0, 6);
-  grid.appendChild(card("Top campaigns by CRM leads", el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "campaigns"; render(); }}, "View all"),
-    el("div", {cls: "mini-wrap"}, el("table", {cls: "mini"}, el("thead", null, el("tr", null, el("th", {text: "Campaign"}), el("th", {cls: "r", text: "CRM"}), el("th", {cls: "r", text: "QLs"}), el("th", {cls: "r", text: "CPL"}))),
-      el("tbody", null, tc.map(function(c){ return el("tr", null, el("td", null, el("span", {cls: "dotname"}, el("i", {style: "background:" + brandColor(c.brand)}), el("span", {cls: "nm", title: c.brand + " · " + c.campaign, text: c.campaign}))),
-        el("td", {cls: "r", text: fInt(c.crm)}), el("td", {cls: "r", text: fInt(c.ql)}), el("td", {cls: "r", text: c.uiExcluded ? "—" : fINR(c.cpl)})); })))), "span-4", 5));
-  /* performance by brand (full table, with column chooser) */
+  var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
+  sec.appendChild(grp("Media", [
+    kpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows"),
+    kpi("Impressions", fInt(T.imp), R.hasCtr ? "Meta" : "Not in the Meta export"),
+    kpi("Reach", isNum(T.reachV) ? fInt(T.reachV) : "N/A", isNum(T.reachV) ? "Meta" : "Reach can't be added across rows; see Meta"),
+    kpi("Clicks", fInt(T.clk), R.clicksCol || "Link clicks"),
+    kpi("CTR", fPct(T.ctr), "Clicks ÷ impressions"),
+    kpi("CPC", fINR2(T.cpc), "Spend ÷ clicks")]));
+  sec.appendChild(grp("Leads", [
+    kpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results")),
+    kpi("Leads in CRM", fInt(T.crm), "TeleCRM"),
+    kpi("Lead difference", isNum(T.pct) ? fPct(T.pct) : "N/A", isNum(T.diff) ? (T.diff > 0 ? T.diff + " missing in CRM" : (-T.diff) + " extra in CRM") : "", isNum(T.pct) && Math.abs(T.pct) > R.diffAlert ? "bad" : ""),
+    kpi("CPL", fINR(T.cpl), "Spend ÷ UI leads"),
+    kpi("Qualified leads", fInt(T.ql), isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""),
+    kpi("CPQL", fINR(T.cpql), "Spend ÷ QLs")]));
+  sec.appendChild(grp("Speed to lead", [
+    kpi("Overall TAT", fMin(T.tat), "avg · median " + fMin(T.tatMed) + " · " + T.called + " contacted", isNum(T.tat) && T.tat > R.slaMin ? "bad" : ""),
+    kpi("Working-hrs TAT", fMin(T.whAvg), "avg · median " + fMin(T.whMed) + " · Mon–Sat 10 AM–9 PM"),
+    kpi("Not Contacted", fInt(T.pend), T.pend ? "waiting " + fMin(T.pendAgeO) + " avg · " + fMin(T.pendAgeW) + " in working hrs" : "none waiting", T.pend ? "warn" : ""),
+    kpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads (overall TAT)", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : "")]));
+  /* brand summary */
   var br = R.brandRows.filter(function(b){ return brandOK(b.brand); });
-  var bt = sumRows(br); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
-  grid.appendChild(card(one ? state.brand + " summary" : "Performance by brand", colTools("brands", brandCols()),
-    table("brands", visibleCols("brands", brandCols()), br, {total: one ? null : bt}), "span-12", 6));
-  /* status mix + CPL/CPQL chart */
+  var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: state.brand === "All" ? "Brand summary" : state.brand + " summary"})));
+  sec.appendChild(colTools("brands", brandCols()));
+  sec.appendChild(table("brands", visibleCols("brands", brandCols()), br, {total: state.brand === "All" ? bt : null}));
+  /* lead status breakdown for the selected brand(s) */
   var sn = {}; br.forEach(function(b){ for (var k in b.statusN) sn[k] = (sn[k] || 0) + b.statusN[k]; });
   var qlOf = function(st){ return st !== "(no status)" && classifyStatus(st, state.settings).ql; };
   var srows = Object.keys(sn).map(function(k){ return {status: k, n: sn[k], share: T.crm ? sn[k] / T.crm : null, ql: qlOf(k) ? "QL" : "Not QL"}; }).sort(function(x, y){ return y.n - x.n; });
-  grid.appendChild(card("Lead status breakdown", el("span", {cls: "small", text: "QL rules on the QL statuses page"}),
-    table("statusmix", [{k: "status", label: "Lead status", t: "text", cls: "name"}, {k: "n", label: "Leads", t: "int"}, {k: "share", label: "Share", t: "pct"},
-      {k: "ql", label: "Counts as", t: "text", render: function(r){ return el("span", {cls: "pill " + (r.ql === "QL" ? "good" : "mut"), text: r.ql}); }}], srows, {empty: "No CRM leads for this filter."}), "span-5", 7));
-  var items = one ? R.camps.filter(function(c){ return c.brand === state.brand; }).slice(0, 12).map(function(c){ return Object.assign({label: c.campaign}, c); })
-    : R.brandRows.filter(function(b){ return b.crm || b.ui; }).map(function(b){ return Object.assign({label: b.brand}, b); });
-  var by = one ? "by campaign" : "by brand";
-  var ch = el("div", {cls: "card2 anim span-7 chart-card", style: "--i:8"},
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Lead status breakdown"}), el("span", {cls: "note", text: "TeleCRM status of the leads above. QL is decided on the QL statuses tab."})));
+  sec.appendChild(table("statusmix", [{k: "status", label: "Lead status", t: "text", cls: "name"}, {k: "n", label: "Leads", t: "int"}, {k: "share", label: "Share", t: "pct"},
+    {k: "ql", label: "Counts as", t: "text", render: function(r){ return el("span", {cls: "pill " + (r.ql === "QL" ? "good" : "mut"), text: r.ql}); }}], srows, {empty: "No CRM leads for this filter."}));
+  /* charts: by brand (All) or by campaign (one brand) */
+  var items;
+  if (state.brand === "All") items = R.brandRows.filter(function(b){ return b.crm || b.ui; }).map(function(b){ return Object.assign({label: b.brand}, b); });
+  else items = R.camps.filter(function(c){ return c.brand === state.brand; }).slice(0, 12).map(function(c){ return Object.assign({label: c.campaign}, c); });
+  var by = state.brand === "All" ? "by brand" : "by campaign";
+  sec.appendChild(el("div", {cls: "charts"},
+    barChart("Leads in UI vs CRM " + by, items, [{k: "ui", label: "Leads in UI (Meta)", cls: "s1", fmt: fInt}, {k: "crm", label: "Leads in CRM", cls: "s2", fmt: fInt}]),
     barChart("CPL and CPQL " + by, items, [{k: "cpl", label: "CPL", cls: "s1", fmt: fINR}, {k: "cpql", label: "CPQL", cls: "s3", fmt: fINR}]),
+    barChart("First-call SLA " + by, items, [{k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", cls: "s3", fmt: fPct}], {max: 1, mark: R.slaTarget, legend: true,
+      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "Target " + Math.round(R.slaTarget * 100) + "%")]}),
     barChart("Overall vs working-hours TAT " + by, items, [{k: "tat", label: "Overall TAT (avg)", cls: "s1", fmt: fMin}, {k: "whAvg", label: "Working-hrs TAT (avg)", cls: "s3", fmt: fMin}], {legend: true, mark: R.slaMin,
-      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + R.slaMin + " min")]}));
-  grid.appendChild(ch);
-  /* campaigns / ad sets / ads */
-  var lv = state.ovLevel || "campaigns";
-  var tabs = el("div", {cls: "tabs2", role: "group", "aria-label": "Level"}, [["campaigns", "Campaigns"], ["adsets", "Ad sets"], ["ads", "Ads"]].map(function(x){
-    return el("button", {type: "button", "aria-pressed": lv === x[0] ? "true" : "false", onclick: function(){ state.ovLevel = x[0]; render(); }}, x[1]); }));
-  var tools = el("span", {cls: "opt-row"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = lv; render(); window.scrollTo(0, 0); }}, "Open full page"),
-    state.caps.downloads ? el("button", {cls: "btn ghost", type: "button", onclick: function(){ document.getElementById("btn-xlsx").click(); }}, "Export") : null);
-  var inner; try { inner = lv === "campaigns" ? viewCampaignTree() : viewLevel(lv === "adsets" ? "adset" : "ad"); } catch (e) { inner = el("div", {cls: "empty", text: e.message}); }
-  inner.classList.add("embed");
-  grid.appendChild(el("div", {cls: "card2 anim span-12", style: "--i:9"}, el("div", {cls: "card-head"}, tabs, tools), inner));
+      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + R.slaMin + " min")]})));
   return sec;
 }
 function fCompact(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v);
@@ -1978,11 +1940,12 @@ function renderHeader(){
   }
   var chips = document.getElementById("brand-chips"); chips.textContent = "";
   var tot = 0, per = {}; R.ads.forEach(function(a){ per[a.brand] = (per[a.brand] || 0) + a.crm; tot += a.crm; });
-  ["All"].concat(R.brandRows.map(function(b){ return b.brand; })).forEach(function(b){
-    var all = b === "All", n = all ? tot : (per[b] || 0);
-    chips.appendChild(el("button", {cls: "bcard", type: "button", "aria-pressed": state.brand === b ? "true" : "false", "data-brand": b, onclick: function(){ state.brand = b; state.limit = {}; render(); }},
-      el("span", {cls: "mono", style: "background:" + (all ? "linear-gradient(135deg,#1e3a8a,#7c3aed)" : brandColor(b)), "aria-hidden": "true", text: all ? "ALL" : monogram(b)}),
-      el("span", {cls: "bn"}, all ? "All brands" : b, el("small", {cls: "c", text: n.toLocaleString("en-IN") + " leads"})))); });
+  var bsel = el("select", {id: "brand-select", "aria-label": "Brand"}, ["All"].concat(R.brandRows.map(function(b){ return b.brand; })).map(function(b){
+    var n = b === "All" ? tot : (per[b] || 0);
+    return el("option", {value: b, selected: state.brand === b ? true : null, text: (b === "All" ? "All brands" : b) + " · " + n.toLocaleString("en-IN") + " leads"}); }));
+  bsel.addEventListener("change", function(){ state.brand = bsel.value; state.limit = {}; render(); });
+  chips.appendChild(el("label", {cls: "brand-pick"}, el("span", {cls: "bp-dot", style: "background:" + (state.brand === "All" ? "linear-gradient(135deg,#1e3a8a,#7c3aed)" : brandColor(state.brand)), "aria-hidden": "true"}),
+    el("span", {cls: "bp-lbl", text: "Brand"}), bsel));
   document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
   document.getElementById("save-wrap").hidden = sb.cfg ? !(state.raw && state.source !== "db" && (sbCanWrite() || sb.status === "signedout")) : !(state.raw && (teamCanWrite() || team.status === "locked"));
   document.getElementById("btn-saved").hidden = !(saved.ok || team.kind || sb.cfg);
