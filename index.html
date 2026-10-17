@@ -568,9 +568,154 @@ header.top{position:relative;z-index:12}
   .title-block .eyebrow{display:none}
 }
 
+/* ===================== Google Analytics–style theme ===================== */
+:root{
+  --bg:#f8f9fa; --band:#f8f9fa; --panel:#ffffff; --ink:#202124; --fg:#3c4043; --muted:#5f6368; --faint:#80868b;
+  --line:#dadce0; --line-soft:#e8eaed; --accent:#1a73e8; --accent-2:#1967d2; --accent-soft:#e8f0fe; --btn-bg:#1a73e8; --btn-fg:#fff;
+  --good:#137333; --good-bg:#e6f4ea; --warn:#b06000; --warn-bg:#fef7e0; --bad:#c5221f; --bad-bg:#fce8e6;
+  --row-hover:#f1f3f4; --ga-blue:#1a73e8; --ga-prev:#9aa0a6; --side-bg:#ffffff; --side-fg:#3c4043; --side-on:#e8f0fe; --side-on-fg:#1967d2;
+  --shadow:none; --shadow-lg:0 1px 3px rgba(60,64,67,.3),0 4px 8px 3px rgba(60,64,67,.15);
+  --r:8px; --r-sm:4px; --side:256px;
+  --font-display:Roboto,"Google Sans",Arial,sans-serif; --font-body:Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#202124; --band:#202124; --panel:#292a2d; --ink:#e8eaed; --fg:#bdc1c6; --muted:#9aa0a6; --faint:#80868b;
+  --line:#3c4043; --line-soft:#35363a; --accent:#8ab4f8; --accent-2:#8ab4f8; --accent-soft:#2b3a55; --btn-bg:#8ab4f8; --btn-fg:#202124;
+  --good:#81c995; --good-bg:#1e3a2a; --warn:#fdd663; --warn-bg:#3a3420; --bad:#f28b82; --bad-bg:#3c2524;
+  --row-hover:#35363a; --ga-blue:#8ab4f8; --ga-prev:#9aa0a6; --side-bg:#292a2d; --side-fg:#e8eaed; --side-on:#2b3a55; --side-on-fg:#8ab4f8; }}
+:root[data-theme="dark"]{
+  --bg:#202124; --band:#202124; --panel:#292a2d; --ink:#e8eaed; --fg:#bdc1c6; --muted:#9aa0a6; --faint:#80868b;
+  --line:#3c4043; --line-soft:#35363a; --accent:#8ab4f8; --accent-2:#8ab4f8; --accent-soft:#2b3a55; --btn-bg:#8ab4f8; --btn-fg:#202124;
+  --good:#81c995; --good-bg:#1e3a2a; --warn:#fdd663; --warn-bg:#3a3420; --bad:#f28b82; --bad-bg:#3c2524;
+  --row-hover:#35363a; --ga-blue:#8ab4f8; --ga-prev:#9aa0a6; --side-bg:#292a2d; --side-fg:#e8eaed; --side-on:#2b3a55; --side-on-fg:#8ab4f8; }
+body{font-family:var(--font-body);font-size:14px;color:var(--fg)}
+/* app bar */
+.gbar{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.g-logo{display:flex;align-items:center;gap:10px;min-width:max-content;padding-right:8px}
+.g-logo .mark{width:30px;height:30px;color:#e37400}
+.g-name{font:400 22px/1 var(--font-display);color:var(--muted);letter-spacing:0}
+.g-prop{display:flex;align-items:center;gap:14px;min-width:0;flex:1 1 auto;padding-left:16px;border-left:1px solid var(--line)}
+.g-crumb{font-size:12px;color:var(--muted);white-space:nowrap}
+.g-tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+.gbar .filters{margin:0;min-width:0}
+.gbar .brand-pick{box-shadow:none;border:1px solid var(--line);border-radius:4px;padding:2px 2px 2px 10px;background:var(--panel)}
+.gbar .bp-lbl{display:none}
+.gbar #brand-select{font:500 15px var(--font-body);min-width:200px;padding:7px 6px}
+.icon-btn{border:0;background:transparent;border-radius:50%;width:40px;height:40px}
+.icon-btn:hover{background:var(--row-hover);transform:none;box-shadow:none}
+.prof-btn{border:0;border-radius:20px;padding:4px 10px 4px 4px}
+.prof-btn:hover{background:var(--row-hover)}
+.avatar{border-radius:50%;background:#1a73e8!important;color:#fff}
+/* layout */
+.app{min-height:calc(100vh - 64px)}
+.sidebar{top:64px;height:calc(100vh - 64px);padding:8px 12px 12px 0;border-right:1px solid var(--line);gap:8px;background:var(--side-bg)}
+.sidebar .logo,.side-foot{display:none}
+.side-nav{gap:0}
+.side-nav .tab{border-radius:0 20px 20px 0;padding:10px 16px 10px 24px;font-size:14px;font-weight:500;color:var(--side-fg);gap:18px;height:40px}
+.side-nav .tab svg{width:20px;height:20px;color:var(--muted)}
+.side-nav .tab:hover{background:var(--row-hover)}
+.side-nav .tab[aria-selected="true"]{background:var(--side-on);color:var(--side-on-fg);box-shadow:none}
+.side-nav .tab[aria-selected="true"] svg{color:var(--side-on-fg)}
+.side-nav .sub{padding-left:62px;font-weight:400}
+.side-sec{padding:16px 24px 6px;font-size:11px;letter-spacing:.08em;color:var(--muted);font-weight:500}
+.shell{background:var(--bg)}
+header.top{background:transparent;position:static}
+header.top .wrap{padding-block:20px 4px;align-items:flex-end}
+.title-block .eyebrow{display:none}
+.title-block h1{font:400 24px/1.3 var(--font-display);color:var(--ink);letter-spacing:0}
+.period{font-size:12px;color:var(--muted)}
+.band .wrap{padding-block:0 4px}
+/* buttons, inputs */
+.btn{border-radius:4px;font-weight:500;letter-spacing:.01em;box-shadow:none;padding:8px 16px;font-size:14px}
+.btn:not(.ghost){background:var(--btn-bg);color:var(--btn-fg);border:1px solid var(--btn-bg)}
+.btn:not(.ghost):hover{box-shadow:0 1px 2px rgba(60,64,67,.3),0 1px 3px 1px rgba(60,64,67,.15);transform:none}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--accent-soft);transform:none;box-shadow:none}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+.linkbtn{color:var(--accent);text-decoration:none;font-weight:500}
+.linkbtn:hover{text-decoration:underline}
+.dp-btn{border-radius:4px;box-shadow:none;border:1px solid var(--line);background:var(--panel);font-weight:500;color:var(--ink)}
+.dp-btn:hover{background:var(--row-hover)}
+.dp-pop{border-radius:8px;border:0;box-shadow:var(--shadow-lg)}
+.search,.field input,.field textarea,.field select,select,input[type=text],input[type=email],input[type=password],input[type=number],input[type=date]{border-radius:4px}
+/* cards & tables */
+main .wrap{gap:16px;padding-block:8px 48px}
+.ga-card,.upload,.banner,.tbl-wrap,.kpi,.chart,.group,.checks,.login,.col-panel,.save-bar,.pick-panel{border-radius:8px;box-shadow:none;border:1px solid var(--line)}
+.banner{background:var(--panel)}
+.banner.warn{background:var(--warn-bg);border-color:#fbbc04}
+.sec-head h2{font:400 18px/1.4 var(--font-display);color:var(--ink)}
+.note,.small{color:var(--muted)}
+.tbl-wrap{background:var(--panel)}
+thead th{background:var(--panel);color:var(--ink);font-weight:500;font-size:12px;border-bottom:1px solid var(--line);letter-spacing:0;text-transform:none}
+tbody td{border-bottom:1px solid var(--line-soft)}
+tbody tr:hover td{background:var(--row-hover)}
+tr.total td{background:var(--panel)!important;font-weight:700;color:var(--ink);border-bottom:1px solid var(--line)}
+td.r,th.r,td.num{font-variant-numeric:tabular-nums}
+.pill{border-radius:12px}
+.tag{border-radius:12px;font-weight:500;letter-spacing:.02em;text-transform:none}
+.msg{border-radius:4px}
+.toast{background:#323232;color:#fff;border-radius:4px;box-shadow:var(--shadow-lg)}
+/* scorecards */
+.kpis{gap:12px}
+.kpi{background:var(--panel);padding:14px 16px}
+.kpi .eyebrow{text-transform:none;letter-spacing:0;font-size:13px;color:var(--muted);font-weight:400}
+.ov-classic .kpi .v,.kpi .v{font:400 26px/1.25 var(--font-display);color:var(--ink);letter-spacing:0}
+.kpi.bad .v{color:var(--bad)} .kpi.warn .v{color:var(--warn)} .kpi.good .v{color:var(--good)}
+.kpi-group > .eyebrow{text-transform:none;letter-spacing:0;font:500 14px var(--font-body);color:var(--ink)}
+/* GA snapshot card */
+.ga-snap{background:var(--panel);overflow:hidden}
+.ga-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-bottom:1px solid var(--line)}
+.ga-tab{display:grid;gap:2px;align-content:start;text-align:left;padding:14px 18px 12px;background:transparent;border:0;border-right:1px solid var(--line-soft);border-top:3px solid transparent;cursor:pointer;color:var(--fg);font:inherit;min-width:0}
+.ga-tab:last-child{border-right:0}
+.ga-tab:hover{background:var(--row-hover)}
+.ga-tab[aria-selected="true"]{border-top-color:var(--ga-blue);background:var(--panel)}
+.ga-tab[aria-selected="true"] .ga-tl{color:var(--ga-blue)}
+.ga-tl{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ga-tv{font:400 28px/1.2 var(--font-display);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ga-tc{font-size:13px;font-weight:500;min-height:18px}
+.ga-tc.up{color:var(--good)} .ga-tc.down{color:var(--bad)} .ga-tc.flat{color:var(--muted)}
+.ga-chart{position:relative;padding:8px 8px 0 20px}
+.ga-chart svg{display:block;width:100%;height:auto;overflow:visible}
+.ga-chart .ax{fill:var(--muted);font-size:11px;font-family:var(--font-body)}
+.ga-chart .grid{stroke:var(--line-soft)}
+.ga-chart .hover-line{stroke:var(--faint);stroke-width:1}
+.ga-cur{fill:none;stroke:var(--ga-blue);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.ga-prev{fill:none;stroke:var(--ga-prev);stroke-width:1.75;stroke-dasharray:5 4}
+.ga-area{fill:var(--ga-blue);opacity:.08}
+@media (prefers-reduced-motion:no-preference){ .enter .ga-area{animation:gaFade .8s ease .5s both} }
+@keyframes gaFade{from{opacity:0}to{opacity:.08}}
+.ga-dot{fill:var(--panel);stroke:var(--ga-blue);stroke-width:2.5}
+.ga-legend{display:flex;gap:22px;flex-wrap:wrap;padding:6px 20px 14px;font-size:12px;color:var(--muted)}
+.ga-legend i.ln{display:inline-block;width:18px;height:0;border-top:2.5px solid var(--ga-blue);vertical-align:middle;margin-right:8px}
+.ga-legend i.ln.prev{border-top:2px dashed var(--ga-prev)}
+.ttip{border-radius:4px;box-shadow:var(--shadow-lg);border:0}
+.gated header.top{display:none}
+.gated .shell{background:var(--bg)}
+.login{margin-top:8vh}
+.login h2{font:400 24px/1.3 var(--font-display)}
+.login .eyebrow{letter-spacing:.02em;text-transform:none;font-size:13px}
+@media (max-width:1100px){ .ga-tabs{grid-template-columns:repeat(3,minmax(0,1fr))} .ga-tab:nth-child(3){border-right:0} .ga-tab{border-bottom:1px solid var(--line-soft)} }
+@media (max-width:980px){
+  .sidebar{top:0;height:100vh;padding-top:16px}
+  .g-crumb{display:none} .g-prop{padding-left:10px} .g-name{font-size:18px}
+}
+@media (max-width:640px){
+  .gbar{gap:8px;padding:0 8px;height:56px} .g-name{display:none} .g-prop{border-left:0;padding-left:0}
+  .gbar #brand-select{min-width:0;max-width:44vw;font-size:14px}
+  .ga-tabs{grid-template-columns:repeat(2,minmax(0,1fr))} .ga-tab:nth-child(3){border-right:1px solid var(--line-soft)} .ga-tab:nth-child(even){border-right:0}
+  .ga-tv{font-size:22px} .prof-name{display:none}
+}
 </style>
 
 <script>try{var _t=localStorage.getItem("ebg-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<header class="gbar">
+  <button class="icon-btn menu-btn" id="btn-menu" type="button" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <div class="g-logo"><svg class="mark" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M24 4l17 10v20L24 44 7 34V14z"/><path d="M24 12l10 6v12l-10 6-10-6V18z"/></svg><span class="g-name">Lead Performance</span></div>
+  <div class="g-prop"><span class="g-crumb">EBG Group · In-House Performance Marketing</span>
+    <div class="filters"><div class="brand-wrap" id="brand-chips"></div></div></div>
+  <div class="g-tools"><button class="icon-btn" id="btn-theme" type="button" aria-label="Switch theme"></button><span id="user-box" class="user-box" hidden></span></div>
+</header>
 <div class="app">
 <aside class="sidebar" id="sidebar" aria-label="Navigation">
   <div class="logo"><svg class="mark" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M24 4l17 10v20L24 44 7 34V14z"/><path d="M24 12l10 6v12l-10 6-10-6V18z"/><path d="M24 4v8M41 14l-7 4M41 34l-7-4M24 44v-8M7 34l7-4M7 14l7 4"/></svg>
@@ -594,7 +739,6 @@ header.top{position:relative;z-index:12}
 <div class="shell">
 <header class="top">
   <div class="wrap">
-    <button class="icon-btn menu-btn" id="btn-menu" type="button" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="title-block">
       <div class="eyebrow">EBG Group · In-House Performance Marketing Dashboard</div>
       <h1>Lead Performance</h1>
@@ -606,8 +750,6 @@ header.top{position:relative;z-index:12}
       <button class="btn ghost" id="btn-saved" type="button" hidden>Saved data</button>
       <span id="save-wrap" hidden><button class="btn ghost" id="btn-save" type="button">Save for team</button></span>
       <button class="btn ghost" id="btn-xlsx" type="button" hidden>Download Excel</button>
-      <button class="icon-btn" id="btn-theme" type="button" aria-label="Switch theme"></button>
-      <span id="user-box" class="user-box" hidden></span>
     </div>
   </div>
 </header>
@@ -645,7 +787,6 @@ header.top{position:relative;z-index:12}
       <div id="upload-db"></div>
     </div>
     <div class="source-line" id="source-line"></div>
-    <div class="filters"><div class="brand-wrap" id="brand-chips"></div></div>
   </div>
 </div>
 
@@ -1986,6 +2127,7 @@ function viewOverview(){
   if (unm.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: fInt(unm.reduce(function(s, a){ return s + a.crm; }, 0)) + " WhatsApp leads have no campaign in TeleCRM (" +
       unm.map(function(a){ return a.brand + ": " + fInt(a.crm); }).join(", ") + "), so they aren't matched to Meta's Leads in UI. Map them to their Meta campaign to compare correctly."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Map campaigns")));
+  sec.appendChild(gaSnapshot(T, prevTotals()));
   var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
   sec.appendChild(grp("Media", [
     kpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows"),
@@ -2062,6 +2204,89 @@ paintThemeBtn();
 document.getElementById("btn-menu").addEventListener("click", function(){ document.body.classList.toggle("nav-open"); });
 document.getElementById("scrim").addEventListener("click", function(){ document.body.classList.remove("nav-open"); });
 document.getElementById("tablist").addEventListener("click", function(){ document.body.classList.remove("nav-open"); });
+
+/* ================= Google Analytics–style snapshot: metric tabs over one line chart ================= */
+function prevDaily(){
+  var pr = prevRangeOf(rangeOf(state.range)); if (!pr || !state.Rprev) return null;
+  var sR = state.R, sRange = state.range, out = null;
+  try { state.R = state.Rprev; state.range = {preset: "custom", from: pr.from, to: pr.to}; out = trendData("day", brandOK).rows; }
+  catch (e) { out = null; } finally { state.R = sR; state.range = sRange; }
+  return out;
+}
+function dayKeyOf(r){ return r.k; }
+function gaSnapshot(T, P){
+  var R = state.R, rng = rangeOf(state.range);
+  var M = [
+    {k: "crm", label: "Leads in CRM", v: T.crm, p: P && P.crm, fmt: fInt, dir: 1},
+    {k: "ui", label: "Leads in UI", v: T.ui, p: P && P.ui, fmt: fInt, dir: 1},
+    {k: "spend", label: "Amount spent", v: T.spend, p: P && P.spend, fmt: fShortINR, dir: 0, full: fINR},
+    {k: "cpl", label: "CPL", v: T.cpl, p: P && P.cpl, fmt: fINR, dir: -1},
+    {k: "ql", label: "Qualified leads", v: T.ql, p: P && P.ql, fmt: fInt, dir: 1},
+    {k: "sla", label: "SLA ≤ " + R.slaMin + " min", v: T.sla, p: P && P.sla, fmt: fPct, dir: 1}];
+  var cur = state.gaMetric || "crm", m = M.filter(function(x){ return x.k === cur; })[0] || M[0];
+  var card = el("div", {cls: "ga-card ga-snap"});
+  var tabs = el("div", {cls: "ga-tabs", role: "tablist", "aria-label": "Metric"});
+  M.forEach(function(x){
+    var ch = isNum(x.v) && isNum(x.p) && x.p !== 0 ? x.v / x.p - 1 : null, good = x.dir === 0 || !isNum(ch) ? null : (ch > 0) === (x.dir > 0);
+    tabs.appendChild(el("button", {cls: "ga-tab", role: "tab", type: "button", "aria-selected": x.k === m.k ? "true" : "false", onclick: function(){ state.gaMetric = x.k; render(); }},
+      el("span", {cls: "ga-tl", text: x.label}), el("span", {cls: "ga-tv", title: x.full ? x.full(x.v) : null, text: x.fmt(x.v)}),
+      isNum(ch) ? el("span", {cls: "ga-tc " + (Math.abs(ch) < 0.005 || good === null ? "flat" : good ? "up" : "down")},
+        el("span", {"aria-hidden": "true", text: ch > 0 ? "↑ " : ch < 0 ? "↓ " : ""}), Math.abs(ch * 100).toFixed(1) + "%") : el("span", {cls: "ga-tc flat", text: rng ? "" : " "})));
+  });
+  card.appendChild(tabs);
+  var rows = trendData("day", brandOK).rows, prev = prevDaily();
+  var host = el("div", {cls: "ga-chart"}), tip = el("div", {cls: "ttip", hidden: true}); host.appendChild(tip);
+  var val = function(r, k){ if (!r) return null; if (k === "cpl") return r.cpl; if (k === "sla") return r.sla; return r[k]; };
+  /* align by position from the first day of each period */
+  var curByDay = {}, prevByIdx = {};
+  rows.forEach(function(r){ curByDay[r.k] = r; });
+  if (prev && rng) prev.forEach(function(r){ prevByIdx[r.k - (rng.from - (rng.to - rng.from + 1))] = r; });
+  var days = []; if (rng){ for (var d = rng.from; d <= rng.to; d++) days.push(d); } else rows.forEach(function(r){ days.push(r.k); });
+  var draw = function(){
+    var old = host.querySelector("svg"); if (old) old.remove();
+    var W = Math.max(300, host.clientWidth || 800), H = W < 560 ? 220 : 280, pl = 12, pr = W < 560 ? 44 : 56, pt = 16, pb = 30, iw = W - pl - pr, ih = H - pt - pb, n = days.length;
+    var a = days.map(function(d){ return val(curByDay[d], m.k); }), b = days.map(function(d, i){ return val(prevByIdx[i], m.k); });
+    var mx = 0; a.concat(b).forEach(function(v){ if (isNum(v)) mx = Math.max(mx, v); });
+    var nice = function(v){ if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
+    mx = m.k === "sla" ? Math.max(1, nice(mx)) : nice(mx);
+    var x = function(i){ return pl + (n <= 1 ? iw / 2 : iw * i / (n - 1)); }, y = function(v){ return pt + ih - v / mx * ih; };
+    var s = sv("svg", {viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": m.label + " by day"});
+    var axf = m.k === "spend" || m.k === "cpl" ? fShortINRaxis : m.k === "sla" ? function(v){ return Math.round(v * 100) + "%"; } : fCompact;
+    for (var g = 0; g <= 4; g++){ var gy = pt + ih - ih * g / 4; s.appendChild(sv("line", {"class": "grid", x1: pl, x2: W - pr, y1: gy, y2: gy}));
+      var t = sv("text", {"class": "ax", x: W - pr + 8, y: gy + 4}); t.textContent = axf(mx * g / 4); s.appendChild(t); }
+    var every = Math.max(1, Math.ceil(n / Math.floor(iw / 70)));
+    days.forEach(function(d, i){ if (i % every && i !== n - 1) return; var t = sv("text", {"class": "ax", x: x(i), y: H - 8, "text-anchor": i === 0 ? "start" : i === n - 1 ? "end" : "middle"}); var q = ymd(d); t.textContent = q.d + " " + MON[q.m]; s.appendChild(t); });
+    var path = function(arr){ var dstr = "", pen = false; arr.forEach(function(v, i){ if (!isNum(v)){ pen = false; return; } dstr += (pen ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1) + " "; pen = true; }); return dstr; };
+    if (b.some(isNum)) s.appendChild(sv("path", {d: path(b), "class": "ga-prev", pathLength: "1"}));
+    var dA = path(a);
+    if (dA){ var firstI = a.findIndex(isNum), lastI = a.length - 1 - a.slice().reverse().findIndex(isNum);
+      if (a.filter(isNum).length > 1) s.appendChild(sv("path", {"class": "ga-area", d: dA + "L" + x(lastI).toFixed(1) + " " + (pt + ih) + " L" + x(firstI).toFixed(1) + " " + (pt + ih) + " Z"}));
+      s.appendChild(sv("path", {d: dA, "class": "ga-cur line-d", pathLength: "1"})); }
+    if (n <= 1 && isNum(a[0])) s.appendChild(sv("circle", {cx: x(0), cy: y(a[0]), r: 4, "class": "ga-dot"}));
+    var hl = sv("line", {"class": "hover-line", y1: pt, y2: pt + ih, x1: -10, x2: -10, style: "opacity:0"}), dot = sv("circle", {r: 4.5, cx: -10, cy: -10, "class": "ga-dot", style: "opacity:0"});
+    s.appendChild(hl); s.appendChild(dot);
+    var ov = sv("rect", {x: pl, y: pt, width: iw, height: ih, style: "fill:transparent;cursor:crosshair"}); s.appendChild(ov);
+    var show = function(ev){ var bb = s.getBoundingClientRect(), px = (ev.clientX - bb.left) * W / bb.width, i = n <= 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round((px - pl) / (iw / (n - 1)))));
+      hl.style.opacity = 1; hl.setAttribute("x1", x(i)); hl.setAttribute("x2", x(i));
+      if (isNum(a[i])){ dot.style.opacity = 1; dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(a[i])); } else dot.style.opacity = 0;
+      tip.textContent = ""; var q = ymd(days[i]);
+      tip.appendChild(el("b", {text: DOW[q.w] + ", " + q.d + " " + MON[q.m] + " " + q.y}));
+      tip.appendChild(el("div", {cls: "r"}, el("span", null, el("i", {style: "background:var(--ga-blue)"}), m.label), el("strong", {text: (m.full || m.fmt)(a[i])})));
+      if (prev && rng){ var pd = days[i] - (rng.to - rng.from + 1), pq = ymd(pd);
+        tip.appendChild(el("div", {cls: "r"}, el("span", null, el("i", {style: "background:var(--ga-prev)"}), pq.d + " " + MON[pq.m] + " (previous)"), el("strong", {text: (m.full || m.fmt)(b[i])}))); }
+      tip.hidden = false; var tx = x(i) * bb.width / W + 14, tw = tip.offsetWidth || 200; if (tx + tw > bb.width) tx = x(i) * bb.width / W - tw - 14;
+      tip.style.left = Math.max(0, tx) + "px"; tip.style.top = "8px"; };
+    ov.addEventListener("mousemove", show); ov.addEventListener("touchstart", function(e){ show(e.touches[0]); }, {passive: true});
+    ov.addEventListener("mouseleave", function(){ tip.hidden = true; hl.style.opacity = 0; dot.style.opacity = 0; });
+    host.insertBefore(s, tip);
+  };
+  DRAWS.push(draw);
+  card.appendChild(rows.length ? host : el("div", {cls: "empty", text: "No data in these dates."}));
+  card.appendChild(el("div", {cls: "ga-legend"},
+    el("span", null, el("i", {cls: "ln cur"}), rng ? spanText(rng) : "All dates"),
+    prev && rng ? el("span", null, el("i", {cls: "ln prev"}), spanText(prevRangeOf(rng)) + " (previous period)") : null));
+  return card;
+}
 
 /* ================= shell rendering ================= */
 function renderHeader(){
