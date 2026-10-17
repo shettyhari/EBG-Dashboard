@@ -381,6 +381,8 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .ov-classic .kpi-group{display:grid;gap:10px}
 .ov-classic .kpi .v{font-weight:700;letter-spacing:-.02em}
 .ov-classic .charts{gap:18px}
+.save-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);position:sticky;bottom:12px;z-index:4;box-shadow:var(--shadow)}
+.save-bar.dirty{border-color:var(--warn);background:var(--warn-bg)}
 .map-list{display:grid;gap:4px;max-height:220px;overflow-y:auto;padding-right:4px}
 .map-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;align-items:center;padding:6px 8px;border:1px solid var(--line-soft);border-radius:8px;cursor:pointer}
 .map-item.on{border-color:var(--accent);background:var(--accent-soft)}
@@ -1202,7 +1204,7 @@ function brandCols(){ var R = state.R;
     {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
     {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
     {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"},
-    {k: "noCamp", label: "CRM leads with no campaign", t: "int", def: false}]).concat(tatCols());
+    {k: "noCamp", label: "CRM leads with no campaign", t: "int"}]).concat(tatCols());
 }
 
 /* ================= generic table ================= */
@@ -1407,6 +1409,10 @@ function holidaysChanged(msg){
 /* ================= map no-campaign CRM leads (WhatsApp Cloud API…) to a Meta campaign ================= */
 function sourceMapPanel(){
   var S = state.settings, R = state.R; if (!S.sourceMap || typeof S.sourceMap !== "object") S.sourceMap = {};
+  var D = state.mapDraft || (state.mapDraft = JSON.parse(JSON.stringify(S.sourceMap)));
+  var norm = function(m){ var o = {}; Object.keys(m).sort().forEach(function(k){ var v = mapTargets(m[k]).slice().sort(); if (v.length) o[k] = v; }); return JSON.stringify(o); };
+  var dirty = norm(D) !== norm(S.sourceMap);
+  var setDraft = function(k, list){ if (list.length) D[k] = list; else delete D[k]; state.mapMsg = null; render(); var e = document.getElementById("srcmap-save"); if (e) e.scrollIntoView({block: "nearest"}); };
   var canEdit = holCanEdit();
   var box = el("div", {cls: "panel", id: "srcmap"});
   box.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Leads without a campaign"}),
@@ -1425,32 +1431,48 @@ function sourceMapPanel(){
   list.forEach(function(g){
     var camps = R.camps.filter(function(c){ return !c.nocamp && c.metaAds && c.brand.toLowerCase() === g.brand.toLowerCase(); })
       .sort(function(a, b){ return (/whatsapp|ctwa|\bwa\b|message|msg|chat/i.test(b.campaign) - /whatsapp|ctwa|\bwa\b|message|msg|chat/i.test(a.campaign)) || ((b.spend || 0) - (a.spend || 0)); });
-    var cur = mapTargets(S.sourceMap[g.key]), names = camps.map(function(c){ return c.campaign; });
+    var saved = mapTargets(S.sourceMap[g.key]), cur = mapTargets(D[g.key]), names = camps.map(function(c){ return c.campaign; });
     cur.forEach(function(n){ if (names.indexOf(n) < 0) names.unshift(n); });
     var got = {}; R.ads.forEach(function(a){ if (a.mapped && (a.srcName || "").toLowerCase() === g.src.toLowerCase()) got[a.campaign.toLowerCase()] = (got[a.campaign.toLowerCase()] || 0) + a.crm; });
     var q = el("input", {type: "search", cls: "search sm", placeholder: "Filter campaigns (" + names.length + ")", "aria-label": "Filter campaigns"});
     var listBox = el("div", {cls: "map-list"}, names.length ? names.map(function(n){ var c = camps.filter(function(x){ return x.campaign === n; })[0], on = cur.indexOf(n) >= 0;
       var cb = el("input", {type: "checkbox", value: n, checked: on ? true : null, disabled: canEdit ? null : true});
       cb.addEventListener("change", function(){
-        var now = mapTargets(S.sourceMap[g.key]).filter(function(x){ return x !== n; }); if (cb.checked) now.push(n);
-        if (now.length) S.sourceMap[g.key] = now; else delete S.sourceMap[g.key];
-        storeSettings(); recompute();
-        toast(now.length ? g.brand + " · " + g.src + ": mapped to " + now.length + " campaign" + (now.length > 1 ? "s" : "") : g.brand + " · " + g.src + " leads are unmapped again"); });
+        var now = mapTargets(D[g.key]).filter(function(x){ return x !== n; }); if (cb.checked) now.push(n); setDraft(g.key, now); });
       return el("label", {cls: "map-item" + (on ? " on" : ""), title: n}, cb, el("span", {cls: "mn", text: n}),
-        el("span", {cls: "mm", text: (c ? fINR(c.spend) + " · " + fInt(c.ui) + " in UI" : "not in these dates") + (on ? " · " + fInt(got[n.toLowerCase()] || 0) + " CRM leads" : "")})); })
+        el("span", {cls: "mm", text: (c ? fINR(c.spend) + " · " + fInt(c.ui) + " in UI" : "not in these dates") + (on && saved.indexOf(n) >= 0 ? " · " + fInt(got[n.toLowerCase()] || 0) + " CRM leads" : on ? " · not saved yet" : "")})); })
       : el("div", {cls: "small", text: "No Meta campaigns for this brand in these dates."}));
     q.addEventListener("input", function(){ var t = q.value.trim().toLowerCase(); listBox.querySelectorAll(".map-item").forEach(function(x){ x.hidden = !!t && x.title.toLowerCase().indexOf(t) < 0; }); });
     tb.appendChild(el("tr", null, el("td", {cls: "nowrap", text: g.brand}), el("td", {cls: "nowrap", text: g.src}), el("td", {cls: "r", text: fInt(g.n)}),
-      el("td", null, el("span", {cls: "pill " + (cur.length ? "good" : "mut"), text: cur.length ? cur.length + " campaign" + (cur.length > 1 ? "s" : "") : "Not mapped"})),
+      el("td", null, el("span", {cls: "pill " + (saved.length ? "good" : "mut"), text: saved.length ? saved.length + " campaign" + (saved.length > 1 ? "s" : "") : "Not mapped"}),
+        norm({a: cur}) !== norm({a: saved}) ? el("div", {cls: "small", style: "color:var(--warn);margin-top:4px", text: "Changed · not saved"}) : null),
       el("td", {style: "min-width:340px"}, names.length > 6 ? q : null, (function(){
         var wa = names.filter(function(n){ return /whatsapp|ctwa|\bwa\b|message|msg|chat/i.test(n); });
         if (!canEdit || wa.length < 2 || wa.every(function(n){ return cur.indexOf(n) >= 0; })) return null;
         return el("button", {cls: "linkbtn", type: "button", style: "margin-bottom:6px", onclick: function(){
-          var now = mapTargets(S.sourceMap[g.key]); wa.forEach(function(n){ if (now.indexOf(n) < 0) now.push(n); }); S.sourceMap[g.key] = now;
-          storeSettings(); recompute(); toast(g.brand + " · " + g.src + ": mapped to " + now.length + " campaigns"); }}, "Tick all " + wa.length + " WhatsApp campaigns"); })(), listBox)));
+          var now = mapTargets(D[g.key]); wa.forEach(function(n){ if (now.indexOf(n) < 0) now.push(n); }); setDraft(g.key, now); }}, "Tick all " + wa.length + " WhatsApp campaigns"); })(), listBox)));
   });
   box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:none"}, el("table", null,
     el("thead", null, el("tr", null, ["Brand", "TeleCRM lead source", "Leads (these dates)", "Status", "Count under Meta campaigns"].map(function(x){ return el("th", {scope: "col", style: "cursor:default", text: x}); }))), tb)));
+  if (canEdit){
+    var saveBtn = el("button", {cls: "btn", type: "button", id: "srcmap-save", disabled: dirty ? null : true}, "Save mapping");
+    saveBtn.addEventListener("click", function(){
+      saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+      var before = (state.R.checks || []).filter(function(c){ return c.k === "mapped"; })[0];
+      S.sourceMap = JSON.parse(JSON.stringify(D)); state.mapDraft = null;
+      var local = storeSettings(true); if (state.raw) rebuild();
+      var after = (state.R.checks || []).filter(function(c){ return c.k === "mapped"; })[0], nA = after ? after.n : 0;
+      var msg = "Saved. " + fInt(nA) + " lead" + (nA === 1 ? " is" : "s are") + " now counted under their Meta campaigns (" + Object.keys(S.sourceMap).length + " source" + (Object.keys(S.sourceMap).length === 1 ? "" : "s") + " mapped). " +
+        "Brand totals on the Overview don't change, because these leads were already counted under their brand; the “CRM leads with no campaign” column goes down and the Campaigns page shows them under each campaign.";
+      dbSettingsChanged(true).then(function(shared){ state.mapMsg = {kind: "ok", text: msg + (shared ? " Shared with the team." : local ? "" : " Couldn't save in this browser.")}; render(); })
+        .catch(function(e){ state.mapMsg = {kind: "err", text: "Applied here, but not saved for the team: " + (e.message || e) + ". Try Save mapping again."}; state.mapDraft = JSON.parse(JSON.stringify(S.sourceMap)); render(); });
+    });
+    box.appendChild(el("div", {cls: "save-bar" + (dirty ? " dirty" : "")}, saveBtn,
+      dirty ? el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.mapDraft = null; state.mapMsg = null; render(); }}, "Discard changes") : null,
+      el("span", {cls: "small", text: dirty ? "You have unsaved changes. Save to apply them to the dashboard." : "No unsaved changes."}),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "campaigns"; render(); window.scrollTo(0, 0); }}, "View on Campaigns")));
+  }
+  if (state.mapMsg) box.appendChild(el("div", {cls: "msg " + state.mapMsg.kind, role: state.mapMsg.kind === "err" ? "alert" : "status", text: state.mapMsg.text}));
   return box;
 }
 
