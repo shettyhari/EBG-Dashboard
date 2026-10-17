@@ -386,6 +386,7 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .save-bar.dirty{border-color:var(--warn);background:var(--warn-bg)}
 .map-list{display:grid;gap:4px;max-height:220px;overflow-y:auto;padding-right:4px}
 .map-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;align-items:center;padding:6px 8px;border:1px solid var(--line-soft);border-radius:8px;cursor:pointer}
+.map-item.none{border-style:dashed;margin-bottom:6px}
 .map-item.on{border-color:var(--accent);background:var(--accent-soft)}
 .map-item .mn{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .map-item .mm{grid-column:2;font-size:11.5px;color:var(--muted)}
@@ -659,7 +660,9 @@ var DEFAULT_HOLIDAYS = [["Makar Sankranti", "2026-01-14"], ["Republic Day", "202
 var SRC_MAP_LABEL = "Mapped from TeleCRM source";
 /* choose which mapped campaign a no-campaign lead counts under: one campaign → that one; several → split each day in proportion to
    the campaigns' Meta results that day (spend when there were no results, then overall results, then evenly) */
-function mapTargets(v){ return (Array.isArray(v) ? v : v ? [v] : []).map(clean).filter(Boolean); }
+var MAP_NONE = "__not_from_ads__";
+function mapTargets(v){ return (Array.isArray(v) ? v : v ? [v] : []).map(clean).filter(function(x){ return x && x !== MAP_NONE; }); }
+function mapIsNone(v){ return Array.isArray(v) ? v.indexOf(MAP_NONE) >= 0 : v === MAP_NONE; }
 function pickMapped(v, mk, day, campDay, alloc){
   var list = mapTargets(v); if (list.length < 2) return list[0] || "";
   var w = function(f){ return list.map(function(n){ var cd = campDay[campKey(n)]; if (!cd) return 0; if (f === "tot") return cd.tot; var x = day !== null && cd.d[day]; return x ? x[f] : 0; }); };
@@ -1411,7 +1414,7 @@ function holidaysChanged(msg){
 function sourceMapPanel(){
   var S = state.settings, R = state.R; if (!S.sourceMap || typeof S.sourceMap !== "object") S.sourceMap = {};
   var D = state.mapDraft || (state.mapDraft = JSON.parse(JSON.stringify(S.sourceMap)));
-  var norm = function(m){ var o = {}; Object.keys(m).sort().forEach(function(k){ var v = mapTargets(m[k]).slice().sort(); if (v.length) o[k] = v; }); return JSON.stringify(o); };
+  var norm = function(m){ var o = {}; Object.keys(m).sort().forEach(function(k){ var v = (Array.isArray(m[k]) ? m[k] : [m[k]]).filter(Boolean).slice().sort(); if (v.length) o[k] = v; }); return JSON.stringify(o); };
   var dirty = norm(D) !== norm(S.sourceMap);
   var setDraft = function(k, list){ if (list.length) D[k] = list; else delete D[k]; state.mapMsg = null; render(); var e = document.getElementById("srcmap-save"); if (e) e.scrollIntoView({block: "nearest"}); };
   var canEdit = holCanEdit();
@@ -1444,10 +1447,14 @@ function sourceMapPanel(){
         el("span", {cls: "mm", text: (c ? fINR(c.spend) + " · " + fInt(c.ui) + " in UI" : "not in these dates") + (on && saved.indexOf(n) >= 0 ? " · " + fInt(got[n.toLowerCase()] || 0) + " CRM leads" : on ? " · not saved yet" : "")})); })
       : el("div", {cls: "small", text: "No Meta campaigns for this brand in these dates."}));
     q.addEventListener("input", function(){ var t = q.value.trim().toLowerCase(); listBox.querySelectorAll(".map-item").forEach(function(x){ x.hidden = !!t && x.title.toLowerCase().indexOf(t) < 0; }); });
-    tb.appendChild(el("tr", null, el("td", {cls: "nowrap", text: g.brand}), el("td", {cls: "nowrap", text: g.src}), el("td", {cls: "r", text: fInt(g.n)}),
-      el("td", null, el("span", {cls: "pill " + (saved.length ? "good" : "mut"), text: saved.length ? saved.length + " campaign" + (saved.length > 1 ? "s" : "") : "Not mapped"}),
-        norm({a: cur}) !== norm({a: saved}) ? el("div", {cls: "small", style: "color:var(--warn);margin-top:4px", text: "Changed · not saved"}) : null),
-      el("td", {style: "min-width:340px"}, names.length > 6 ? q : null, (function(){
+    var oddMap = !/whatsapp/i.test(g.src) && cur.some(function(n){ return /whatsapp/i.test(n); });
+    tb.appendChild(el("tr", null, el("td", {cls: "nowrap", text: g.brand}), el("td", {cls: "nowrap"}, g.src, oddMap ? el("div", {cls: "small", style: "color:var(--warn);white-space:normal;max-width:180px", text: "Check: " + g.src + " leads are mapped to a WhatsApp campaign."}) : null), el("td", {cls: "r", text: fInt(g.n)}),
+      el("td", null, el("span", {cls: "pill " + (saved.length || mapIsNone(S.sourceMap[g.key]) ? "good" : "mut"), text: saved.length ? saved.length + " campaign" + (saved.length > 1 ? "s" : "") : mapIsNone(S.sourceMap[g.key]) ? "Not from ads" : "Not mapped"}),
+        JSON.stringify(D[g.key] || null) !== JSON.stringify(S.sourceMap[g.key] || null) ? el("div", {cls: "small", style: "color:var(--warn);margin-top:4px", text: "Changed · not saved"}) : null),
+      el("td", {style: "min-width:340px"}, el("label", {cls: "map-item none" + (mapIsNone(D[g.key]) ? " on" : ""), title: "Not from ads"},
+          el("input", {type: "checkbox", checked: mapIsNone(D[g.key]) ? true : null, disabled: canEdit ? null : true, onchange: function(e){ setDraft(g.key, e.target.checked ? [MAP_NONE] : []); }}),
+          el("span", {cls: "mn", text: "Not from ads · keep as “No campaign”"}), el("span", {cls: "mm", text: "Organic chats or no matching Meta campaign. Hides the Overview warning for this source."})),
+        names.length > 6 ? q : null, (function(){
         var wa = names.filter(function(n){ return /whatsapp|ctwa|\bwa\b|message|msg|chat/i.test(n); });
         if (!canEdit || wa.length < 2 || wa.every(function(n){ return cur.indexOf(n) >= 0; })) return null;
         return el("button", {cls: "linkbtn", type: "button", style: "margin-bottom:6px", onclick: function(){
@@ -1967,7 +1974,8 @@ function viewOverview(){
       fInt(exList.reduce(function(s, x){ return s + (x.ui || 0); }, 0)) + " non-lead results (landing page views, clicks…) aren't counted as Leads in UI. Their spend (" +
       fINR(exList.reduce(function(s, x){ return s + (x.spend || 0); }, 0)) + ") is still in Amount spent and CPL."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "campaigns"; render(); var e = document.querySelector(".excl-head"); if (e) e.scrollIntoView({block: "start"}); }}, "Review")));
-  var unm = R.ads.filter(function(a){ return a.nocamp && brandOK(a.brand) && /whatsapp/i.test(a.srcName || a.campaign) && a.crm; });
+  var smap = state.settings.sourceMap || {};
+  var unm = R.ads.filter(function(a){ return a.nocamp && brandOK(a.brand) && /whatsapp/i.test(a.srcName || a.campaign) && a.crm && !mapIsNone(smap[(a.brand + "|" + (a.srcName || "")).toLowerCase()]); });
   if (unm.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: fInt(unm.reduce(function(s, a){ return s + a.crm; }, 0)) + " WhatsApp leads have no campaign in TeleCRM (" +
       unm.map(function(a){ return a.brand + ": " + fInt(a.crm); }).join(", ") + "), so they aren't matched to Meta's Leads in UI. Map them to their Meta campaign to compare correctly."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Map campaigns")));
@@ -2000,6 +2008,25 @@ function viewOverview(){
   sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: state.brand === "All" ? "Brand summary" : state.brand + " summary"})));
   sec.appendChild(colTools("brands", brandCols()));
   sec.appendChild(table("brands", visibleCols("brands", brandCols()), br, {total: state.brand === "All" ? bt : null}));
+  /* campaigns that receive mapped no-campaign leads (WhatsApp Cloud API…) */
+  var mapNames = {}; Object.keys(state.settings.sourceMap || {}).forEach(function(k){ mapTargets(state.settings.sourceMap[k]).forEach(function(n){ mapNames[campKey(n)] = 1; }); });
+  var mapIn = {}; R.ads.forEach(function(a){ if (a.mapped){ var ck = (a.brand + "|" + a.campaign).toLowerCase(); mapIn[ck] = (mapIn[ck] || 0) + a.crm; } });
+  var mrows = R.camps.filter(function(c){ return brandOK(c.brand) && !c.nocamp && mapNames[campKey(c.campaign)]; }).map(function(c){
+    var m = mapIn[(c.brand + "|" + c.campaign).toLowerCase()] || 0; return Object.assign({}, c, {mappedIn: m, matchedCrm: c.crm - m, qlRate: c.crm ? c.ql / c.crm : null}); });
+  if (mrows.length){
+    var mt = sumRows(mrows); mt.brand = "TOTAL"; mt.campaign = ""; mt.mappedIn = mrows.reduce(function(s, r){ return s + r.mappedIn; }, 0); mt.matchedCrm = mt.crm - mt.mappedIn; mt.qlRate = mt.crm ? mt.ql / mt.crm : null;
+    var mcols = [{k: "brand", label: "Brand", t: "text", cls: "nowrap", lock: true}, {k: "campaign", label: "Campaign", t: "text", cls: "name", lock: true},
+      {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Leads in UI", t: "int"},
+      {k: "mappedIn", label: "CRM leads mapped in", t: "int"}, {k: "matchedCrm", label: "CRM leads with campaign", t: "int", def: false}, {k: "crm", label: "Leads in CRM", t: "int"},
+      {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
+      {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "qlRate", label: "QL rate", t: "pct"}, {k: "cpql", label: "CPQL", t: "inr"},
+      {k: "tat", label: "Overall TAT (avg)", t: "min"}, {k: "pend", label: "Not Contacted", t: "int"}, {k: "sla", label: "SLA %", t: "pct"}];
+    sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Mapped campaigns"}),
+      el("span", {cls: "note", text: "Campaigns you mapped no-campaign TeleCRM leads to (Settings › Leads without a campaign). Leads in CRM includes the mapped leads, so UI vs CRM, CPQL and TAT compare like for like."}),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Edit mapping")));
+    sec.appendChild(colTools("mapped", mcols));
+    sec.appendChild(table("mapped", visibleCols("mapped", mcols), mrows, {total: mrows.length > 1 ? mt : null}));
+  }
   /* lead status breakdown for the selected brand(s) */
   var sn = {}; br.forEach(function(b){ for (var k in b.statusN) sn[k] = (sn[k] || 0) + b.statusN[k]; });
   var qlOf = function(st){ return st !== "(no status)" && classifyStatus(st, state.settings).ql; };
