@@ -386,6 +386,13 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .save-bar.dirty{border-color:var(--warn);background:var(--warn-bg)}
 .map-list{display:grid;gap:4px;max-height:220px;overflow-y:auto;padding-right:4px}
 .map-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;align-items:center;padding:6px 8px;border:1px solid var(--line-soft);border-radius:8px;cursor:pointer}
+.pick-panel{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--band)}
+.pick-list{display:grid;gap:6px}
+.pick-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer}
+.pick-item.on{border-color:var(--bad);background:var(--bad-bg)}
+.pick-item .mn{white-space:normal;color:var(--ink)}
+.pick-item .mm{font-size:12px;color:var(--muted)}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
 .map-item.none{border-style:dashed;margin-bottom:6px}
 .map-item.on{border-color:var(--accent);background:var(--accent-soft)}
 .map-item .mn{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2428,7 +2435,7 @@ function tryBuild(fromList){
   if (!crm) return;
   var first = state.source !== "upload", comb = combineMeta(state.metaFiles);
   document.getElementById("team-banner").hidden = true;
-  state.raw = {meta: comb.aoa, crm: crm.aoa};
+  state.raw = {meta: comb.aoa, crm: crm.aoa, metaFileOf: [].concat.apply([], state.metaFiles.map(function(f){ return f.rows.map(function(){ return f.name; }); }))};
   var mrows = comb.aoa.length - 1;
   state.files = {meta: {name: state.metaFiles.length === 1 ? state.metaFiles[0].name : state.metaFiles.length + " Meta files", rows: mrows,
                         list: state.metaFiles.map(function(f){ return f.name; })}, crm: {name: crm.name, rows: crm.rows}};
@@ -3245,6 +3252,55 @@ function makeBrandOf(S){
   return function(t){ var s = String(t || "").toLowerCase(); if (!s) return ""; for (var i = 0; i < kws.length; i++) if (s.indexOf(kws[i][0]) >= 0) return kws[i][1]; return "Unmapped"; };
 }
 /* canonical rows from whatever is loaded (uploads or saved data) */
+/* which files of one upload still own rows in the database (rows re-uploaded later belong to the later upload) */
+function dbCount(table, upId, file){ var q = sb.client.from(table).select(table === "crm_leads" ? "lead_id" : "id", {count: "exact", head: true}).eq("upload_id", upId); if (file !== null) q = q.eq("source_file", file);
+  return q.then(function(r){ if (r.error) throw r.error; return r.count || 0; }); }
+function dbUploadParts(u){
+  var metaFiles = (u.meta_files || []).slice(), jobs = [];
+  metaFiles.forEach(function(f){ jobs.push(dbCount("meta_ad_rows", u.id, f).then(function(n){ return {table: "meta_ad_rows", file: f, label: "Meta · " + f, n: n}; })); });
+  jobs.push(dbCount("meta_ad_rows", u.id, "").then(function(n){ return {table: "meta_ad_rows", file: "", label: "Meta rows from files not recorded (added before files were tracked)", n: n}; }));
+  if (u.crm_file) jobs.push(dbCount("crm_leads", u.id, u.crm_file).then(function(n){ return {table: "crm_leads", file: u.crm_file, label: "TeleCRM · " + u.crm_file, n: n}; }));
+  jobs.push(dbCount("crm_leads", u.id, "").then(function(n){ return {table: "crm_leads", file: "", label: "TeleCRM leads from a file not recorded", n: n}; }));
+  return Promise.all(jobs).then(function(items){ return items.filter(function(x){ return x.n > 0 || (x.file && x.table === "meta_ad_rows"); }); });
+}
+function dbPickPanel(u){
+  var P = sb.upPick || {}, box = el("div", {cls: "pick-panel"});
+  if (P.loading){ box.appendChild(el("span", {cls: "small", text: "Checking which files of this upload are still in the database…"})); return box; }
+  if (P.err){ box.appendChild(el("div", {cls: "msg err", text: "Could not check this upload: " + P.err})); return box; }
+  var items = P.items || [];
+  if (!items.some(function(x){ return x.n > 0; })){ box.appendChild(el("div", {cls: "small", text: "None of this upload's rows are in the database any more (later uploads replaced them, or they were removed)."}));
+    box.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ sb.client.from("uploads").delete().eq("id", u.id).then(function(){ sb.confirmUp = null; sb.upPick = null; return dbRefreshLists(); }).then(renderSavedPanel); }}, "Remove it from this list"));
+    return box; }
+  box.appendChild(el("div", {cls: "small", text: "Tick the files to remove. Only rows last written by this upload are removed; data from other uploads is not touched."}));
+  var list = el("div", {cls: "pick-list"});
+  items.forEach(function(x){ list.appendChild(el("label", {cls: "pick-item" + (x.on ? " on" : "")}, el("input", {type: "checkbox", checked: x.on ? true : null, disabled: x.n ? null : true,
+      onchange: function(e){ x.on = e.target.checked; renderSavedPanel(); }}), el("span", {cls: "mn", text: x.label}), el("span", {cls: "mm", text: x.n ? fInt(x.n) + (x.table === "crm_leads" ? " leads" : " rows") : "no rows left"}))); });
+  box.appendChild(list);
+  var sel = items.filter(function(x){ return x.on && x.n; }), nSel = sel.reduce(function(a, x){ return a + x.n; }, 0);
+  if (P.ask){
+    box.appendChild(el("div", {cls: "confirm"}, el("span", {text: "Permanently remove " + fInt(nSel) + " row(s) from " + sel.length + " file(s)? This can't be undone."}),
+      el("button", {cls: "btn danger", type: "button", id: "pick-go", onclick: function(){ P.ask = false; P.busy = true; renderSavedPanel();
+        var chain = Promise.resolve();
+        sel.forEach(function(x){ chain = chain.then(function(){ return sb.client.from(x.table).delete().eq("upload_id", u.id).eq("source_file", x.file).then(function(r){ if (r.error) throw r.error; }); }); });
+        chain.then(function(){ return dbUploadParts(u); }).then(function(left){
+          var any = left.some(function(x){ return x.n > 0; });
+          var removed = sel.map(function(x){ return x.file; });
+          var upd = any ? sb.client.from("uploads").update({meta_files: (u.meta_files || []).filter(function(f){ return removed.indexOf(f) < 0 || left.some(function(x){ return x.file === f && x.n > 0; }); }),
+                crm_file: u.crm_file && removed.indexOf(u.crm_file) >= 0 ? null : u.crm_file,
+                meta_rows: left.filter(function(x){ return x.table === "meta_ad_rows"; }).reduce(function(a, x){ return a + x.n; }, 0),
+                crm_rows: left.filter(function(x){ return x.table === "crm_leads"; }).reduce(function(a, x){ return a + x.n; }, 0)}).eq("id", u.id)
+            : sb.client.from("uploads").delete().eq("id", u.id);
+          return upd.then(function(r){ if (r && r.error) throw r.error; }); })
+        .then(function(){ toast("Removed " + fInt(nSel) + " row(s): " + sel.map(function(x){ return x.file || "untracked rows"; }).join(", ")); sb.confirmUp = null; sb.upPick = null; return dbRefreshLists(); })
+        .then(function(){ renderSavedPanel(); if (state.source === "db") dbOpen(true); })
+        .catch(function(e){ P.busy = false; P.err2 = e.message || String(e); renderSavedPanel(); }); }}, "Yes, remove"),
+      el("button", {cls: "btn ghost", type: "button", onclick: function(){ P.ask = false; renderSavedPanel(); }}, "Cancel")));
+  } else box.appendChild(el("div", {cls: "actions"}, el("button", {cls: "btn", type: "button", id: "pick-remove", disabled: sel.length && !P.busy ? null : true, onclick: function(){ P.ask = true; renderSavedPanel(); }},
+      P.busy ? "Removing…" : "Remove selected" + (sel.length ? " (" + sel.length + ")" : "")),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ sb.confirmUp = null; sb.upPick = null; renderSavedPanel(); }}, "Cancel")));
+  if (P.err2) box.appendChild(el("div", {cls: "msg err", text: "Could not remove: " + P.err2}));
+  return box;
+}
 function dbRowsFromRaw(){
   var S = state.settings, raw = state.raw, brandOf = makeBrandOf(S), out = {meta: [], crm: [], noDate: 0, level: 3, from: null, to: null};
   var mh = findMetaHeader(raw.meta, S.cols.meta);
@@ -3257,7 +3313,7 @@ function dbRowsFromRaw(){
       if (!isNum(st)){ out.noDate++; continue; } if (!isNum(en) || en < st) en = st;
       var d0 = dayOf(st), d1 = dayOf(en), adset = c.adset >= 0 ? clean(r[c.adset]) : "", ad = c.ad >= 0 ? clean(r[c.ad]) : "";
       out.from = out.from === null ? d0 : Math.min(out.from, d0); out.to = out.to === null ? d1 : Math.max(out.to, d1);
-      mm[[camp, adset, ad, d0, d1].join("\u0001")] = {campaign: camp, adset: adset, ad: ad, day: isoDay(d0), day_end: isoDay(d1),
+      mm[[camp, adset, ad, d0, d1].join("\u0001")] = {source_file: (mh === 0 && raw.metaFileOf && raw.metaFileOf[i - 1]) || "", campaign: camp, adset: adset, ad: ad, day: isoDay(d0), day_end: isoDay(d1),
         spend: c.spend >= 0 ? Math.round(num(r[c.spend]) * 100) / 100 : 0, results: c.lead >= 0 ? num(r[c.lead]) : 0,
         result_indicator: c.indicator >= 0 && c.lead === c.results ? clean(r[c.indicator]) : "", currency: code, brand: brandOf(camp),
         impressions: c.impressions >= 0 ? Math.round(num(r[c.impressions])) : 0, clicks: c.clicks >= 0 ? Math.round(num(r[c.clicks])) : 0,
@@ -3275,7 +3331,7 @@ function dbRowsFromRaw(){
       var camp2 = g(row, k.campaign), crmBrand = g(row, k.brand), status = g(row, k.status), id = g(row, k.id);
       var lid = id || ("noid:" + (isNum(created) ? created : "") + "|" + camp2 + "|" + g(row, k.ad) + "|" + g(row, k.owner) + "|" + j);
       var tat = isNum(created) && isNum(fc) && fc >= created ? Math.round((fc - created) / 6000) / 10 : null;
-      cm[lid] = {lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
+      cm[lid] = {source_file: (state.files && state.files.crm && state.files.crm.name) || "", lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
         status: status, crm_brand: crmBrand, first_call: tsStr(fc), owner: g(row, k.owner), manager: g(row, k.manager), brand: camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign"),
         is_ql: status ? !!classifyStatus(status, S).ql : false, tat_min: tat};
       if (isNum(created)){ var cd = dayOf(created); out.from = out.from === null ? cd : Math.min(out.from, cd); out.to = out.to === null ? cd : Math.max(out.to, cd); }
@@ -3440,14 +3496,10 @@ function renderDbSection(x){
         el("td", {cls: "nowrap", text: u.date_from ? spanText({from: dayOf(Date.parse(u.date_from + "T00:00:00Z")), to: dayOf(Date.parse((u.date_to || u.date_from) + "T00:00:00Z"))}) : "—"}),
         el("td", {cls: "r num nowrap", text: fInt(u.meta_rows)}), el("td", {cls: "r num nowrap", text: fInt(u.crm_rows)}),
         el("td", {cls: "small", text: (u.meta_files || []).join(", ") + (u.crm_file ? " · " + u.crm_file : "")}),
-        el("td", {cls: "nowrap"}, sb.role !== "admin" ? null : conf
-          ? el("span", {cls: "confirm"}, el("span", {text: "Remove rows last written by this upload?"}),
-              el("button", {cls: "btn", type: "button", onclick: function(){ Promise.all([sb.client.from("meta_ad_rows").delete().eq("upload_id", u.id), sb.client.from("crm_leads").delete().eq("upload_id", u.id)])
-                .then(function(rs){ var er = rs.filter(function(r){ return r.error; })[0]; if (er) throw er.error; return sb.client.from("uploads").delete().eq("id", u.id); })
-                .then(function(){ sb.confirmUp = null; toast("Upload removed"); return dbRefreshLists(); }).then(function(){ renderSavedPanel(); if (state.source === "db") dbOpen(true); })
-                .catch(function(e){ toast("Could not remove: " + e.message); }); }}, "Remove"),
-              el("button", {cls: "btn ghost", type: "button", onclick: function(){ sb.confirmUp = null; renderSavedPanel(); }}, "Keep"))
-          : el("button", {cls: "linkbtn", type: "button", onclick: function(){ sb.confirmUp = u.id; renderSavedPanel(); }}, "Remove"))));
+        el("td", {cls: "nowrap"}, sb.role !== "admin" ? null : el("button", {cls: "linkbtn", type: "button", onclick: function(){
+          if (conf){ sb.confirmUp = null; sb.upPick = null; renderSavedPanel(); return; } sb.confirmUp = u.id; sb.upPick = {loading: true}; renderSavedPanel(); dbUploadParts(u).then(function(items){ if (sb.confirmUp === u.id){ sb.upPick = {items: items}; renderSavedPanel(); } })
+            .catch(function(e){ sb.upPick = {err: e.message || String(e)}; renderSavedPanel(); }); }}, conf ? "Close" : "Remove files…"))));
+      if (conf) tb.appendChild(el("tr", {cls: "pick-row"}, el("td", {colspan: "7"}, dbPickPanel(u))));
     });
     box.appendChild(el("h3", {style: "font-size:14px", text: "Recent uploads"}));
     box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:320px"}, el("table", null,

@@ -88,6 +88,12 @@ create table if not exists public.crm_leads (
 create index if not exists crm_leads_created_idx on public.crm_leads (created_on);
 create index if not exists crm_leads_upload_idx on public.crm_leads (upload_id);
 
+-- which uploaded file wrote each row, so an admin can remove one file of an upload
+alter table public.meta_ad_rows add column if not exists source_file text not null default '';
+alter table public.crm_leads add column if not exists source_file text not null default '';
+create index if not exists meta_ad_rows_upload_file_idx on public.meta_ad_rows (upload_id, source_file);
+create index if not exists crm_leads_upload_file_idx on public.crm_leads (upload_id, source_file);
+
 -- ---------------------------------------------------------------
 -- Shared settings (brands, keywords, QL rules, excluded campaigns): one row
 -- ---------------------------------------------------------------
