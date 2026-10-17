@@ -379,6 +379,7 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 #brand-select:focus-visible{outline:2px solid var(--accent)}
 #brand-select option{background:var(--panel);color:var(--ink)}
 .ov-classic .kpi-group{display:grid;gap:10px}
+@media (min-width:1100px){ .ov-classic .kpi-group .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))} }
 .ov-classic .kpi .v{font-weight:700;letter-spacing:-.02em}
 .ov-classic .charts{gap:18px}
 .save-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);position:sticky;bottom:12px;z-index:4;box-shadow:var(--shadow)}
@@ -1981,6 +1982,9 @@ function viewOverview(){
   sec.appendChild(grp("Leads", [
     kpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results")),
     kpi("Leads in CRM", fInt(T.crm), "TeleCRM"),
+    (function(){ var noC = rows.reduce(function(n, a){ return n + (a.nocamp ? a.crm : 0); }, 0), mp = rows.reduce(function(n, a){ return n + (a.mapped ? a.crm : 0); }, 0);
+      var k = kpi("Matched to a campaign", T.crm ? fPct((T.crm - noC) / T.crm) : "N/A", fInt(noC) + " with no campaign" + (mp ? " · " + fInt(mp) + " mapped in Settings" : ""), noC > 0 && T.crm && noC / T.crm > 0.1 ? "warn" : "");
+      k.title = "Share of CRM leads that are linked to a Meta campaign. WhatsApp / website leads that TeleCRM saved without a campaign lower this until you map them under Settings › Leads without a campaign."; return k; })(),
     kpi("Lead difference", isNum(T.pct) ? fPct(T.pct) : "N/A", isNum(T.diff) ? (T.diff > 0 ? T.diff + " missing in CRM" : (-T.diff) + " extra in CRM") : "", isNum(T.pct) && Math.abs(T.pct) > R.diffAlert ? "bad" : ""),
     kpi("CPL", fINR(T.cpl), "Spend ÷ UI leads"),
     kpi("Qualified leads", fInt(T.ql), isNum(T.crm) && T.crm ? fPct(T.ql / T.crm) + " of CRM leads" : ""),
