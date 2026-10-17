@@ -158,11 +158,13 @@ create or replace view public.v_crm_leads with (security_invoker = true) as
               else (tat_min <= 30) end as within_30_min
   from public.crm_leads;
 
--- spend counts every campaign; Leads in UI leaves out non-lead results (landing page views, link clicks)
+-- spend counts every campaign; Leads in UI counts lead forms and messaging conversations (WhatsApp / Messenger),
+-- not landing page views or link clicks
 create or replace view public.v_brand_daily with (security_invoker = true) as
   with m as (
     select day as d, brand, sum(spend) as spend,
-           coalesce(sum(results) filter (where result_indicator not ilike '%landing_page%' and result_indicator not ilike '%link_click%'), 0) as leads_in_ui,
+           coalesce(sum(results) filter (where result_indicator = '' or result_indicator ilike '%lead%'
+                                         or result_indicator ilike '%messaging%conversation%'), 0) as leads_in_ui,
            sum(impressions) as impressions, sum(clicks) as clicks
     from public.meta_ad_rows where day = day_end group by 1, 2),
   c as (
