@@ -381,6 +381,7 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .ov-classic .kpi-group{display:grid;gap:10px}
 .ov-classic .kpi .v{font-weight:700;letter-spacing:-.02em}
 .ov-classic .charts{gap:18px}
+#srcmap select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font:inherit}
 /* compact spacing */
 header.top .wrap{padding-block:14px 6px}
 .title-block{gap:4px}
@@ -647,6 +648,7 @@ var QL_NEG_DEF = ["not interested","not qualified","unqualified","disqualified",
 var DEFAULT_HOLIDAYS = [["Makar Sankranti", "2026-01-14"], ["Republic Day", "2026-01-26"], ["Gudi Padwa / Ugadi", "2026-03-19"], ["Ramzan", "2026-03-21"],
   ["Labour Day", "2026-05-01"], ["Bakri Eid", "2026-05-28"], ["Independence Day", "2026-08-15"], ["Ganesh Chaturthi", "2026-09-14"], ["Gandhi Jayanti", "2026-10-02"],
   ["Dussehra", "2026-10-20"], ["Diwali - New Year & Bali Pratipada", "2026-11-10"], ["Diwali - Bhai Duj", "2026-11-11"], ["Christmas", "2026-12-25"]];
+var SRC_MAP_LABEL = "Mapped from TeleCRM source";
 var DEFAULT_SETTINGS = {
   brands: ["Adhira & Appa","Acer","Carlton","Natuf","Tarzan","Shayreen by Natuf","Bonumcha","Chhota Bheem","EBG Rental"],
   keywords: [["Shayreen","Shayreen by Natuf"],["AAC","Adhira & Appa"],["Adhira","Adhira & Appa"],["ACER","Acer"],["Carlton","Carlton"],["Natuf","Natuf"],["Tarzan","Tarzan"],["Bonumcha","Bonumcha"],["Chhota Bheem","Chhota Bheem"],["Chhotabheem","Chhota Bheem"],["EBG Rental","EBG Rental"],["Rental","EBG Rental"]],
@@ -654,7 +656,7 @@ var DEFAULT_SETTINGS = {
   optSource: false, optDates: false, optDedupe: false, showOther: false, from: "", to: "",
   metaSources: ["Facebook","Instagram"],
   qlPos: QL_POS_DEF.slice(), qlNeg: QL_NEG_DEF.slice(), qlOverride: {},
-  excludedCampaigns: [], includedCampaigns: [], autoExcludeNonLead: true,
+  excludedCampaigns: [], includedCampaigns: [], autoExcludeNonLead: true, sourceMap: {},
   holidays: DEFAULT_HOLIDAYS.map(function(h){ return {id: "h" + h[1].replace(/-/g, ""), name: h[0], date: h[1], active: true}; }),
   cols: {
     meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
@@ -938,9 +940,13 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       var counted = (!S.optDedupe || !id || first) && (!S.optSource || sourceOK) && (!S.optDates || inRange);
       if (status && !(status in statusSeen)){ statusSeen[status] = 0; statusFirst.push(status); }
       var brand = camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign");
-      var key2 = camp2 ? levelKey(camp2, adset2, ad2, metaLevel)
+      /* leads TeleCRM saved without a campaign (e.g. WhatsApp Cloud API) can be mapped to a Meta campaign in Settings */
+      var mapped = false;
+      if (!camp2 && S.sourceMap){ var mc = S.sourceMap[(brand + "|" + (source || "(blank source)")).toLowerCase()];
+        if (mc){ camp2 = mc; mapped = true; adset2 = SRC_MAP_LABEL + " · " + source; ad2 = adset2; brand = brandOf(mc) || brand; } }
+      var key2 = mapped ? "~map|" + campKey(camp2) + "|" + (source || "").toLowerCase() : camp2 ? levelKey(camp2, adset2, ad2, metaLevel)
                        : "~nocamp|" + brand.toLowerCase() + "|" + (source || "(blank source)").toLowerCase();
-      var matched = !!(camp2 && metaAds[key2]);
+      var matched = !!(camp2 && !mapped && metaAds[key2]);
       if (!counted) continue;
       if (camp2 && excl[campKey(camp2)]){ cnt.excluded++; infoOf(camp2, brand).crm++; }
       if (status) statusSeen[status]++;
@@ -949,14 +955,16 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       var L = {id: id, created: isNum(created) ? created : null, brand: brand, campaign: camp2, adset: adset2, ad: ad2, status: status, owner: owner,
                fc: isNum(fc) ? fc : null, tat: tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: sla, isQL: !!cls.ql, shown: shownBrand(brand), source: source, manager: manager};
       leads.push(L);
+      if (mapped) cnt.mappedCounted = (cnt.mappedCounted || 0) + 1;
       if (!camp2){ cnt.noCampCounted++; noCampByBrand[brand] = (noCampByBrand[brand] || 0) + 1; }
       var target;
       if (matched) target = metaAds[key2];
       else {
-        if (camp2){ cnt.unmatchedCounted++; unmatched.push({id: id, created: L.created, brand: brand, campaign: camp2, adset: adset2, ad: ad2, reason: "Ad not found in the Meta export"}); }
+        if (camp2 && !mapped){ cnt.unmatchedCounted++; unmatched.push({id: id, created: L.created, brand: brand, campaign: camp2, adset: adset2, ad: ad2, reason: "Ad not found in the Meta export"}); }
         target = crmOnly[key2];
         if (!target){ target = crmOnly[key2] = newAcc({key: key2, src: "C", nocamp: !camp2, brand: brand, spend: null, ui: null,
-            campaign: camp2 || ("(No campaign) — " + (source || "blank source")), adset: metaLevel >= 2 ? adset2 : "", ad: metaLevel >= 3 ? ad2 : ""}); crmOnlyOrder.push(key2); }
+            campaign: camp2 || ("(No campaign) — " + (source || "blank source")), adset: metaLevel >= 2 ? adset2 : "", ad: metaLevel >= 3 ? ad2 : "",
+            srcName: source || "(blank source)", mapped: mapped}); crmOnlyOrder.push(key2); }
       }
       addLead(target, L);
     }
@@ -1031,6 +1039,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     {k: "uiReport", label: "Leads in UI in this report (listed brands)", n: sumShownUi, kind: Math.abs(sumShownUi + sumHiddenUi + exUi - metaResults) > 0.001 ? "bad" : "ok"},
     {k: "leftOutUi", label: "Meta results from other / unlisted brands (left out)", n: sumHiddenUi, kind: sumHiddenUi ? "warn" : "ok"},
     {k: "unmatched", label: "CRM leads with a campaign not in the Meta export", n: cnt.unmatchedCounted, kind: cnt.unmatchedCounted ? "warn" : "ok", detail: "Listed below. Usually another ad account, dates outside the export, or a renamed ad."},
+    {k: "mapped", label: "No-campaign leads mapped to a Meta campaign (Settings › Leads without a campaign)", n: cnt.mappedCounted || 0, kind: "info", detail: "Counted under the campaign you picked, in an ad set row named “" + SRC_MAP_LABEL + "”."},
     {k: "nocamp", label: "CRM leads with no Facebook campaign (Website, WhatsApp…)", n: cnt.noCampCounted, kind: cnt.noCampCounted ? "warn" : "ok", detail: "Shown as “(No campaign) — source” rows under their CRM brand."},
     {k: "nonMeta", label: "CRM rows from non-Meta sources", n: cnt.nonMeta, kind: cnt.nonMeta ? "warn" : "ok", detail: S.optSource ? "Excluded (counting rule on)." : "Counted (counting rule off)."},
     {k: "outRange", label: "CRM rows created outside the report dates", n: cnt.outRange, kind: cnt.outRange ? "warn" : "ok", detail: S.optDates ? "Excluded (counting rule on)." : "Counted (counting rule off)."},
@@ -1121,7 +1130,8 @@ function remarks(r, level){
   if (r.uiExcluded){ out.push("Results not counted as leads" + (fl && fl.indicators.length ? " (" + fl.indicators.join(", ") + ")" : "") + "; spend is still counted.");
     if (r.crm > 0 && r.ql === 0) out.push("No QLs yet."); if (r.pend > 0) out.push(r.pend + " lead(s) Not Contacted."); return out.join(" "); }
 
-  if (level === "ad"){ if (r.src === "C") out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Ad not in Meta export (other ad account, outside export dates, or renamed)."); }
+  if (r.mapped || (r.adset && r.adset.indexOf(SRC_MAP_LABEL) === 0)) out.push("TeleCRM saved these leads without a campaign; they're counted here because of your mapping in Settings.");
+  if (level === "ad"){ if (r.src === "C" && !r.mapped) out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Ad not in Meta export (other ad account, outside export dates, or renamed)."); }
   else if (!r.metaAds) out.push(r.nocamp ? "Leads with no Facebook campaign in CRM." : "Not in Meta export (other ad account, outside export dates, or renamed).");
   else if (r.crmOnly > 0) out.push(r.crmOnly + " CRM lead(s) from ads not in the Meta export.");
   if (fl && fl.nonLead && !fl.excluded) out.push("Meta result here is " + (fl.indicators.join(", ") || "not a lead") + ", not leads. Untick Count results to exclude them.");
@@ -1373,6 +1383,43 @@ function holidaysChanged(msg){
   state.hol.msg = local ? {kind: "ok", text: msg + tail + " Saved."} : {kind: "err", text: "Couldn't save in this browser (storage blocked). The change applies until you close this page."};
   render();
 }
+/* ================= map no-campaign CRM leads (WhatsApp Cloud API…) to a Meta campaign ================= */
+function sourceMapPanel(){
+  var S = state.settings, R = state.R; if (!S.sourceMap || typeof S.sourceMap !== "object") S.sourceMap = {};
+  var canEdit = holCanEdit();
+  var box = el("div", {cls: "panel", id: "srcmap"});
+  box.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Leads without a campaign"}),
+    el("span", {cls: "note", text: "TeleCRM saves some leads (WhatsApp Cloud API, Website…) without a Facebook campaign, so they can't be matched to Meta's Leads in UI. " +
+      "Pick the Meta campaign they came from, for example the brand's Click-to-WhatsApp campaign, and they're counted under it. Note: organic WhatsApp chats from that source are counted too." +
+      (sb.cfg ? (canEdit ? " Changes are shared with the team." : " Only admins and editors can change this.") : "")})));
+  if (!R){ box.appendChild(el("div", {cls: "empty", text: "Load data to see leads without a campaign."})); return box; }
+  /* groups: current unmapped no-campaign rows + existing mappings */
+  var groups = {}, add = function(brand, src, n, mappedTo){ var k = (brand + "|" + src).toLowerCase(); var g = groups[k] || (groups[k] = {key: k, brand: brand, src: src, n: 0, to: S.sourceMap[k] || ""}); g.n += n || 0; };
+  R.ads.forEach(function(a){ if (a.nocamp && a.srcName) add(a.brand, a.srcName, a.crm); if (a.mapped) add(a.brand, a.srcName, a.crm); });
+  Object.keys(S.sourceMap).forEach(function(k){ if (!groups[k]){ var i = k.lastIndexOf("|"), b = k.slice(0, i);
+    var bn = (S.brands.filter(function(x){ return x.toLowerCase() === b; })[0]) || b; add(bn, k.slice(i + 1), 0); } });
+  var list = Object.keys(groups).map(function(k){ return groups[k]; }).sort(function(a, b){ return (/whatsapp/i.test(b.src) - /whatsapp/i.test(a.src)) || (b.n - a.n); });
+  if (!list.length){ box.appendChild(el("div", {cls: "empty", text: "Every CRM lead in these dates has a campaign."})); return box; }
+  var tb = el("tbody");
+  list.forEach(function(g){
+    var camps = R.camps.filter(function(c){ return !c.nocamp && c.metaAds && c.brand.toLowerCase() === g.brand.toLowerCase(); })
+      .sort(function(a, b){ return (/whatsapp|ctwa|\bwa\b|message|msg|chat/i.test(b.campaign) - /whatsapp|ctwa|\bwa\b|message|msg|chat/i.test(a.campaign)) || ((b.spend || 0) - (a.spend || 0)); });
+    var names = camps.map(function(c){ return c.campaign; }); if (g.to && names.indexOf(g.to) < 0) names.unshift(g.to);
+    var sel = el("select", {"aria-label": "Meta campaign for " + g.brand + " " + g.src, disabled: canEdit ? null : true},
+      [el("option", {value: "", text: "Not mapped (keep as “No campaign”)"})].concat(names.map(function(n){ var c = camps.filter(function(x){ return x.campaign === n; })[0];
+        return el("option", {value: n, selected: g.to === n ? true : null, text: n + (c ? " · " + fINR(c.spend) + " spent · " + fInt(c.ui) + " in UI" : " (not in these dates)")}); })));
+    sel.addEventListener("change", function(){
+      if (sel.value) S.sourceMap[g.key] = sel.value; else delete S.sourceMap[g.key];
+      storeSettings(); recompute();
+      toast(sel.value ? g.brand + " · " + g.src + " leads now count under " + sel.value : g.brand + " · " + g.src + " leads are unmapped again"); });
+    tb.appendChild(el("tr", null, el("td", {cls: "nowrap", text: g.brand}), el("td", {cls: "nowrap", text: g.src}), el("td", {cls: "r", text: fInt(g.n)}),
+      el("td", null, el("span", {cls: "pill " + (g.to ? "good" : "mut"), text: g.to ? "Mapped" : "Not mapped"})), el("td", {style: "min-width:280px"}, sel)));
+  });
+  box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:none"}, el("table", null,
+    el("thead", null, el("tr", null, ["Brand", "TeleCRM lead source", "Leads (these dates)", "Status", "Count under Meta campaign"].map(function(x){ return el("th", {scope: "col", style: "cursor:default", text: x}); }))), tb)));
+  return box;
+}
+
 function holidayPanel(){
   var H = state.hol || (state.hol = {q: "", year: "All", edit: null, del: null, msg: null});
   var S = state.settings; if (!Array.isArray(S.holidays)) S.holidays = [];
@@ -1617,7 +1664,7 @@ function viewSettings(){
     el("div", {cls: "actions"},
       el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
       el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
-  return el("div", {cls: "panel"}, form, holidayPanel());
+  return el("div", {cls: "panel"}, form, sourceMapPanel(), holidayPanel());
 }
 function applySettings(){
   var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };
@@ -1863,6 +1910,10 @@ function viewOverview(){
       fInt(exList.reduce(function(s, x){ return s + (x.ui || 0); }, 0)) + " non-lead results (landing page views, clicks…) aren't counted as Leads in UI. Their spend (" +
       fINR(exList.reduce(function(s, x){ return s + (x.spend || 0); }, 0)) + ") is still in Amount spent and CPL."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "campaigns"; render(); var e = document.querySelector(".excl-head"); if (e) e.scrollIntoView({block: "start"}); }}, "Review")));
+  var unm = R.ads.filter(function(a){ return a.nocamp && brandOK(a.brand) && /whatsapp/i.test(a.srcName || a.campaign) && a.crm; });
+  if (unm.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: fInt(unm.reduce(function(s, a){ return s + a.crm; }, 0)) + " WhatsApp leads have no campaign in TeleCRM (" +
+      unm.map(function(a){ return a.brand + ": " + fInt(a.crm); }).join(", ") + "), so they aren't matched to Meta's Leads in UI. Map them to their Meta campaign to compare correctly."}),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Map campaigns")));
   var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
   sec.appendChild(grp("Media", [
     kpi("Amount spent", fShortINR(T.spend), rows.length + " ad rows"),
