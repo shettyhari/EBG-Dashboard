@@ -381,6 +381,19 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .ov-classic .kpi-group{display:grid;gap:10px}
 .ov-classic .kpi .v{font-weight:700;letter-spacing:-.02em}
 .ov-classic .charts{gap:18px}
+/* compact spacing */
+header.top .wrap{padding-block:14px 6px}
+.title-block{gap:4px}
+.title-block h1{font-size:clamp(24px,2.2vw,30px)}
+.band .wrap{padding-block:4px 6px;gap:8px}
+main .wrap{padding-block:4px 40px;gap:14px}
+section.panel{gap:12px}
+.ov-classic .kpi-group{gap:6px}
+.ov-classic .kpis{gap:10px}
+.ov-classic .kpi{padding:12px 14px;gap:3px}
+.ov-classic .kpi .v{font-size:clamp(20px,1.7vw,26px)}
+.ov-classic .sec-head{margin-top:4px}
+.sec-head{gap:6px 20px}
 .source-line{gap:8px 14px}
 
 /* ---------- cards, KPIs, panels ---------- */
@@ -1883,18 +1896,6 @@ function viewOverview(){
   sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Lead status breakdown"}), el("span", {cls: "note", text: "TeleCRM status of the leads above. QL is decided on the QL statuses tab."})));
   sec.appendChild(table("statusmix", [{k: "status", label: "Lead status", t: "text", cls: "name"}, {k: "n", label: "Leads", t: "int"}, {k: "share", label: "Share", t: "pct"},
     {k: "ql", label: "Counts as", t: "text", render: function(r){ return el("span", {cls: "pill " + (r.ql === "QL" ? "good" : "mut"), text: r.ql}); }}], srows, {empty: "No CRM leads for this filter."}));
-  /* charts: by brand (All) or by campaign (one brand) */
-  var items;
-  if (state.brand === "All") items = R.brandRows.filter(function(b){ return b.crm || b.ui; }).map(function(b){ return Object.assign({label: b.brand}, b); });
-  else items = R.camps.filter(function(c){ return c.brand === state.brand; }).slice(0, 12).map(function(c){ return Object.assign({label: c.campaign}, c); });
-  var by = state.brand === "All" ? "by brand" : "by campaign";
-  sec.appendChild(el("div", {cls: "charts"},
-    barChart("Leads in UI vs CRM " + by, items, [{k: "ui", label: "Leads in UI (Meta)", cls: "s1", fmt: fInt}, {k: "crm", label: "Leads in CRM", cls: "s2", fmt: fInt}]),
-    barChart("CPL and CPQL " + by, items, [{k: "cpl", label: "CPL", cls: "s1", fmt: fINR}, {k: "cpql", label: "CPQL", cls: "s3", fmt: fINR}]),
-    barChart("First-call SLA " + by, items, [{k: "sla", label: "SLA % (≤ " + R.slaMin + " min)", cls: "s3", fmt: fPct}], {max: 1, mark: R.slaTarget, legend: true,
-      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "Target " + Math.round(R.slaTarget * 100) + "%")]}),
-    barChart("Overall vs working-hours TAT " + by, items, [{k: "tat", label: "Overall TAT (avg)", cls: "s1", fmt: fMin}, {k: "whAvg", label: "Working-hrs TAT (avg)", cls: "s3", fmt: fMin}], {legend: true, mark: R.slaMin,
-      legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + R.slaMin + " min")]})));
   return sec;
 }
 function fCompact(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v);
