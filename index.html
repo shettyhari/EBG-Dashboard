@@ -388,6 +388,10 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .map-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;align-items:center;padding:6px 8px;border:1px solid var(--line-soft);border-radius:8px;cursor:pointer}
 .pick-panel{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--band)}
 .pick-list{display:grid;gap:6px}
+.add-drop{display:grid;gap:4px;padding:16px;border:1px dashed var(--accent);border-radius:8px;cursor:pointer;color:var(--accent);background:var(--panel)}
+.add-drop:hover{background:var(--accent-soft)}
+.pick-item.bad{border-color:var(--bad)}
+.row-acts{display:flex;gap:14px;justify-content:flex-end}
 .pick-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer}
 .pick-item.on{border-color:var(--bad);background:var(--bad-bg)}
 .pick-item .mn{white-space:normal;color:var(--ink)}
@@ -3484,7 +3488,7 @@ function dbUploadParts(u){
   var metaFiles = (u.meta_files || []).slice(), jobs = [];
   metaFiles.forEach(function(f){ jobs.push(dbCount("meta_ad_rows", u.id, f).then(function(n){ return {table: "meta_ad_rows", file: f, label: "Meta · " + f, n: n}; })); });
   jobs.push(dbCount("meta_ad_rows", u.id, "").then(function(n){ return {table: "meta_ad_rows", file: "", label: "Meta rows from files not recorded (added before files were tracked)", n: n}; }));
-  if (u.crm_file) jobs.push(dbCount("crm_leads", u.id, u.crm_file).then(function(n){ return {table: "crm_leads", file: u.crm_file, label: "TeleCRM · " + u.crm_file, n: n}; }));
+  crmFilesOf(u).forEach(function(cf){ jobs.push(dbCount("crm_leads", u.id, cf).then(function(n){ return {table: "crm_leads", file: cf, label: "TeleCRM · " + cf, n: n}; })); });
   jobs.push(dbCount("crm_leads", u.id, "").then(function(n){ return {table: "crm_leads", file: "", label: "TeleCRM leads from a file not recorded", n: n}; }));
   return Promise.all(jobs).then(function(items){ return items.filter(function(x){ return x.n > 0 || (x.file && x.table === "meta_ad_rows"); }); });
 }
@@ -3511,7 +3515,7 @@ function dbPickPanel(u){
           var any = left.some(function(x){ return x.n > 0; });
           var removed = sel.map(function(x){ return x.file; });
           var upd = any ? sb.client.from("uploads").update({meta_files: (u.meta_files || []).filter(function(f){ return removed.indexOf(f) < 0 || left.some(function(x){ return x.file === f && x.n > 0; }); }),
-                crm_file: u.crm_file && removed.indexOf(u.crm_file) >= 0 ? null : u.crm_file,
+                crm_file: crmFilesOf(u).filter(function(f){ return removed.indexOf(f) < 0 || left.some(function(x){ return x.file === f && x.n > 0; }); }).join(CRM_SEP) || null,
                 meta_rows: left.filter(function(x){ return x.table === "meta_ad_rows"; }).reduce(function(a, x){ return a + x.n; }, 0),
                 crm_rows: left.filter(function(x){ return x.table === "crm_leads"; }).reduce(function(a, x){ return a + x.n; }, 0)}).eq("id", u.id)
             : sb.client.from("uploads").delete().eq("id", u.id);
@@ -3526,8 +3530,80 @@ function dbPickPanel(u){
   if (P.err2) box.appendChild(el("div", {cls: "msg err", text: "Could not remove: " + P.err2}));
   return box;
 }
-function dbRowsFromRaw(){
-  var S = state.settings, raw = state.raw, brandOf = makeBrandOf(S), out = {meta: [], crm: [], noDate: 0, level: 3, from: null, to: null};
+/* ---------- add more files to an upload that's already in the database ---------- */
+var CRM_SEP = " | ";
+function crmFilesOf(u){ return String(u.crm_file || "").split(CRM_SEP).map(clean).filter(Boolean); }
+function readUploadFile(file){
+  return readTable(file).then(function(sheets){
+    var S = state.settings, crm = pickSheet(sheets, "crm", S);
+    if (crm) return {kind: "crm", name: file.name, aoa: crm.aoa, rows: Math.max(0, crm.aoa.length - crm.header - 1)};
+    var meta = pickSheet(sheets, "meta", S);
+    if (!meta) throw new Error("not a Meta Ads or TeleCRM export (no Campaign name or " + S.cols.crm.id + " column)");
+    var n = normaliseMeta(meta.aoa, meta.header, S); n.name = file.name;
+    if (!n.rows.length) throw new Error("no campaign rows found");
+    return {kind: "meta", name: file.name, norm: n, rows: n.rows.length};
+  });
+}
+function dbAddToUpload(u, files, onStep){
+  var metas = files.filter(function(f){ return f.kind === "meta"; }), crms = files.filter(function(f){ return f.kind === "crm"; });
+  var batches = [], newFrom = null, newTo = null, add = function(r){ if (r.from !== null){ newFrom = newFrom === null ? r.from : Math.min(newFrom, r.from); newTo = newTo === null ? r.to : Math.max(newTo, r.to); } };
+  if (metas.length){ var comb = combineMeta(metas.map(function(f){ return f.norm; }));
+    var raw = {meta: comb.aoa, crm: [], metaFileOf: [].concat.apply([], metas.map(function(f){ return f.norm.rows.map(function(){ return f.name; }); }))};
+    var r1 = dbRowsFromRaw(raw, ""); add(r1); r1.meta.forEach(function(x){ batches.push(["meta_ad_rows", x]); }); }
+  crms.forEach(function(f){ var r2 = dbRowsFromRaw({meta: [], crm: f.aoa}, f.name); add(r2); r2.crm.forEach(function(x){ batches.push(["crm_leads", x]); }); });
+  if (!batches.length) return Promise.reject(new Error("Nothing to add: no dated Meta rows or CRM leads found in these files"));
+  var now = new Date().toISOString(), jobs = [], B = 500;
+  ["meta_ad_rows", "crm_leads"].forEach(function(t){ var rows = batches.filter(function(b){ return b[0] === t; }).map(function(b){ return Object.assign({}, b[1], {upload_id: u.id, updated_at: now}); });
+    for (var i = 0; i < rows.length; i += B) jobs.push([t, rows.slice(i, i + B), t === "crm_leads" ? "lead_id" : "campaign,adset,ad,day,day_end"]); });
+  var done = 0, chain = Promise.resolve();
+  jobs.forEach(function(jb){ chain = chain.then(function(){ return sb.client.from(jb[0]).upsert(jb[1], {onConflict: jb[2]}).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, batches.length); }); }); });
+  return chain.then(function(){ return Promise.all([dbCount("meta_ad_rows", u.id, null), dbCount("crm_leads", u.id, null)]); }).then(function(c){
+    var mf = (u.meta_files || []).slice(); metas.forEach(function(f){ if (mf.indexOf(f.name) < 0) mf.push(f.name); });
+    var cf = crmFilesOf(u); crms.forEach(function(f){ if (cf.indexOf(f.name) < 0) cf.push(f.name); });
+    var df = u.date_from ? dayOf(Date.parse(u.date_from + "T00:00:00Z")) : null, dt = u.date_to ? dayOf(Date.parse(u.date_to + "T00:00:00Z")) : null;
+    if (newFrom !== null){ df = df === null ? newFrom : Math.min(df, newFrom); dt = dt === null ? newTo : Math.max(dt, newTo); }
+    return sb.client.from("uploads").update({meta_files: mf, crm_file: cf.join(CRM_SEP) || null, meta_rows: c[0], crm_rows: c[1],
+      date_from: df !== null ? isoDay(df) : null, date_to: dt !== null ? isoDay(dt) : null}).eq("id", u.id)
+      .then(function(r){ if (r.error) throw r.error; return {meta: batches.filter(function(b){ return b[0] === "meta_ad_rows"; }).length, crm: batches.filter(function(b){ return b[0] === "crm_leads"; }).length}; });
+  });
+}
+function dbAddPanel(u){
+  var A = sb.upAdd || (sb.upAdd = {files: []}), box = el("div", {cls: "pick-panel"});
+  box.appendChild(el("div", {cls: "small", text: "Add more Meta Ads exports and/or a TeleCRM export to this upload (for example a brand you missed that day). CSV or XLSX; the page tells Meta and TeleCRM files apart. Rows for the same ad and day, or the same Lead id, are updated instead of duplicated."}));
+  var inp = el("input", {type: "file", accept: ".csv,.xlsx,.xls,.txt", multiple: true, id: "add-files-" + u.id, hidden: true});
+  inp.addEventListener("change", function(){ var list = Array.prototype.slice.call(inp.files || []); inp.value = ""; if (!list.length) return;
+    A.reading = true; A.msg = null; renderSavedPanel();
+    var chain = Promise.resolve();
+    list.forEach(function(file){ chain = chain.then(function(){
+      if (A.files.some(function(f){ return f.name === file.name; })) return;
+      return readUploadFile(file).then(function(f){ A.files.push(f); }).catch(function(e){ A.files.push({kind: "err", name: file.name, err: e.message || String(e)}); }); }); });
+    chain.then(function(){ A.reading = false; renderSavedPanel(); }); });
+  box.appendChild(inp);
+  box.appendChild(el("label", {cls: "drop add-drop", "for": "add-files-" + u.id}, el("span", {cls: "eyebrow", text: "Choose files"}),
+    el("span", {text: A.reading ? "Reading…" : "Click to pick Meta and TeleCRM exports (you can pick several)"})));
+  if (A.files.length){
+    var list = el("div", {cls: "pick-list"});
+    A.files.forEach(function(f, i){ list.appendChild(el("div", {cls: "pick-item" + (f.kind === "err" ? " bad" : "")}, el("span", {cls: "pill " + (f.kind === "crm" ? "good" : f.kind === "meta" ? "mut" : "bad"), text: f.kind === "crm" ? "TeleCRM" : f.kind === "meta" ? "Meta" : "Error"}),
+      el("span", {cls: "mn", text: f.name + (f.err ? ": " + f.err : "")}),
+      el("span", {cls: "mm"}, f.rows ? fInt(f.rows) + (f.kind === "crm" ? " leads" : " rows") + " · " : "", el("button", {cls: "linkbtn", type: "button", onclick: function(){ A.files.splice(i, 1); renderSavedPanel(); }}, "Remove")))); });
+    box.appendChild(list);
+  }
+  var ok = A.files.filter(function(f){ return f.kind !== "err"; });
+  var go = el("button", {cls: "btn", type: "button", id: "add-go-" + u.id, disabled: ok.length && !A.busy && !A.reading ? null : true}, A.busy ? A.busy : "Add " + (ok.length || "") + " file" + (ok.length === 1 ? "" : "s") + " to this upload");
+  go.addEventListener("click", function(){ A.busy = "Adding…"; A.msg = null; renderSavedPanel();
+    dbAddToUpload(u, ok, function(d, t){ A.busy = "Adding… " + fInt(d) + " of " + fInt(t); var b = document.getElementById("add-go-" + u.id); if (b) b.textContent = A.busy; })
+      .then(function(res){ var names = ok.map(function(f){ return f.name; }).join(", ");
+        sb.addUp = null; sb.upAdd = null; toast("Added " + fInt(res.meta) + " Meta rows and " + fInt(res.crm) + " leads to the " + new Date(u.uploaded_at).toLocaleDateString("en-IN", {dateStyle: "medium"}) + " upload");
+        sb.lastAdd = {kind: "ok", text: "Added " + names + ": " + fInt(res.meta) + " Meta rows, " + fInt(res.crm) + " leads."};
+        return dbRefreshLists(); })
+      .then(function(){ renderSavedPanel(); if (state.source === "db") dbOpen(true); })
+      .catch(function(e){ A.busy = null; A.msg = {kind: "err", text: "Could not add: " + (e.message || e)}; renderSavedPanel(); }); });
+  box.appendChild(el("div", {cls: "actions"}, go, el("button", {cls: "btn ghost", type: "button", onclick: function(){ sb.addUp = null; sb.upAdd = null; renderSavedPanel(); }}, "Cancel")));
+  if (A.msg) box.appendChild(el("div", {cls: "msg " + A.msg.kind, role: "alert", text: A.msg.text}));
+  return box;
+}
+function dbRowsFromRaw(rawIn, crmName){
+  var S = state.settings, raw = rawIn || state.raw, brandOf = makeBrandOf(S), out = {meta: [], crm: [], noDate: 0, level: 3, from: null, to: null};
   var mh = findMetaHeader(raw.meta, S.cols.meta);
   if (mh >= 0){
     var H = raw.meta[mh], c = detectMetaColumns(H, S.cols.meta), cur = c.spend >= 0 ? String(H[c.spend]).match(/\(([A-Za-z]{3})\)/) : null, code = cur ? cur[1].toUpperCase() : "INR", mm = {};
@@ -3556,7 +3632,7 @@ function dbRowsFromRaw(){
       var camp2 = g(row, k.campaign), crmBrand = g(row, k.brand), status = g(row, k.status), id = g(row, k.id);
       var lid = id || ("noid:" + (isNum(created) ? created : "") + "|" + camp2 + "|" + g(row, k.ad) + "|" + g(row, k.owner) + "|" + j);
       var tat = isNum(created) && isNum(fc) && fc >= created ? Math.round((fc - created) / 6000) / 10 : null;
-      cm[lid] = {source_file: (state.files && state.files.crm && state.files.crm.name) || "", lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
+      cm[lid] = {source_file: crmName || (state.files && state.files.crm && state.files.crm.name) || "", lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
         status: status, crm_brand: crmBrand, first_call: tsStr(fc), owner: g(row, k.owner), manager: g(row, k.manager), brand: camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign"),
         is_ql: status ? !!classifyStatus(status, S).ql : false, tat_min: tat};
       if (isNum(created)){ var cd = dayOf(created); out.from = out.from === null ? cd : Math.min(out.from, cd); out.to = out.to === null ? cd : Math.max(out.to, cd); }
@@ -3720,14 +3796,17 @@ function renderDbSection(x){
         el("td", {cls: "nowrap", text: u.uploaded_by}),
         el("td", {cls: "nowrap", text: u.date_from ? spanText({from: dayOf(Date.parse(u.date_from + "T00:00:00Z")), to: dayOf(Date.parse((u.date_to || u.date_from) + "T00:00:00Z"))}) : "—"}),
         el("td", {cls: "r num nowrap", text: fInt(u.meta_rows)}), el("td", {cls: "r num nowrap", text: fInt(u.crm_rows)}),
-        el("td", {cls: "small", text: (u.meta_files || []).join(", ") + (u.crm_file ? " · " + u.crm_file : "")}),
-        el("td", {cls: "nowrap"}, sb.role !== "admin" ? null : el("button", {cls: "linkbtn", type: "button", onclick: function(){
-          if (conf){ sb.confirmUp = null; sb.upPick = null; renderSavedPanel(); return; } sb.confirmUp = u.id; sb.upPick = {loading: true}; renderSavedPanel(); dbUploadParts(u).then(function(items){ if (sb.confirmUp === u.id){ sb.upPick = {items: items}; renderSavedPanel(); } })
+        el("td", {cls: "small", text: (u.meta_files || []).join(", ") + (u.crm_file ? " · " + crmFilesOf(u).join(", ") : "")}),
+        el("td", {cls: "nowrap row-acts"}, sbCanWrite() ? el("button", {cls: "linkbtn", type: "button", onclick: function(){
+          if (sb.addUp === u.id){ sb.addUp = null; sb.upAdd = null; renderSavedPanel(); return; } sb.confirmUp = null; sb.upPick = null; sb.addUp = u.id; sb.upAdd = {files: []}; renderSavedPanel(); }}, sb.addUp === u.id ? "Close" : "Add files…") : null,
+          sb.role !== "admin" ? null : el("button", {cls: "linkbtn", type: "button", onclick: function(){
+          if (conf){ sb.confirmUp = null; sb.upPick = null; renderSavedPanel(); return; } sb.addUp = null; sb.upAdd = null; sb.confirmUp = u.id; sb.upPick = {loading: true}; renderSavedPanel(); dbUploadParts(u).then(function(items){ if (sb.confirmUp === u.id){ sb.upPick = {items: items}; renderSavedPanel(); } })
             .catch(function(e){ sb.upPick = {err: e.message || String(e)}; renderSavedPanel(); }); }}, conf ? "Close" : "Remove files…"))));
       if (conf) tb.appendChild(el("tr", {cls: "pick-row"}, el("td", {colspan: "7"}, dbPickPanel(u))));
+      if (sb.addUp === u.id) tb.appendChild(el("tr", {cls: "pick-row"}, el("td", {colspan: "7"}, dbAddPanel(u))));
     });
     box.appendChild(el("h3", {style: "font-size:14px", text: "Recent uploads"}));
-    box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:320px"}, el("table", null,
+    box.appendChild(el("div", {cls: "tbl-wrap", style: sb.addUp || sb.confirmUp ? "max-height:none" : "max-height:420px"}, el("table", null,
       el("thead", null, el("tr", null, ["Uploaded", "By", "Data dates", "Meta rows", "Leads", "Files", ""].map(function(h, i){ return el("th", {cls: i === 3 || i === 4 ? "r" : "", scope: "col", style: "cursor:default", text: h}); }))), tb)));
   }
   /* team members (admin) */
