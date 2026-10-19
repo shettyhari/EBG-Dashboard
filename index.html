@@ -960,6 +960,21 @@ function campKey(name){ return clean(name).toLowerCase(); }
 /* duplicate-person keys: phone (last 10 digits), email, Facebook lead id */
 function normPhone(v){ var d = String(v == null ? "" : v).replace(/\D+/g, ""); return d.length >= 7 ? d.slice(-10) : ""; }
 function normEmail(v){ var e = clean(v).toLowerCase(); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : ""; }
+function crmDupInfo(aoa, ch, S){
+  var cc = S.cols.crm, H = aoa[ch], brandOf = makeBrandOf(S), k = {id: findCol(H, cc.id), created: findCol(H, cc.created), camp: findCol(H, cc.campaign), brand: findCol(H, cc.brand),
+    phone: findCol(H, cc.phone), email: findCol(H, cc.email), fbLead: findCol(H, cc.fbLead)}, out = {}, ents = [], lastBy = {};
+  if (k.phone < 0 && k.email < 0 && k.fbLead < 0) return out;
+  for (var j = ch + 1; j < aoa.length; j++){ var r = aoa[j] || [], at = parseDT(r[k.created]); if (!isNum(at)) continue;
+    var c0 = clean(r[k.camp]), b0 = k.brand >= 0 ? clean(r[k.brand]) : "", b = (c0 ? brandOf(c0) : (b0 ? brandOf(b0) : "No campaign")).toLowerCase(), ks = [];
+    var ph = k.phone >= 0 ? normPhone(r[k.phone]) : "", em = k.email >= 0 ? normEmail(r[k.email]) : "", fl = k.fbLead >= 0 ? normFbLead(r[k.fbLead]) : "";
+    if (ph) ks.push(["phone", "p:" + ph]); if (em) ks.push(["email", "e:" + em]); if (fl) ks.push(["facebook lead id", "f:" + fl]);
+    if (ks.length) ents.push({j: j, at: at, id: clean(r[k.id]) || ("row " + j), b: b, ks: ks}); }
+  ents.sort(function(a, b){ return (a.at - b.at) || (a.j - b.j); });
+  ents.forEach(function(e){ var best = null;
+    e.ks.forEach(function(kk){ var p = lastBy[e.b + "|" + kk[1]]; if (p && p.id !== e.id && (!best || p.at > best.prevAt)) best = {prev: p.id, prevAt: p.at, how: kk[0]}; });
+    if (best) out[e.j] = best; e.ks.forEach(function(kk){ lastBy[e.b + "|" + kk[1]] = {id: e.id, at: e.at}; }); });
+  return out;
+}
 function normFbLead(v){ var x = clean(v).replace(/^l:/i, ""); return /^[0-9]{6,}$/.test(x) ? x : ""; }
 /* lead forms and WhatsApp / Messenger conversations count as leads; landing page views, link clicks etc. don't */
 function isLeadIndicator(v){ var t = String(v).toLowerCase(); return t.indexOf("lead") >= 0 || /messaging[ _.]?conversation/.test(t); }
@@ -3273,10 +3288,15 @@ function leanData(raw, S){
     meta = [keep.map(function(f){ return raw.meta[mh][c[f]]; })];
     for (var i = mh + 1; i < raw.meta.length; i++){ var row = raw.meta[i] || []; if (!clean(row[c.campaign])) continue; meta.push(keep.map(function(f){ return row[c[f]]; })); } }
   var ch = findHeaderRow(raw.crm, S.cols.crm.id), crm = [[]];
-  if (ch >= 0){ var H = raw.crm[ch], ks = Object.keys(S.cols.crm).map(function(k){ return findCol(H, S.cols.crm[k]); }).filter(function(ix){ return ix >= 0; });
-    crm = [ks.map(function(ix){ return H[ix]; })];
+  if (ch >= 0){ var H = raw.crm[ch], ks = Object.keys(S.cols.crm).filter(function(k){ return ["phone", "email", "fbLead"].indexOf(k) < 0; })
+      .map(function(k){ return findCol(H, S.cols.crm[k]); }).filter(function(ix){ return ix >= 0; });
+    /* phone numbers and emails are never saved: keep only who each repeat lead duplicates */
+    var pv = ["Previous lead", "Previous lead created", "Duplicate match"].map(function(n){ return findCol(H, n); }), dupI = pv[0] >= 0 ? null : crmDupInfo(raw.crm, ch, S);
+    crm = [ks.map(function(ix){ return H[ix]; }).concat(["Previous lead", "Previous lead created", "Duplicate match"])];
     for (var j = ch + 1; j < raw.crm.length; j++){ var rr = raw.crm[j] || [], has = rr.some(function(v){ return v !== null && v !== undefined && String(v).trim() !== ""; });
-      if (!has) continue; var out = ks.map(function(ix){ return rr[ix] === undefined ? "" : rr[ix]; });
+      if (!has) continue; var di = dupI ? dupI[j] : null;
+      var out = ks.map(function(ix){ return rr[ix] === undefined ? "" : rr[ix]; }).concat(dupI ? [di ? di.prev : "", di && isNum(di.prevAt) ? tsStr(di.prevAt) : "", di ? di.how : ""]
+        : pv.map(function(ix){ return ix >= 0 && rr[ix] !== undefined ? rr[ix] : ""; }));
       if (!out.some(function(v){ return String(v).trim() !== ""; })) out[0] = "-"; crm.push(out); } }
   return {meta: meta, crm: crm};
 }
