@@ -997,6 +997,7 @@ function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null && L.tat
   if (isNum(L.wh)){ o.wsum += L.wh; o.whs.push(L.wh); } if (L.sla === "Pending"){ o.pendO += L.pendO || 0; o.pendW += L.pendW || 0; }
   if (L.status !== undefined){ var st = L.status || "(no status)"; o.statusN[st] = (o.statusN[st] || 0) + 1; } if (L.sla === "Within SLA") o.win++; if (L.sla !== "Invalid timestamp") o.elig++; if (L.sla === "Pending") o.pend++; }
 function derive(o){
+  o.qlRate = o.crm ? o.ql / o.crm : null;
   o.ctr = isNum(o.imp) && o.imp > 0 && isNum(o.clk) ? o.clk / o.imp : null;
   o.cpc = isNum(o.spend) && isNum(o.clk) && o.clk > 0 ? o.spend / o.clk : null;
   o.reachV = isNum(o.reach) && o.reachRows === 1 ? o.reach : null;
@@ -1232,8 +1233,8 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
   ];
   var statuses = statusFirst.map(function(s){ var c2 = classifyStatus(s, S); return {status: s, count: statusSeen[s], ql: c2.ql, reason: c2.reason, override: S.qlOverride[s.toLowerCase()] || ""}; });
   var needsCall = [], lite = [];
-  leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla, L.wh, L.pendO, L.pendW, L.manager]);
-    if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, manager: L.manager, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, wh: L.wh, pendO: L.pendO, pendW: L.pendW, sla: L.sla, status: L.status}); });
+  leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla, L.wh, L.pendO, L.pendW, L.manager, L.isQL ? 1 : 0]);
+    if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, manager: L.manager, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, wh: L.wh, pendO: L.pendO, pendW: L.pendW, sla: L.sla, status: L.status, isQL: L.isQL}); });
   var dayList = Object.keys(dataDays).map(Number).sort(function(a, b){ return a - b; });
   return {range: range || null, avail: {min: dayList.length ? dayList[0] : null, max: dayList.length ? dayList[dayList.length - 1] : null, days: dayList},
           partialRows: partialRows, metaRowsIn: metaRowsIn,
@@ -1351,6 +1352,7 @@ function metricCols(level){
     {k: "platform", label: "Ad platform", t: "text", get: function(r){ return r.nocamp ? "—" : R.platform; }, nosort: true, def: false},
     {k: "cpl", label: "CPL", t: "inr"},
     {k: "ql", label: "Qualified leads", t: "int"},
+    {k: "qlRate", label: "QL rate", t: "pct"},
     {k: "cpql", label: "CPQL", t: "inr"}]
     .concat(mediaCols()).concat(tatCols())
     .concat([{k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}]);
@@ -1359,7 +1361,7 @@ function brandCols(){ var R = state.R;
   return [{k: "brand", label: "Brand", t: "text", cls: "name", lock: true}].concat(mediaCols()).concat([
     {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
     {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
-    {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "cpql", label: "CPQL", t: "inr"},
+    {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "qlRate", label: "QL rate", t: "pct"}, {k: "cpql", label: "CPQL", t: "inr"},
     {k: "noCamp", label: "CRM leads with no campaign", t: "int"}]).concat(tatCols());
 }
 
@@ -2740,11 +2742,11 @@ function exportPrefs(){
   if (p && p.sheets) Object.keys(d.sheets).forEach(function(k){ if (k in p.sheets) d.sheets[k] = !!p.sheets[k]; });
   d.allCols = !!(p && p.allCols);
   return d; }
-function ownerAcc(name){ return {owner: name, leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0, tats: [], whs: [], wsum: 0, pendO: 0, pendW: 0}; }
-function ownerAdd(o, x){ o.leads++; if (isNum(x[2])){ o.called++; o.ts += x[2]; o.tats.push(x[2]); } if (isNum(x[4])){ o.wsum += x[4]; o.whs.push(x[4]); }
+function ownerAcc(name){ return {owner: name, ql: 0, leads: 0, called: 0, ts: 0, win: 0, del: 0, pend: 0, inv: 0, tats: [], whs: [], wsum: 0, pendO: 0, pendW: 0}; }
+function ownerAdd(o, x){ o.leads++; if (x[8]) o.ql++; if (isNum(x[2])){ o.called++; o.ts += x[2]; o.tats.push(x[2]); } if (isNum(x[4])){ o.wsum += x[4]; o.whs.push(x[4]); }
   if (x[3] === "Within SLA") o.win++; else if (x[3] === "Delayed") o.del++; else if (x[3] === "Pending"){ o.pend++; o.pendO += x[5] || 0; o.pendW += x[6] || 0; } else o.inv++; }
-function ownerMerge(T, o){ ["leads", "called", "ts", "win", "del", "pend", "inv", "wsum", "pendO", "pendW"].forEach(function(k){ T[k] += o[k]; }); T.tats = T.tats.concat(o.tats); T.whs = T.whs.concat(o.whs); }
-function ownerFin(o){ o.tat = o.called ? o.ts / o.called : null; o.tatMed = median(o.tats); o.whAvg = o.whs.length ? o.wsum / o.whs.length : null; o.whMed = median(o.whs);
+function ownerMerge(T, o){ ["leads", "ql", "called", "ts", "win", "del", "pend", "inv", "wsum", "pendO", "pendW"].forEach(function(k){ T[k] += o[k]; }); T.tats = T.tats.concat(o.tats); T.whs = T.whs.concat(o.whs); }
+function ownerFin(o){ o.qlRate = o.leads ? o.ql / o.leads : null; o.tat = o.called ? o.ts / o.called : null; o.tatMed = median(o.tats); o.whAvg = o.whs.length ? o.wsum / o.whs.length : null; o.whMed = median(o.whs);
   o.pendAgeO = o.pend ? o.pendO / o.pend : null; o.pendAgeW = o.pend ? o.pendW / o.pend : null;
   o.sla = o.win + o.del + o.pend ? o.win / (o.win + o.del + o.pend) : null; return o; }
 function ownerRows(ok){
@@ -2795,7 +2797,7 @@ function managerFlat(cols, mgrs, all){
 }
 
 function ownerCols(){ var R = state.R;
-  return [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name", lock: true}, {k: "leads", label: "Leads", t: "int"}, {k: "called", label: "Contacted", t: "int"},
+  return [{k: "owner", label: "Owner (assignee)", t: "text", cls: "name", lock: true}, {k: "leads", label: "Leads", t: "int"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "qlRate", label: "QL rate", t: "pct"}, {k: "called", label: "Contacted", t: "int"},
     {k: "tat", label: "Overall TAT (avg)", t: "min", flag: function(r){ return isNum(r.tat) && r.tat > R.slaMin ? "bad" : null; }}, {k: "tatMed", label: "Overall TAT (median)", t: "min"},
     {k: "whAvg", label: "Working-hrs TAT (avg)", t: "min"}, {k: "whMed", label: "Working-hrs TAT (median)", t: "min"},
     {k: "win", label: "Within SLA", t: "int"}, {k: "del", label: "Call delayed", t: "int"}, {k: "pend", label: "Not Contacted", t: "int", flag: function(r){ return r.pend ? "warn" : null; }},
@@ -2804,6 +2806,7 @@ function ownerCols(){ var R = state.R;
 function callCols(){ return [{k: "id", label: "Lead id", t: "text", cls: "nowrap", lock: true}, {k: "created", label: "Created", t: "dt", cls: "nowrap"},
     {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "ad", label: "Ad", t: "text", cls: "name"},
     {k: "owner", label: "Owner", t: "text", cls: "nowrap"}, {k: "manager", label: "Manager", t: "text", cls: "nowrap", def: !!(state.R && state.R.hasManager)}, {k: "fc", label: "First contact", t: "dt", cls: "nowrap"},
+    {k: "qlL", label: "Qualified", t: "text", get: function(r){ return r.isQL ? "QL" : "Not QL"; }, render: function(r){ return el("span", {cls: "pill " + (r.isQL ? "good" : "mut"), text: r.isQL ? "QL" : "Not QL"}); }},
     {k: "tat", label: "Overall TAT", t: "min"}, {k: "wh", label: "Working-hrs TAT", t: "min"},
     {k: "pendO", label: "Waiting (overall)", t: "min"}, {k: "pendW", label: "Waiting (working hrs)", t: "min"},
     {k: "slaL", label: "Contact status", t: "text", get: function(r){ return slaLabel(r.sla); }, flag: function(r){ return r.sla === "Delayed" ? "bad" : r.sla === "Pending" ? "warn" : null; },
