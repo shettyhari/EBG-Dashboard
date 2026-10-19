@@ -95,6 +95,63 @@ create index if not exists meta_ad_rows_upload_file_idx on public.meta_ad_rows (
 create index if not exists crm_leads_upload_file_idx on public.crm_leads (upload_id, source_file);
 
 -- ---------------------------------------------------------------
+-- Duplicate leads: same person (phone, email or Facebook lead id) for the same brand.
+-- Phone numbers and emails are never stored: lead_keys() returns HMAC keys made with a secret kept in Vault.
+-- ---------------------------------------------------------------
+alter table public.crm_leads add column if not exists phone_key text not null default '';
+alter table public.crm_leads add column if not exists email_key text not null default '';
+alter table public.crm_leads add column if not exists fb_lead_id text not null default '';
+alter table public.crm_leads add column if not exists prev_lead text;
+alter table public.crm_leads add column if not exists prev_created timestamp;
+alter table public.crm_leads add column if not exists dup_match text;
+create index if not exists crm_leads_phone_key_idx on public.crm_leads (brand, phone_key) where phone_key <> '';
+create index if not exists crm_leads_email_key_idx on public.crm_leads (brand, email_key) where email_key <> '';
+create index if not exists crm_leads_fb_lead_idx on public.crm_leads (brand, fb_lead_id) where fb_lead_id <> '';
+do $$ begin
+  if not exists (select 1 from vault.secrets where name = 'lead_key_pepper') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'lead_key_pepper', 'HMAC key for lead duplicate detection');
+  end if;
+end $$;
+create or replace function public.lead_keys(vals text[]) returns text[]
+language plpgsql stable security definer set search_path = '' as $f$
+declare pep text; out text[];
+begin
+  if (select private.team_role()) not in ('admin', 'editor') then raise exception 'not allowed'; end if;
+  select decrypted_secret into pep from vault.decrypted_secrets where name = 'lead_key_pepper';
+  select array_agg(case when coalesce(v, '') = '' then '' else encode(extensions.hmac(v, pep, 'sha256'), 'hex') end order by i)
+    into out from unnest(vals) with ordinality as t(v, i);
+  return coalesce(out, '{}');
+end $f$;
+revoke all on function public.lead_keys(text[]) from public, anon;
+grant execute on function public.lead_keys(text[]) to authenticated;
+create or replace function public.refresh_lead_dupes() returns integer
+language plpgsql security invoker set search_path = '' as $f$
+declare n integer;
+begin
+  if (select private.team_role()) not in ('admin', 'editor') then raise exception 'not allowed'; end if;
+  with m as (
+    select c.lead_id, p.lead_id as prev_lead, p.created_on as prev_created, p.how
+    from public.crm_leads c
+    left join lateral (
+      select l.lead_id, l.created_on,
+             case when c.phone_key <> '' and l.phone_key = c.phone_key then 'phone'
+                  when c.email_key <> '' and l.email_key = c.email_key then 'email' else 'facebook lead id' end as how
+      from public.crm_leads l
+      where l.brand = c.brand and l.lead_id <> c.lead_id and c.created_on is not null and l.created_on is not null
+        and (l.created_on < c.created_on or (l.created_on = c.created_on and l.lead_id < c.lead_id))
+        and ((c.phone_key <> '' and l.phone_key = c.phone_key) or (c.email_key <> '' and l.email_key = c.email_key)
+             or (c.fb_lead_id <> '' and l.fb_lead_id = c.fb_lead_id))
+      order by l.created_on desc, l.lead_id desc limit 1) p on true)
+  update public.crm_leads c set prev_lead = m.prev_lead, prev_created = m.prev_created, dup_match = m.how
+  from m where m.lead_id = c.lead_id
+    and (c.prev_lead is distinct from m.prev_lead or c.prev_created is distinct from m.prev_created or c.dup_match is distinct from m.how);
+  get diagnostics n = row_count;
+  return n;
+end $f$;
+revoke all on function public.refresh_lead_dupes() from public, anon;
+grant execute on function public.refresh_lead_dupes() to authenticated;
+
+-- ---------------------------------------------------------------
 -- Shared settings (brands, keywords, QL rules, excluded campaigns): one row
 -- ---------------------------------------------------------------
 create table if not exists public.team_settings (

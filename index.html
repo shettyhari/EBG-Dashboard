@@ -836,14 +836,14 @@ var DEFAULT_SETTINGS = {
   brands: ["Adhira & Appa","Acer","Carlton","Natuf","Tarzan","Shayreen by Natuf","Bonumcha","Chhota Bheem","EBG Rental"],
   keywords: [["Shayreen","Shayreen by Natuf"],["AAC","Adhira & Appa"],["Adhira","Adhira & Appa"],["ACER","Acer"],["Carlton","Carlton"],["Natuf","Natuf"],["Tarzan","Tarzan"],["Bonumcha","Bonumcha"],["Chhota Bheem","Chhota Bheem"],["Chhotabheem","Chhota Bheem"],["EBG Rental","EBG Rental"],["Rental","EBG Rental"]],
   slaMin: 30, diffAlert: 0.10, slaTarget: 0.8, platform: "Meta Ads",
-  optSource: false, optDates: false, optDedupe: false, showOther: false, from: "", to: "",
+  optSource: false, optDates: false, optDedupe: false, dupExclude: true, dupDays: 0, showOther: false, from: "", to: "",
   metaSources: ["Facebook","Instagram"],
   qlPos: QL_POS_DEF.slice(), qlNeg: QL_NEG_DEF.slice(), qlOverride: {},
   excludedCampaigns: [], includedCampaigns: [], autoExcludeNonLead: true, sourceMap: {},
   holidays: DEFAULT_HOLIDAYS.map(function(h){ return {id: "h" + h[1].replace(/-/g, ""), name: h[0], date: h[1], active: true}; }),
   cols: {
     meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
-    crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name", manager:"Assignee Manager name"}
+    crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name", manager:"Assignee Manager name", phone:"Phone", email:"Email", fbLead:"Facebook Lead ID"}
   }
 };
 function isNum(x){ return typeof x === "number" && isFinite(x); }
@@ -957,6 +957,10 @@ function classifyStatus(status, S){
   return {ql: false, reason: "No buying intent yet (early stage)"};
 }
 function campKey(name){ return clean(name).toLowerCase(); }
+/* duplicate-person keys: phone (last 10 digits), email, Facebook lead id */
+function normPhone(v){ var d = String(v == null ? "" : v).replace(/\D+/g, ""); return d.length >= 7 ? d.slice(-10) : ""; }
+function normEmail(v){ var e = clean(v).toLowerCase(); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : ""; }
+function normFbLead(v){ var x = clean(v).replace(/^l:/i, ""); return /^[0-9]{6,}$/.test(x) ? x : ""; }
 /* lead forms and WhatsApp / Messenger conversations count as leads; landing page views, link clicks etc. don't */
 function isLeadIndicator(v){ var t = String(v).toLowerCase(); return t.indexOf("lead") >= 0 || /messaging[ _.]?conversation/.test(t); }
 function prettyIndicator(v){ var s = String(v).replace(/^actions:/i, "").replace(/^offsite_conversion\.fb_pixel_/i, "").replace(/^onsite_conversion\./i, "").replace(/^omni_/i, "").replace(/[_.]+/g, " ").trim();
@@ -1101,8 +1105,30 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     var HC = crmAOA[ch];
     var k = {id: findCol(HC, cc.id), created: findCol(HC, cc.created), source: findCol(HC, cc.source), camp: findCol(HC, cc.campaign),
              adset: findCol(HC, cc.adset), ad: findCol(HC, cc.ad), status: findCol(HC, cc.status), brand: findCol(HC, cc.brand),
-             fc: findCol(HC, cc.firstCall), owner: findCol(HC, cc.owner), manager: findCol(HC, cc.manager)};
+             fc: findCol(HC, cc.firstCall), owner: findCol(HC, cc.owner), manager: findCol(HC, cc.manager),
+             phone: findCol(HC, cc.phone), email: findCol(HC, cc.email), fbLead: findCol(HC, cc.fbLead),
+             prevLead: findCol(HC, "Previous lead"), prevCreated: findCol(HC, "Previous lead created"), dupHow: findCol(HC, "Duplicate match")};
     hasManager = k.manager >= 0;
+    /* ---- same person, same brand, earlier lead: from the database (Previous lead) or worked out here from phone / email / Facebook lead id ---- */
+    var dupInfo = {}, dupKeysFound = k.prevLead >= 0 || k.phone >= 0 || k.email >= 0 || k.fbLead >= 0;
+    var gB = function(r){ var c0 = clean(r[k.camp]), b0 = k.brand >= 0 ? clean(r[k.brand]) : ""; return c0 ? brandOf(c0) : (b0 ? brandOf(b0) : "No campaign"); };
+    if (k.prevLead >= 0){
+      for (var jd = ch + 1; jd < crmAOA.length; jd++){ var rd = crmAOA[jd] || [], pl = clean(rd[k.prevLead]);
+        if (pl) dupInfo[jd] = {prev: pl, prevAt: k.prevCreated >= 0 ? parseDT(rd[k.prevCreated]) : null, how: k.dupHow >= 0 ? clean(rd[k.dupHow]) : ""}; }
+    } else if (k.phone >= 0 || k.email >= 0 || k.fbLead >= 0){
+      var ents = [];
+      for (var je = ch + 1; je < crmAOA.length; je++){ var re = crmAOA[je] || [], ce = parseDT(re[k.created]); if (!isNum(ce)) continue;
+        var ks = []; var ph = k.phone >= 0 ? normPhone(re[k.phone]) : "", em = k.email >= 0 ? normEmail(re[k.email]) : "", fl = k.fbLead >= 0 ? normFbLead(re[k.fbLead]) : "";
+        if (ph) ks.push(["phone", "p:" + ph]); if (em) ks.push(["email", "e:" + em]); if (fl) ks.push(["facebook lead id", "f:" + fl]);
+        if (ks.length) ents.push({j: je, at: ce, id: clean(re[k.id]) || ("row " + je), b: gB(re).toLowerCase(), ks: ks}); }
+      ents.sort(function(a, b){ return (a.at - b.at) || (a.j - b.j); });
+      var lastBy = {};
+      ents.forEach(function(e){ var best = null;
+        e.ks.forEach(function(kk){ var p = lastBy[e.b + "|" + kk[1]]; if (p && p.id !== e.id && (!best || p.at > best.at)) best = {prev: p.id, prevAt: p.at, how: kk[0]}; });
+        if (best) dupInfo[e.j] = best;
+        e.ks.forEach(function(kk){ lastBy[e.b + "|" + kk[1]] = {id: e.id, at: e.at}; }); });
+    }
+    var dupWin = (num(S.dupDays) > 0 ? num(S.dupDays) : 0) * 86400000, dupList = [], dupIds = {};
     ["created", "camp", "adset", "ad"].forEach(function(f){ if (k[f] < 0) missing.push("TeleCRM: " + cc[{created: "created", camp: "campaign", adset: "adset", ad: "ad"}[f]]); });
     var srcSet = {}; S.metaSources.forEach(function(s){ if (s) srcSet[String(s).trim().toLowerCase()] = 1; });
     var idFirst = {};
@@ -1124,7 +1150,12 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       if (!sourceOK) cnt.nonMeta++;
       var inRange = isNum(created) && dayOf(created) >= effFrom && dayOf(created) <= effTo;
       if (isNum(created) && !inRange) cnt.outRange++;
+      var dpi = dupInfo[j], isDup = !!(dpi && (!dupWin || !isNum(dpi.prevAt) || !isNum(created) || created - dpi.prevAt <= dupWin));
       var counted = (!S.optDedupe || !id || first) && (!S.optSource || sourceOK) && (!S.optDates || inRange);
+      if (counted && isDup){ cnt.dupPerson = (cnt.dupPerson || 0) + 1;
+        if (dupList.length < 5000) dupList.push({id: id, created: isNum(created) ? created : null, brand: brand, campaign: camp2 || ("(No campaign) — " + (source || "blank source")), source: source, status: status,
+          prev: dpi.prev, prevAt: isNum(dpi.prevAt) ? dpi.prevAt : null, how: dpi.how, gapH: isNum(dpi.prevAt) && isNum(created) ? (created - dpi.prevAt) / 3600000 : null, excluded: !!S.dupExclude});
+        if (S.dupExclude){ counted = false; if (id) dupIds[id] = 1; } }
       if (status && !(status in statusSeen)){ statusSeen[status] = 0; statusFirst.push(status); }
       var brand = camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign");
       /* leads TeleCRM saved without a campaign (e.g. WhatsApp Cloud API) can be mapped to a Meta campaign in Settings */
@@ -1230,6 +1261,9 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     {k: "nocamp", label: "CRM leads with no Facebook campaign (Website, WhatsApp…)", n: cnt.noCampCounted, kind: cnt.noCampCounted ? "warn" : "ok", detail: "Shown as “(No campaign) — source” rows under their CRM brand."},
     {k: "nonMeta", label: "CRM rows from non-Meta sources", n: cnt.nonMeta, kind: cnt.nonMeta ? "warn" : "ok", detail: S.optSource ? "Excluded (counting rule on)." : "Counted (counting rule off)."},
     {k: "outRange", label: "CRM rows created outside the report dates", n: cnt.outRange, kind: cnt.outRange ? "warn" : "ok", detail: S.optDates ? "Excluded (counting rule on)." : "Counted (counting rule off)."},
+    {k: "dupPerson", label: "Duplicate leads: same person came in again for the same brand (phone, email or Facebook lead id)", n: cnt.dupPerson || 0, kind: cnt.dupPerson ? "warn" : (dupKeysFound ? "ok" : "warn"),
+     detail: !dupKeysFound ? "No Phone, Email or Facebook Lead ID column found, so repeat leads can't be detected. Include them in the TeleCRM export (column names in Settings)." :
+       (S.dupExclude ? "Left out of Leads in CRM, QLs, CPQL and TAT (Settings › Counting rules). " : "Still counted (Settings › Counting rules). ") + (num(S.dupDays) > 0 ? "Window: within " + num(S.dupDays) + " days of the earlier lead." : "Window: any earlier lead.") + " See the list on the Data checks tab."},
     {k: "dup", label: "CRM rows with a duplicate Lead id (extra copies)", n: cnt.dupExtra, kind: cnt.dupExtra ? "warn" : "ok", detail: S.optDedupe ? "Extra copies excluded (counting rule on)." : "Counted (counting rule off)."},
     {k: "bad", label: "CRM rows without Lead id or with an unreadable Created On", n: cnt.noId + cnt.badCreated, kind: cnt.noId + cnt.badCreated ? "warn" : "ok"},
     {k: "metaDup", label: "Meta rows that look pasted twice (same ad and date)", n: dupRows, kind: dupRows ? "warn" : "ok"},
@@ -1247,7 +1281,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
           partialRows: partialRows, metaRowsIn: metaRowsIn,
           period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
           resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
-          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, needsCall: needsCall, lite: lite, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
+          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, needsCall: needsCall, lite: lite, dupList: dupList || [], dupIds: dupIds || {}, dupKeys: !!dupKeysFound, dupExcluded: !!S.dupExclude, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
           slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform, now: nowT, holidaysActive: Object.keys(hol).length};
 }
 // ENGINE END
@@ -1832,9 +1866,24 @@ function viewChecks(){
   return el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: "Data checks"}), el("span", {cls: "note", text: "Run on every load. With counting rules off, leads in the report plus leads left out must equal the CRM rows pasted."})),
     box,
+    dupSection(),
     el("div", {cls: "sec-head"}, el("h2", {text: "CRM leads not matched to a Meta ad"}), el("span", {cls: "note", text: "Matched on Facebook Campaign + Ad Set + Ad name. These keep their own rows; nothing is guessed onto another ad."})),
     el("div", {cls: "tbl-tools"}, searchBox("unm", "Search lead id, campaign or ad")),
     table("unm", ucols, un, {empty: "Every CRM lead with a campaign matched a Meta ad."}));
+}
+function dupSection(){
+  var R = state.R, list = (R.dupList || []).filter(function(d){ return brandOK(d.brand) && matchQ("dups", d, ["id", "prev", "campaign", "source"]); });
+  var cols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap", lock: true}, {k: "created", label: "Created", t: "dt", cls: "nowrap"}, {k: "brand", label: "Brand", t: "text", cls: "nowrap"},
+    {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "source", label: "Lead source", t: "text", cls: "nowrap"}, {k: "status", label: "Status", t: "text", cls: "nowrap"},
+    {k: "how", label: "Matched on", t: "text", cls: "nowrap"}, {k: "prev", label: "Earlier lead id", t: "text", cls: "nowrap"}, {k: "prevAt", label: "Earlier lead created", t: "dt", cls: "nowrap"},
+    {k: "gapH", label: "Time since earlier lead", t: "text", cls: "nowrap", get: function(r){ return !isNum(r.gapH) ? "" : r.gapH < 24 ? Math.round(r.gapH) + " hrs" : Math.round(r.gapH / 24) + " days"; }},
+    {k: "excluded", label: "Counted?", t: "text", get: function(r){ return r.excluded ? "Left out" : "Counted"; }, render: function(r){ return el("span", {cls: "pill " + (r.excluded ? "warn" : "mut"), text: r.excluded ? "Left out" : "Counted"}); }}];
+  return el("div", {cls: "panel", id: "dups"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "Duplicate leads (" + fInt(list.length) + ")"}),
+      el("span", {cls: "note", text: R.dupKeys ? "The same person (same phone, email or Facebook lead id) came in again for the same brand. The first lead counts; later ones are " + (R.dupExcluded ? "left out" : "counted but flagged") + ". Change this in Settings › Counting rules. Phone numbers and emails aren't stored: the database keeps only a coded key." :
+        "Add the Phone, Email or Facebook Lead ID columns to the TeleCRM export to detect repeat leads."})),
+    el("div", {cls: "tbl-tools"}, searchBox("dups", "Search lead id, earlier lead id or campaign")),
+    table("dups", cols, list, {empty: R.dupKeys ? "No duplicate leads for this filter." : "Duplicate detection needs Phone, Email or Facebook Lead ID in the TeleCRM data."}));
 }
 function viewQL(){
   var R = state.R, editable = !!state.raw;
@@ -1881,7 +1930,9 @@ function viewSettings(){
         tog("s-odate", "Count only leads created within the report dates", S.optDates),
         el("div", {cls: "field"}, el("label", {"for": "s-from", text: "Report from (blank = Meta export start)"}), el("input", {type: "date", id: "s-from", value: S.from || ""})),
         el("div", {cls: "field"}, el("label", {"for": "s-to", text: "Report to (blank = Meta export end)"}), el("input", {type: "date", id: "s-to", value: S.to || ""})),
-        tog("s-odup", "Count a duplicated Lead id only once (first row kept)", S.optDedupe)),
+        tog("s-odup", "Count a duplicated Lead id only once (first row kept)", S.optDedupe),
+        tog("s-dupx", "Leave out duplicate leads: same person (phone, email or Facebook lead id) already came in for the same brand", S.dupExclude !== false),
+        numField("s-dupd", "…only if the earlier lead was within this many days (0 = any time)", num(S.dupDays) || 0, "1", "Example: 30 counts someone who comes back after a month as a new lead.")),
       el("div", {cls: "group"}, el("h3", {text: "Qualified-lead intent words"}),
         txt("s-neg", "Not QL words (checked first)", S.qlNeg.join("\n")),
         txt("s-pos", "QL words (buying intent)", S.qlPos.join("\n"))),
@@ -1898,7 +1949,7 @@ function applySettings(){
   S.platform = v("s-plat").trim() || "Meta Ads"; S.brands = lines("s-brands"); S.showOther = c("s-other");
   S.keywords = lines("s-kw").map(function(l){ var p = l.split("="); return [p[0].trim(), (p.slice(1).join("=") || "").trim()]; }).filter(function(k){ return k[0] && k[1]; });
   S.autoExcludeNonLead = c("s-autoex"); S.excludedCampaigns = lines("s-excl");
-  S.optSource = c("s-osrc"); S.optDates = c("s-odate"); S.optDedupe = c("s-odup"); S.from = v("s-from"); S.to = v("s-to");
+  S.optSource = c("s-osrc"); S.optDates = c("s-odate"); S.optDedupe = c("s-odup"); S.dupExclude = c("s-dupx"); S.dupDays = Math.max(0, Math.round(Number((document.getElementById("s-dupd") || {}).value) || 0)); S.from = v("s-from"); S.to = v("s-to");
   S.metaSources = v("s-src").split(",").map(function(s){ return s.trim(); }).filter(Boolean);
   S.qlNeg = lines("s-neg").map(function(s){ return s.toLowerCase(); }); S.qlPos = lines("s-pos").map(function(s){ return s.toLowerCase(); });
   ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ var x = v("col-" + src + "-" + k).trim(); if (x) S.cols[src][k] = x; }); });
@@ -1937,6 +1988,7 @@ function trendData(gran, ok){
       var d = dayOf(created); if (rng && (d < rng.from || d > rng.to)) continue;
       var camp2 = g(row, k.campaign), cb = g(row, k.brand), brand = camp2 ? (brandOf(camp2) || "Unmapped") : (cb ? (brandOf(cb) || "Unmapped") : "No campaign");
       if (!keep(brand)) continue;
+      if (R.dupExcluded && R.dupIds && R.dupIds[g(row, k.id)]) continue;
       var status = g(row, k.status), fc = k.firstCall >= 0 ? parseDT(row[k.firstCall]) : null, tm = leadTiming(created, fc, S, hol, nowT);
       addLead(get(periodKey(d, gran)), {isQL: status ? !!classifyStatus(status, S).ql : false, tat: tm.tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: tm.sla});
     } }
@@ -2151,7 +2203,7 @@ function viewOverview(){
     kpi("CPC", fINR2(T.cpc), "Spend ÷ clicks")]));
   sec.appendChild(grp("Leads", [
     kpi("Leads in UI", fInt(T.ui), "Meta " + (R.resultsCol || "Results")),
-    kpi("Leads in CRM", fInt(T.crm), "TeleCRM"),
+    kpi("Leads in CRM", fInt(T.crm), (function(){ var dn = (R.dupList || []).filter(function(d){ return brandOK(d.brand); }).length; return dn ? (R.dupExcluded ? "Unique leads · " + fInt(dn) + " duplicates left out" : "Includes " + fInt(dn) + " duplicate leads") : "TeleCRM"; })()),
     (function(){ var noC = rows.reduce(function(n, a){ return n + (a.nocamp ? a.crm : 0); }, 0), mp = rows.reduce(function(n, a){ return n + (a.mapped ? a.crm : 0); }, 0);
       var k = kpi("Matched to a campaign", T.crm ? fPct((T.crm - noC) / T.crm) : "N/A", fInt(noC) + " with no campaign" + (mp ? " · " + fInt(mp) + " mapped in Settings" : ""), noC > 0 && T.crm && noC / T.crm > 0.1 ? "warn" : "");
       k.title = "Share of CRM leads that are linked to a Meta campaign. WhatsApp / website leads that TeleCRM saved without a campaign lower this until you map them under Settings › Leads without a campaign."; return k; })(),
@@ -3564,12 +3616,15 @@ function dbAddToUpload(u, files, onStep){
     var r1 = dbRowsFromRaw(raw, ""); add(r1); r1.meta.forEach(function(x){ batches.push(["meta_ad_rows", x]); }); }
   crms.forEach(function(f){ var r2 = dbRowsFromRaw({meta: [], crm: f.aoa}, f.name); add(r2); r2.crm.forEach(function(x){ batches.push(["crm_leads", x]); }); });
   if (!batches.length) return Promise.reject(new Error("Nothing to add: no dated Meta rows or CRM leads found in these files"));
+  var crmRows = batches.filter(function(b){ return b[0] === "crm_leads"; }).map(function(b){ return b[1]; });
   var now = new Date().toISOString(), jobs = [], B = 500;
+  return dbLeadKeys(crmRows).then(function(){
   ["meta_ad_rows", "crm_leads"].forEach(function(t){ var rows = batches.filter(function(b){ return b[0] === t; }).map(function(b){ return Object.assign({}, b[1], {upload_id: u.id, updated_at: now}); });
     for (var i = 0; i < rows.length; i += B) jobs.push([t, rows.slice(i, i + B), t === "crm_leads" ? "lead_id" : "campaign,adset,ad,day,day_end"]); });
   var done = 0, chain = Promise.resolve();
   jobs.forEach(function(jb){ chain = chain.then(function(){ return sb.client.from(jb[0]).upsert(jb[1], {onConflict: jb[2]}).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, batches.length); }); }); });
-  return chain.then(function(){ return Promise.all([dbCount("meta_ad_rows", u.id, null), dbCount("crm_leads", u.id, null)]); }).then(function(c){
+  return chain.then(function(){ return crmRows.length ? dbRefreshDupes().catch(function(e){ console.warn("duplicate check", e); }) : null; })
+    .then(function(){ return Promise.all([dbCount("meta_ad_rows", u.id, null), dbCount("crm_leads", u.id, null)]); }).then(function(c){
     var mf = (u.meta_files || []).slice(); metas.forEach(function(f){ if (mf.indexOf(f.name) < 0) mf.push(f.name); });
     var cf = crmFilesOf(u); crms.forEach(function(f){ if (cf.indexOf(f.name) < 0) cf.push(f.name); });
     var df = u.date_from ? dayOf(Date.parse(u.date_from + "T00:00:00Z")) : null, dt = u.date_to ? dayOf(Date.parse(u.date_to + "T00:00:00Z")) : null;
@@ -3577,6 +3632,7 @@ function dbAddToUpload(u, files, onStep){
     return sb.client.from("uploads").update({meta_files: mf, crm_file: cf.join(CRM_SEP) || null, meta_rows: c[0], crm_rows: c[1],
       date_from: df !== null ? isoDay(df) : null, date_to: dt !== null ? isoDay(dt) : null}).eq("id", u.id)
       .then(function(r){ if (r.error) throw r.error; return {meta: batches.filter(function(b){ return b[0] === "meta_ad_rows"; }).length, crm: batches.filter(function(b){ return b[0] === "crm_leads"; }).length}; });
+  });
   });
 }
 function dbAddPanel(u){
@@ -3646,19 +3702,34 @@ function dbRowsFromRaw(rawIn, crmName){
       var tat = isNum(created) && isNum(fc) && fc >= created ? Math.round((fc - created) / 6000) / 10 : null;
       cm[lid] = {source_file: crmName || (state.files && state.files.crm && state.files.crm.name) || "", lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
         status: status, crm_brand: crmBrand, first_call: tsStr(fc), owner: g(row, k.owner), manager: g(row, k.manager), brand: camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign"),
-        is_ql: status ? !!classifyStatus(status, S).ql : false, tat_min: tat};
+        is_ql: status ? !!classifyStatus(status, S).ql : false, tat_min: tat,
+        fb_lead_id: k.fbLead >= 0 ? normFbLead(row[k.fbLead]) : "", _ph: k.phone >= 0 ? normPhone(row[k.phone]) : "", _em: k.email >= 0 ? normEmail(row[k.email]) : ""};
       if (isNum(created)){ var cd = dayOf(created); out.from = out.from === null ? cd : Math.min(out.from, cd); out.to = out.to === null ? cd : Math.max(out.to, cd); }
     }
     out.crm = Object.keys(cm).map(function(x){ return cm[x]; });
   }
   return out;
 }
+/* turn phone / email into keyed hashes on the server (the raw values are never stored), then drop them from the rows */
+function dbLeadKeys(rows){
+  var vals = [], idx = [];
+  rows.forEach(function(r, i){ if (r._ph){ vals.push("p:" + r._ph); idx.push([i, "phone_key"]); } if (r._em){ vals.push("e:" + r._em); idx.push([i, "email_key"]); } });
+  var strip = function(){ rows.forEach(function(r){ delete r._ph; delete r._em; if (r.phone_key === undefined) r.phone_key = ""; if (r.email_key === undefined) r.email_key = ""; }); return rows; };
+  if (!vals.length) return Promise.resolve(strip());
+  var chain = Promise.resolve(), B = 1000;
+  for (var s0 = 0; s0 < vals.length; s0 += B) (function(s1){ chain = chain.then(function(){
+    return sb.client.rpc("lead_keys", {vals: vals.slice(s1, s1 + B)}).then(function(r){ if (r.error) throw r.error;
+      (r.data || []).forEach(function(h, q){ var t = idx[s1 + q]; rows[t[0]][t[1]] = h || ""; }); }); }); })(s0);
+  return chain.then(strip);
+}
+function dbRefreshDupes(){ return sb.client.rpc("refresh_lead_dupes").then(function(r){ if (r.error) throw r.error; return r.data; }); }
 function dbUpload(onStep){
   var rows = dbRowsFromRaw(), f = state.files || {}, uid, now = new Date().toISOString();
   if (!rows.meta.length && !rows.crm.length) return Promise.reject(new Error("Nothing to add: no dated Meta rows or CRM leads found"));
   return sb.client.from("uploads").insert({meta_files: f.meta ? (f.meta.list || [f.meta.name]) : [], crm_file: f.crm ? f.crm.name : null, meta_rows: rows.meta.length, crm_rows: rows.crm.length,
       date_from: rows.from !== null ? isoDay(rows.from) : null, date_to: rows.to !== null ? isoDay(rows.to) : null}).select("id").single()
-    .then(function(r){ if (r.error) throw r.error; uid = r.data.id;
+    .then(function(r){ if (r.error) throw r.error; uid = r.data.id; return dbLeadKeys(rows.crm); })
+    .then(function(){
       var jobs = [], B = 500;
       for (var i = 0; i < rows.meta.length; i += B) jobs.push(["meta_ad_rows", rows.meta.slice(i, i + B), "campaign,adset,ad,day,day_end"]);
       for (var j = 0; j < rows.crm.length; j += B) jobs.push(["crm_leads", rows.crm.slice(j, j + B), "lead_id"]);
@@ -3667,6 +3738,7 @@ function dbUpload(onStep){
         var batch = jb[1].map(function(x){ return Object.assign({}, x, {upload_id: uid, updated_at: now}); });
         return sb.client.from(jb[0]).upsert(batch, {onConflict: jb[2]}).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, rows.meta.length + rows.crm.length); }); }); });
       return chain; })
+    .then(function(){ return rows.crm.length ? dbRefreshDupes().catch(function(e){ console.warn("duplicate check", e); }) : null; })
     .then(function(){ return {id: uid, meta: rows.meta.length, crm: rows.crm.length, noDate: rows.noDate, level: rows.level, from: rows.from, to: rows.to}; });
 }
 /* load the rows for the selected dates (or everything) into the same shape as an upload */
@@ -3675,7 +3747,7 @@ function dbLoad(range, onProgress){
   var tell = function(){ if (onProgress) onProgress(p); };
   var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach").order("id");
     return range ? q.lte("day", isoDay(range.to)).gte("day_end", isoDay(range.from)) : q; };
-  var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner,manager").order("lead_id");
+  var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner,manager,prev_lead,prev_created,dup_match").order("lead_id");
     return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
   return Promise.all([sbAll(mq, function(n){ p.meta = n; tell(); }), sbAll(cq, function(n){ p.crm = n; tell(); }),
     sb.client.from("data_days").select("d").then(function(r){ if (r.error) throw r.error; return r.data; }),
@@ -3684,8 +3756,9 @@ function dbLoad(range, onProgress){
     var cur = res[0].length ? res[0][0].currency : "INR";
     var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach"]]
       .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach)]; }));
-    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager]]
-      .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner, l.manager || ""]; }));
+    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager, "Previous lead", "Previous lead created", "Duplicate match"]]
+      .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner, l.manager || "",
+        l.prev_lead || "", l.prev_created ? l.prev_created.replace("T", " ") : "", l.dup_match || ""]; }));
     sb.days = (res[2] || []).map(function(r){ return dayOf(Date.parse(r.d + "T00:00:00Z")); }).sort(function(a, b){ return a - b; });
     if (res[3] && res[3].settings){ state.settings = mergeSettings(res[3].settings); sb.settingsAt = res[3].updated_at; }
     return {meta: meta, crm: crm, metaRows: res[0].length, crmRows: res[1].length};
