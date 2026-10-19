@@ -2693,8 +2693,18 @@ function combineMeta(files){
   var ctr = files.every(function(f){ return f.ctr; }); if (ctr) head = head.concat(["Impressions", "Link clicks"]);
   var rch = files.every(function(f){ return f.reach; }); if (rch) head = head.concat(["Reach"]);
   out = [head];
-  files.forEach(function(f){ f.rows.forEach(function(r){ out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : []).concat(rch ? [r[10]] : [])); }); });
-  return {aoa: out, level: level, currencies: Object.keys(curs)};
+  /* the same campaign on the same day in two files: the file added later replaces the earlier one (no double counting) */
+  var span = function(r){ var a = parseDT(r[5]), b = parseDT(r[6]); a = isNum(a) ? dayOf(a) : null; b = isNum(b) ? dayOf(b) : a; return a === null ? null : [a, Math.max(a, Math.min(b, a + 400))]; };
+  var lastFile = {};
+  files.forEach(function(f, fi){ f.rows.forEach(function(r){ var sp = span(r); if (!sp) return; for (var d = sp[0]; d <= sp[1]; d++) lastFile[campKey(r[0]) + "|" + d] = fi; }); });
+  var fileOf = [], dropped = 0, droppedFrom = {};
+  files.forEach(function(f, fi){ f.rows.forEach(function(r){
+    var sp = span(r), later = false;
+    if (sp) for (var d = sp[0]; d <= sp[1]; d++) if (lastFile[campKey(r[0]) + "|" + d] > fi){ later = true; break; }
+    if (later){ dropped++; droppedFrom[f.name] = (droppedFrom[f.name] || 0) + 1; return; }
+    out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : []).concat(rch ? [r[10]] : []));
+    fileOf.push(f.name); }); });
+  return {aoa: out, level: level, currencies: Object.keys(curs), fileOf: fileOf, dropped: dropped, droppedFrom: droppedFrom};
 }
 function renderMetaList(){
   var ul = document.getElementById("list-meta"); ul.textContent = "";
@@ -2727,7 +2737,9 @@ function tryBuild(fromList){
   if (!crm) return;
   var first = state.source !== "upload", comb = combineMeta(state.metaFiles);
   document.getElementById("team-banner").hidden = true;
-  state.raw = {meta: comb.aoa, crm: crm.aoa, metaFileOf: [].concat.apply([], state.metaFiles.map(function(f){ return f.rows.map(function(){ return f.name; }); }))};
+  state.raw = {meta: comb.aoa, crm: crm.aoa, metaFileOf: comb.fileOf};
+  state.metaReplaced = comb.dropped ? comb.droppedFrom : null;
+  if (comb.dropped) toast(fInt(comb.dropped) + " Meta rows replaced by a later file for the same campaign and day (" + Object.keys(comb.droppedFrom).join(", ") + ")");
   var mrows = comb.aoa.length - 1;
   state.files = {meta: {name: state.metaFiles.length === 1 ? state.metaFiles[0].name : state.metaFiles.length + " Meta files", rows: mrows,
                         list: state.metaFiles.map(function(f){ return f.name; })}, crm: {name: crm.name, rows: crm.rows}};
@@ -3612,13 +3624,14 @@ function dbAddToUpload(u, files, onStep){
   var metas = files.filter(function(f){ return f.kind === "meta"; }), crms = files.filter(function(f){ return f.kind === "crm"; });
   var batches = [], newFrom = null, newTo = null, add = function(r){ if (r.from !== null){ newFrom = newFrom === null ? r.from : Math.min(newFrom, r.from); newTo = newTo === null ? r.to : Math.max(newTo, r.to); } };
   if (metas.length){ var comb = combineMeta(metas.map(function(f){ return f.norm; }));
-    var raw = {meta: comb.aoa, crm: [], metaFileOf: [].concat.apply([], metas.map(function(f){ return f.norm.rows.map(function(){ return f.name; }); }))};
+    var raw = {meta: comb.aoa, crm: [], metaFileOf: comb.fileOf};
     var r1 = dbRowsFromRaw(raw, ""); add(r1); r1.meta.forEach(function(x){ batches.push(["meta_ad_rows", x]); }); }
   crms.forEach(function(f){ var r2 = dbRowsFromRaw({meta: [], crm: f.aoa}, f.name); add(r2); r2.crm.forEach(function(x){ batches.push(["crm_leads", x]); }); });
   if (!batches.length) return Promise.reject(new Error("Nothing to add: no dated Meta rows or CRM leads found in these files"));
   var crmRows = batches.filter(function(b){ return b[0] === "crm_leads"; }).map(function(b){ return b[1]; });
   var now = new Date().toISOString(), jobs = [], B = 500;
-  return dbLeadKeys(crmRows).then(function(){
+  var metaRows = batches.filter(function(b){ return b[0] === "meta_ad_rows"; }).map(function(b){ return b[1]; });
+  return dbLeadKeys(crmRows).then(function(){ return dbReplaceMetaDays(metaRows); }).then(function(){
   ["meta_ad_rows", "crm_leads"].forEach(function(t){ var rows = batches.filter(function(b){ return b[0] === t; }).map(function(b){ return Object.assign({}, b[1], {upload_id: u.id, updated_at: now}); });
     for (var i = 0; i < rows.length; i += B) jobs.push([t, rows.slice(i, i + B), t === "crm_leads" ? "lead_id" : "campaign,adset,ad,day,day_end"]); });
   var done = 0, chain = Promise.resolve();
@@ -3682,11 +3695,13 @@ function dbRowsFromRaw(rawIn, crmName){
       if (!isNum(st)){ out.noDate++; continue; } if (!isNum(en) || en < st) en = st;
       var d0 = dayOf(st), d1 = dayOf(en), adset = c.adset >= 0 ? clean(r[c.adset]) : "", ad = c.ad >= 0 ? clean(r[c.ad]) : "";
       out.from = out.from === null ? d0 : Math.min(out.from, d0); out.to = out.to === null ? d1 : Math.max(out.to, d1);
-      mm[[camp, adset, ad, d0, d1].join("\u0001")] = {source_file: (mh === 0 && raw.metaFileOf && raw.metaFileOf[i - 1]) || "", campaign: camp, adset: adset, ad: ad, day: isoDay(d0), day_end: isoDay(d1),
+      var mmk = [camp, adset, ad, d0, d1].join("\u0001"), prevRow = mm[mmk];
+      mm[mmk] = {source_file: (mh === 0 && raw.metaFileOf && raw.metaFileOf[i - 1]) || "", campaign: camp, adset: adset, ad: ad, day: isoDay(d0), day_end: isoDay(d1),
         spend: c.spend >= 0 ? Math.round(num(r[c.spend]) * 100) / 100 : 0, results: c.lead >= 0 ? num(r[c.lead]) : 0,
         result_indicator: c.indicator >= 0 && c.lead === c.results ? clean(r[c.indicator]) : "", currency: code, brand: brandOf(camp),
         impressions: c.impressions >= 0 ? Math.round(num(r[c.impressions])) : 0, clicks: c.clicks >= 0 ? Math.round(num(r[c.clicks])) : 0,
         reach: c.reach >= 0 && !blank(r[c.reach]) ? Math.round(num(r[c.reach])) : null};
+      if (prevRow){ var nr = mm[mmk]; nr.spend = Math.round((nr.spend + prevRow.spend) * 100) / 100; nr.results += prevRow.results; nr.impressions += prevRow.impressions; nr.clicks += prevRow.clicks; nr.reach = null; }
     }
     out.meta = Object.keys(mm).map(function(k){ return mm[k]; });
   }
@@ -3711,6 +3726,17 @@ function dbRowsFromRaw(rawIn, crmName){
   return out;
 }
 /* turn phone / email into keyed hashes on the server (the raw values are never stored), then drop them from the rows */
+/* before writing Meta rows, clear what's stored for the same campaigns on the same days (latest upload wins) */
+function dbReplaceMetaDays(metaRows){
+  var seen = {}, items = [];
+  metaRows.forEach(function(r){ var a = dayOf(Date.parse(r.day + "T00:00:00Z")), b = dayOf(Date.parse(r.day_end + "T00:00:00Z"));
+    for (var d = a; d <= Math.min(b, a + 400); d++){ var key = campKey(r.campaign) + "|" + d; if (seen[key]) continue; seen[key] = 1; items.push({c: r.campaign, d: isoDay(d)}); } });
+  if (!items.length) return Promise.resolve(0);
+  var total = 0, chain = Promise.resolve(), B = 800;
+  for (var s0 = 0; s0 < items.length; s0 += B) (function(s1){ chain = chain.then(function(){
+    return sb.client.rpc("meta_replace_days", {items: items.slice(s1, s1 + B)}).then(function(r){ if (r.error) throw r.error; total += r.data || 0; }); }); })(s0);
+  return chain.then(function(){ return {cleared: total, campaignDays: items.length}; });
+}
 function dbLeadKeys(rows){
   var vals = [], idx = [];
   rows.forEach(function(r, i){ if (r._ph){ vals.push("p:" + r._ph); idx.push([i, "phone_key"]); } if (r._em){ vals.push("e:" + r._em); idx.push([i, "email_key"]); } });
@@ -3729,6 +3755,7 @@ function dbUpload(onStep){
   return sb.client.from("uploads").insert({meta_files: f.meta ? (f.meta.list || [f.meta.name]) : [], crm_file: f.crm ? f.crm.name : null, meta_rows: rows.meta.length, crm_rows: rows.crm.length,
       date_from: rows.from !== null ? isoDay(rows.from) : null, date_to: rows.to !== null ? isoDay(rows.to) : null}).select("id").single()
     .then(function(r){ if (r.error) throw r.error; uid = r.data.id; return dbLeadKeys(rows.crm); })
+    .then(function(){ return dbReplaceMetaDays(rows.meta).then(function(x){ rows.replaced = x; }); })
     .then(function(){
       var jobs = [], B = 500;
       for (var i = 0; i < rows.meta.length; i += B) jobs.push(["meta_ad_rows", rows.meta.slice(i, i + B), "campaign,adset,ad,day,day_end"]);
@@ -3739,7 +3766,7 @@ function dbUpload(onStep){
         return sb.client.from(jb[0]).upsert(batch, {onConflict: jb[2]}).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, rows.meta.length + rows.crm.length); }); }); });
       return chain; })
     .then(function(){ return rows.crm.length ? dbRefreshDupes().catch(function(e){ console.warn("duplicate check", e); }) : null; })
-    .then(function(){ return {id: uid, meta: rows.meta.length, crm: rows.crm.length, noDate: rows.noDate, level: rows.level, from: rows.from, to: rows.to}; });
+    .then(function(){ return {replaced: rows.replaced, id: uid, meta: rows.meta.length, crm: rows.crm.length, noDate: rows.noDate, level: rows.level, from: rows.from, to: rows.to}; });
 }
 /* load the rows for the selected dates (or everything) into the same shape as an upload */
 function dbLoad(range, onProgress){
@@ -3812,7 +3839,7 @@ function dbAddButton(){
     upBtn.disabled = true; sb.busy = "Adding…"; renderDbStatus();
     dbUpload(function(d, t){ sb.busy = "Adding… " + fInt(d) + " of " + fInt(t) + " rows"; renderDbStatus(); }).then(function(u){
       sb.busy = "";
-      toast("Added to the database: " + fInt(u.meta) + " Meta rows, " + fInt(u.crm) + " leads" + (u.noDate ? " (" + u.noDate + " Meta rows without dates skipped)" : ""));
+      toast("Added to the database: " + fInt(u.meta) + " Meta rows, " + fInt(u.crm) + " leads" + (u.replaced && u.replaced.cleared ? " · replaced the earlier Meta data for the same campaigns and days" : "") + (u.noDate ? " (" + u.noDate + " Meta rows without dates skipped)" : ""));
       if (u.level < 3) toast("This Meta export isn't at ad level. Ad-level daily exports give the most accurate matching.");
       document.getElementById("upload").hidden = true;
       return dbRefreshLists().then(function(){ return dbOpen(true); });
@@ -3863,7 +3890,7 @@ function renderDbSection(x){
       upBtn.disabled = true; sb.busy = "Adding…"; renderDbStatus();
       dbUpload(function(d, t){ sb.busy = "Adding… " + fInt(d) + " of " + fInt(t) + " rows"; renderDbStatus(); }).then(function(u){
         sb.busy = "";
-        toast("Added to the database: " + fInt(u.meta) + " Meta rows, " + fInt(u.crm) + " leads" + (u.noDate ? " (" + u.noDate + " Meta rows without dates skipped)" : ""));
+        toast("Added to the database: " + fInt(u.meta) + " Meta rows, " + fInt(u.crm) + " leads" + (u.replaced && u.replaced.cleared ? " · replaced the earlier Meta data for the same campaigns and days" : "") + (u.noDate ? " (" + u.noDate + " Meta rows without dates skipped)" : ""));
         if (u.level < 3) toast("This Meta export isn't at ad level. Ad-level daily exports give the most accurate matching.");
         return dbRefreshLists().then(function(){ return dbOpen(true); });
       }).catch(function(e){ sb.busy = ""; upBtn.disabled = false; renderDbStatus(); toast("Could not add: " + (e.message || e)); }); }}, "Add this upload to the database");

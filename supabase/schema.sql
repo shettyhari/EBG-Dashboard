@@ -152,6 +152,23 @@ revoke all on function public.refresh_lead_dupes() from public, anon;
 grant execute on function public.refresh_lead_dupes() to authenticated;
 
 -- ---------------------------------------------------------------
+-- A new Meta upload replaces what's stored for the same campaign on the same days
+-- ---------------------------------------------------------------
+create or replace function public.meta_replace_days(items jsonb) returns integer
+language plpgsql security definer set search_path = '' as $f$
+declare n integer;
+begin
+  if (select private.team_role()) not in ('admin', 'editor') then raise exception 'not allowed'; end if;
+  with x as (select distinct lower(btrim(e->>'c')) as c, (e->>'d')::date as d from jsonb_array_elements(items) e)
+  delete from public.meta_ad_rows m using x
+   where lower(btrim(m.campaign)) = x.c and m.day <= x.d and m.day_end >= x.d;
+  get diagnostics n = row_count;
+  return n;
+end $f$;
+revoke all on function public.meta_replace_days(jsonb) from public, anon;
+grant execute on function public.meta_replace_days(jsonb) to authenticated;
+
+-- ---------------------------------------------------------------
 -- Shared settings (brands, keywords, QL rules, excluded campaigns): one row
 -- ---------------------------------------------------------------
 create table if not exists public.team_settings (
