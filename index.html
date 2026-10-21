@@ -2065,13 +2065,13 @@ function provPanel(pk, compact){
 }
 function windsorPanel(){ return provPanel("windsor", false); }
 /* Lead data upload: choose where the Meta data comes from */
-function metaSourceNow(){ var v; try { v = localStorage.getItem("ebg-meta-source"); } catch (e) {} return v === "windsor" ? "windsor" : "file"; }
+function metaSourceNow(){ var v; try { v = localStorage.getItem("ebg-meta-source"); } catch (e) {} return v === "windsor" || v === "meta" ? v : "file"; }
 function renderProvUpload(){
   var host = document.getElementById("meta-src"), col = document.querySelector(".drop-col"); if (!host || !col) return;
   var cur = metaSourceNow(); host.textContent = "";
   if (!sb.cfg){ host.hidden = true; return; } host.hidden = false;
   host.appendChild(el("div", {cls: "small", style: "font-weight:500;color:var(--ink)", text: "Meta Ads data from"}));
-  host.appendChild(el("div", {cls: "seg src-seg", role: "group", "aria-label": "Meta data source"}, [["file", "Upload file"], ["windsor", "Windsor.ai"]].map(function(x){
+  host.appendChild(el("div", {cls: "seg src-seg", role: "group", "aria-label": "Meta data source"}, [["file", "Upload file"], ["windsor", "Windsor.ai"], ["meta", "Meta API (direct)"]].map(function(x){
     return el("button", {type: "button", "aria-pressed": cur === x[0] ? "true" : "false", onclick: function(){ try { localStorage.setItem("ebg-meta-source", x[0]); } catch (e) {} renderProvUpload(); }}, x[1]); })));
   ["meta-brand-pick", "drop-meta", "list-meta"].forEach(function(id){ var e = id === "meta-brand-pick" ? col.querySelector(".meta-brand-pick") : document.getElementById(id); if (e) e.hidden = cur !== "file"; });
   var slot = document.getElementById("meta-prov"); if (slot) slot.remove();
@@ -2133,7 +2133,7 @@ function viewSettings(){
     el("div", {cls: "actions"},
       el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
       el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
-  return el("div", {cls: "panel"}, sb.cfg ? provPanel("windsor", false) : null, form, sourceMapPanel(), holidayPanel());
+  return el("div", {cls: "panel"}, sb.cfg ? provPanel("windsor", false) : null, sb.cfg ? provPanel("meta", false) : null, form, sourceMapPanel(), holidayPanel());
 }
 function applySettings(){
   var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };

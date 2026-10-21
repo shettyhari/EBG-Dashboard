@@ -89,9 +89,7 @@ On the Claude artifact, team saving uses the page's built-in shared storage inst
 The key stays in Vercel; `api/windsor.js` checks that the caller is signed in and on the team (admins and editors can sync).
 Each sync replaces the stored Meta data for the same campaigns and days, and shows up in Saved data as an upload with one file per account.
 
-## Meta Marketing API (direct) — not shown in the dashboard yet
-
-`api/meta.js` is ready but hidden from the page for now; turn it on again later.
+## Meta Marketing API (direct)
 
 1. In Meta Business Settings › Users › System users, create (or pick) a system user, give it the ad accounts under **Assigned assets**, and **Generate new token** with `ads_read`.
 2. In Vercel › Settings › Environment Variables add `META_ACCESS_TOKEN` with that token (optional `META_API_VERSION`, default `v23.0`), save and redeploy.
