@@ -402,6 +402,11 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .meta-brand-pick select.need{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad-bg)}
 .flist .fbrand select{max-width:190px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:12px}
 .flist li{gap:10px}
+.wz-status{display:flex;gap:10px;align-items:center}
+#wz-load{justify-self:start}
+.wz-sync select{padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font:inherit}
+.wz-hist{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px;color:var(--fg)}
+#windsor td select{padding:5px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit}
 .map-item.none{border-style:dashed;margin-bottom:6px}
 .map-item.on{border-color:var(--accent);background:var(--accent-soft)}
 .map-item .mn{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1916,6 +1921,114 @@ function dupSection(){
     el("div", {cls: "tbl-tools"}, searchBox("dups", "Search lead id, earlier lead id or campaign")),
     table("dups", cols, list, {empty: R.dupKeys ? "No duplicate leads for this filter." : "Duplicate detection needs Phone, Email or Facebook Lead ID in the TeleCRM data."}));
 }
+/* ================= Windsor.ai: pull Meta Ads data (key lives in Vercel, never in the page) ================= */
+function wzApi(op, params){
+  return sb.client.auth.getSession().then(function(r){
+    var tok = r && r.data && r.data.session && r.data.session.access_token; if (!tok) throw new Error("Sign in first");
+    var q = Object.keys(params || {}).map(function(k){ return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); }).join("&");
+    return fetch("/api/windsor?op=" + op + (q ? "&" + q : ""), {headers: {authorization: "Bearer " + tok}}); })
+    .then(function(res){ return res.text().then(function(t){ var b; try { b = JSON.parse(t); } catch (e) { b = null; }
+      if (!b) throw new Error(res.status === 404 ? "NOAPI" : "Unexpected answer (" + res.status + ")"); if (!res.ok) throw new Error(b.error || ("Error " + res.status)); return b; }); });
+}
+function wzAccountsSaved(){ var S = state.settings; return Array.isArray(S.windsorAccounts) ? S.windsorAccounts : []; }
+function wzRange(k){
+  var t = todayDay();
+  if (k === "shown"){ var r = rangeOf(state.range); return r ? {from: r.from, to: Math.min(r.to, t)} : {from: t - 30, to: t}; }
+  if (k === "yesterday") return {from: t - 1, to: t - 1};
+  var d = {last3: 3, last7: 7, last30: 30}[k] || 3; return {from: t - d, to: t};
+}
+function wzSync(W){
+  var acc = wzAccountsSaved().filter(function(a){ return a.on !== false; });
+  var rg = wzRange(W.range || "last3");
+  if (rg.to - rg.from > 92){ W.msg = {kind: "err", text: "Sync up to 93 days at a time."}; render(); return; }
+  W.busy = "Pulling from Windsor.ai…"; W.msg = null; render();
+  var brandFor = {}; acc.forEach(function(a){ brandFor[a.id] = a.brand || ""; });
+  var kw = makeBrandOf(state.settings), uid, metaRows, files;
+  wzApi("data", {from: isoDay(rg.from), to: isoDay(rg.to), accounts: acc.map(function(a){ return a.id; }).join(",")}).then(function(d){
+    var C = {}; d.cols.forEach(function(c, i){ C[c] = i; });
+    var mm = {};
+    d.rows.forEach(function(r){
+      var camp = clean(r[C.campaign]), adset = clean(r[C.adset]), ad = clean(r[C.ad]), day = r[C.date]; if (!camp) return;
+      var k = [camp, adset, ad, day].join("\\u0001"), x = mm[k];
+      var row = {source_file: "Windsor · " + (r[C.account_name] || r[C.account_id]), campaign: camp, adset: adset, ad: ad, day: day, day_end: day,
+        spend: Number(r[C.spend]) || 0, results: Number(r[C.results]) || 0, result_indicator: r[C.result_indicator] || "", currency: r[C.currency] || "INR",
+        brand: brandFor[r[C.account_id]] || brandFor["act_" + r[C.account_id]] || kw(camp), impressions: Number(r[C.impressions]) || 0, clicks: Number(r[C.clicks]) || 0,
+        reach: r[C.reach] === null ? null : Number(r[C.reach])};
+      if (x){ x.spend = Math.round((x.spend + row.spend) * 100) / 100; x.results += row.results; x.impressions += row.impressions; x.clicks += row.clicks; x.reach = null;
+        if (!x.result_indicator) x.result_indicator = row.result_indicator; }
+      else mm[k] = row; });
+    metaRows = Object.keys(mm).map(function(k){ return mm[k]; });
+    if (!metaRows.length) throw new Error("Windsor.ai returned no ad rows for " + spanText(rg) + (acc.length ? " in the ticked accounts" : "") + ".");
+    files = Object.keys(metaRows.reduce(function(o, r){ o[r.source_file] = 1; return o; }, {}));
+    W.busy = "Saving " + fInt(metaRows.length) + " rows…"; render();
+    return sb.client.from("uploads").insert({meta_files: files, crm_file: null, meta_rows: metaRows.length, crm_rows: 0, date_from: isoDay(rg.from), date_to: isoDay(rg.to)}).select("id").single();
+  }).then(function(r){ if (r.error) throw r.error; uid = r.data.id; return dbReplaceMetaDays(metaRows); })
+  .then(function(){
+    var now = new Date().toISOString(), B = 500, chain = Promise.resolve(), done = 0;
+    for (var i = 0; i < metaRows.length; i += B) (function(batch){ chain = chain.then(function(){
+      return sb.client.from("meta_ad_rows").upsert(batch.map(function(x){ return Object.assign({}, x, {upload_id: uid, updated_at: now}); }), {onConflict: "campaign,adset,ad,day,day_end"})
+        .then(function(r){ if (r.error) throw r.error; done += batch.length; W.busy = "Saving… " + fInt(done) + " of " + fInt(metaRows.length); var b = document.getElementById("wz-sync"); if (b) b.textContent = W.busy; }); }); })(metaRows.slice(i, i + B));
+    return chain; })
+  .then(function(){ W.busy = null; W.msg = {kind: "ok", text: "Synced " + spanText(rg) + ": " + fInt(metaRows.length) + " ad-day rows from " + files.length + " account" + (files.length === 1 ? "" : "s") + ". Earlier data for the same campaigns and days was replaced."};
+    return dbRefreshLists(); })
+  .then(function(){ if (state.source === "db" || sb.status === "ready") return dbOpen(true); })
+  .then(function(){ render(); })
+  .catch(function(e){ W.busy = null; W.msg = {kind: "err", text: "Sync failed: " + (e.message || e)}; render(); });
+}
+function windsorPanel(){
+  var W = state.wz || (state.wz = {range: "last3"}), S = state.settings, box = el("div", {cls: "panel", id: "windsor"});
+  box.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Windsor.ai · Meta Ads data"}),
+    el("span", {cls: "note", text: "Pulls spend, impressions, link clicks, reach and results (lead forms, WhatsApp conversations) per ad per day from Windsor.ai, instead of downloading Meta reports. The API key is kept in Vercel and never reaches this page."})));
+  if (!sb.cfg || sb.status !== "ready"){ box.appendChild(el("div", {cls: "small", text: "Sign in to the team database to use Windsor.ai."})); return box; }
+  if (!W.status && !W.loading){ W.loading = true;
+    wzApi("status").then(function(s){ W.status = s; }).catch(function(e){ W.status = {error: e.message}; }).then(function(){ W.loading = false; if (state.tab === "settings") render(); }); }
+  if (!W.status){ box.appendChild(el("div", {cls: "small", text: "Checking the Windsor.ai connection…"})); return box; }
+  var st = W.status, canRun = sbCanWrite();
+  if (st.error === "NOAPI"){ box.appendChild(el("div", {cls: "banner", text: "Windsor.ai sync runs on the Vercel site. Open the dashboard there to use it."})); return box; }
+  if (st.error){ box.appendChild(el("div", {cls: "msg err", text: "Couldn't check the connection: " + st.error})); return box; }
+  if (!st.configured){
+    box.appendChild(el("div", {cls: "banner warn"}, el("div", null, el("b", {text: "Not connected yet. "}),
+      "An admin adds the key once in Vercel: Project › Settings › Environment Variables › Name WINDSOR_API_KEY, Value = your Windsor.ai API key (Windsor.ai › Settings › API key) › Save, then Deployments › ⋯ › Redeploy. Come back here and refresh.")));
+    box.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ W.status = null; render(); }}, "Check again"));
+    return box; }
+  box.appendChild(el("div", {cls: "wz-status"}, el("span", {cls: "pill good", text: "Connected"}), el("span", {cls: "small", text: "Key ending ••••" + st.last4 + " · stored in Vercel"})));
+  /* ad accounts and their brand */
+  var saved = wzAccountsSaved(), byId = {}; saved.forEach(function(a){ byId[a.id] = a; });
+  var accBox = el("div", {cls: "group"}, el("h3", {text: "Ad accounts"}),
+    el("div", {cls: "small", text: saved.length ? "Ticked accounts are synced. Pick each account's brand (every campaign in it counts for that brand), or let the brand come from campaign names." : "Load the ad accounts Windsor.ai can see, then tick the ones to sync."}));
+  if (canRun) accBox.appendChild(el("button", {cls: "btn ghost", type: "button", id: "wz-load", disabled: W.loadingAcc ? true : null, onclick: function(){
+    W.loadingAcc = true; W.msg = null; render();
+    wzApi("accounts").then(function(d){ var list = d.accounts.map(function(a){ var o = byId[a.id] || {}; return {id: a.id, name: a.name, brand: o.brand || "", on: o.on !== false, currency: a.currency}; });
+      S.windsorAccounts = list; storeSettings(); W.msg = {kind: "ok", text: list.length + " ad account" + (list.length === 1 ? "" : "s") + " found."}; })
+      .catch(function(e){ W.msg = {kind: "err", text: "Couldn't load accounts: " + e.message}; }).then(function(){ W.loadingAcc = false; render(); }); }}, W.loadingAcc ? "Loading…" : saved.length ? "Reload accounts" : "Load ad accounts"));
+  if (saved.length){
+    var tb = el("tbody");
+    saved.forEach(function(a){
+      var cb = el("input", {type: "checkbox", checked: a.on !== false ? true : null, disabled: canRun ? null : true, "aria-label": "Sync " + a.name});
+      cb.addEventListener("change", function(){ a.on = cb.checked; storeSettings(); });
+      var bs = el("select", {disabled: canRun ? null : true, "aria-label": "Brand for " + a.name}, [el("option", {value: "", text: "From campaign names"})].concat(S.brands.map(function(b){ return el("option", {value: b, text: b}); })));
+      bs.value = a.brand || ""; bs.addEventListener("change", function(){ a.brand = bs.value; storeSettings(); });
+      tb.appendChild(el("tr", null, el("td", null, cb), el("td", {cls: "name", text: a.name}), el("td", {cls: "nowrap small", text: a.id}), el("td", null, bs))); });
+    accBox.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:none"}, el("table", null, el("thead", null, el("tr", null, ["Sync", "Account", "ID", "Brand"].map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), tb)));
+  }
+  box.appendChild(accBox);
+  /* sync */
+  if (canRun){
+    var rs = el("select", {id: "wz-range", "aria-label": "Dates to sync"}, [["yesterday", "Yesterday"], ["last3", "Last 3 days + today"], ["last7", "Last 7 days + today"], ["last30", "Last 30 days + today"], ["shown", "Dates shown on the dashboard (" + rangeText(false) + ")"]]
+      .map(function(x){ return el("option", {value: x[0], selected: W.range === x[0] ? true : null, text: x[1]}); }));
+    rs.addEventListener("change", function(){ W.range = rs.value; });
+    box.appendChild(el("div", {cls: "save-row wz-sync"}, rs, el("button", {cls: "btn", type: "button", id: "wz-sync", disabled: W.busy || !saved.some(function(a){ return a.on !== false; }) ? true : null, onclick: function(){ wzSync(W); }}, W.busy || "Sync now"),
+      el("span", {cls: "small", text: saved.length ? "Replaces stored Meta data for the same campaigns and days." : "Load and tick ad accounts first."})));
+  }
+  if (W.msg) box.appendChild(el("div", {cls: "msg " + W.msg.kind, role: W.msg.kind === "err" ? "alert" : "status", text: W.msg.text}));
+  /* recent syncs */
+  var hist = (sb.uploads || []).filter(function(u){ return (u.meta_files || []).some(function(f){ return /^Windsor · /.test(f); }); }).slice(0, 6);
+  if (hist.length) box.appendChild(el("div", null, el("h3", {style: "font-size:14px;margin:10px 0 6px", text: "Recent syncs"}),
+    el("ul", {cls: "wz-hist"}, hist.map(function(u){ return el("li", null, new Date(u.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " · " + u.uploaded_by + " · " +
+      (u.date_from ? spanText({from: dayOf(Date.parse(u.date_from + "T00:00:00Z")), to: dayOf(Date.parse((u.date_to || u.date_from) + "T00:00:00Z"))}) : "") + " · " + fInt(u.meta_rows) + " rows · " + (u.meta_files || []).length + " account(s)"); }))));
+  return box;
+}
+
 function viewQL(){
   var R = state.R, editable = !!state.raw;
   var cols = [{k: "status", label: "Status in CRM", t: "text", cls: "name"}, {k: "count", label: "Leads", t: "int"},
@@ -1971,7 +2084,7 @@ function viewSettings(){
     el("div", {cls: "actions"},
       el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
       el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
-  return el("div", {cls: "panel"}, form, sourceMapPanel(), holidayPanel());
+  return el("div", {cls: "panel"}, sb.cfg ? windsorPanel() : null, form, sourceMapPanel(), holidayPanel());
 }
 function applySettings(){
   var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };
