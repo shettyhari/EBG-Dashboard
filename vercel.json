@@ -1,5 +1,6 @@
 {
   "functions": {
-    "api/windsor.js": { "maxDuration": 60 }
+    "api/windsor.js": { "maxDuration": 60 },
+    "api/meta.js": { "maxDuration": 60 }
   }
 }
