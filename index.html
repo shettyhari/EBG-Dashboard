@@ -405,6 +405,7 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .wz-status{display:flex;gap:10px;align-items:center}
 .msg.warn{background:var(--warn-bg);color:var(--warn);border:1px solid #fbbc04}
 .prov-load{justify-self:start}
+.auto-box{gap:10px}
 .meta-src{display:grid;gap:8px;margin-bottom:10px}
 .src-seg{justify-self:start;flex-wrap:wrap}
 .prov-box{display:grid;gap:12px;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
@@ -1942,6 +1943,7 @@ function provApi(pk, op, params){
     .then(function(res){ return res.text().then(function(t){ var b; try { b = JSON.parse(t); } catch (e) { b = null; }
       if (!b) throw new Error(res.status === 404 ? "NOAPI" : "Unexpected answer (" + res.status + ")"); if (!res.ok) throw new Error(b.error || ("Error " + res.status)); return b; }); });
 }
+function provSave(){ storeSettings(true); if (sb.cfg && sb.status === "ready" && sbCanWrite()) dbPushSettings().catch(function(e){ toast("Not shared with the team: " + (e.message || e)); }); }
 function provAccounts(pk){ var S = state.settings, v = S[PROV[pk].key]; return Array.isArray(v) ? v : []; }
 function wzRange(k){
   var t = todayDay();
@@ -2021,6 +2023,7 @@ function provPanel(pk, compact){
     provApi(pk, "status").then(function(s){ W.status = s; }).catch(function(e){ W.status = {error: e.message}; }).then(function(){ W.loading = false; render(); var u = document.getElementById("upload"); if (u && !u.hidden) renderProvUpload(); }); }
   if (!W.status){ box.appendChild(el("div", {cls: "small", text: "Checking the " + P.label + " connection…"})); return box; }
   var st = W.status, canRun = sbCanWrite();
+  if (!sb.histAsked){ sb.histAsked = true; dbRefreshLists().then(function(){ if (state.tab === "settings") render(); var u = document.getElementById("upload"); if (u && !u.hidden) renderProvUpload(); }).catch(function(){}); }
   if (st.error === "NOAPI"){ box.appendChild(el("div", {cls: "banner", text: P.label + " sync runs on the Vercel site. Open the dashboard there to use it."})); return box; }
   if (st.error){ box.appendChild(el("div", {cls: "msg err", text: "Couldn't check the connection: " + st.error})); return box; }
   if (!st.configured){
@@ -2035,15 +2038,15 @@ function provPanel(pk, compact){
   if (canRun) accBox.appendChild(el("button", {cls: "btn ghost prov-load", type: "button", id: pk + "-load" + (compact ? "-up" : ""), disabled: W.loadingAcc ? true : null, onclick: function(){
     W.loadingAcc = true; W.msg = null; render(); renderProvUpload();
     provApi(pk, "accounts").then(function(d){ var list = d.accounts.map(function(a){ var o = byId[a.id] || {}; return {id: a.id, name: a.name, brand: o.brand || "", on: o.id ? o.on !== false : a.active !== false, currency: a.currency}; });
-      S[P.key] = list; storeSettings(); W.msg = {kind: "ok", text: list.length + " ad account" + (list.length === 1 ? "" : "s") + " found."}; })
+      S[P.key] = list; provSave(); W.msg = {kind: "ok", text: list.length + " ad account" + (list.length === 1 ? "" : "s") + " found."}; })
       .catch(function(e){ W.msg = {kind: "err", text: "Couldn't load accounts: " + e.message}; }).then(function(){ W.loadingAcc = false; render(); renderProvUpload(); }); }}, W.loadingAcc ? "Loading…" : saved.length ? "Reload accounts" : "Load ad accounts"));
   if (saved.length){
     var tb = el("tbody");
     saved.forEach(function(a){
       var cb = el("input", {type: "checkbox", checked: a.on !== false ? true : null, disabled: canRun ? null : true, "aria-label": "Sync " + a.name});
-      cb.addEventListener("change", function(){ a.on = cb.checked; storeSettings(); });
+      cb.addEventListener("change", function(){ a.on = cb.checked; provSave(); });
       var bs = el("select", {disabled: canRun ? null : true, "aria-label": "Brand for " + a.name}, [el("option", {value: "", text: "From campaign names"})].concat(S.brands.map(function(b){ return el("option", {value: b, text: b}); })));
-      bs.value = a.brand || ""; bs.addEventListener("change", function(){ a.brand = bs.value; storeSettings(); });
+      bs.value = a.brand || ""; bs.addEventListener("change", function(){ a.brand = bs.value; provSave(); });
       tb.appendChild(el("tr", null, el("td", null, cb), el("td", {cls: "name", text: a.name}), el("td", {cls: "nowrap small", text: a.id}), el("td", null, bs))); });
     accBox.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:" + (compact ? "260px" : "none")}, el("table", null, el("thead", null, el("tr", null, ["Sync", "Account", "ID", "Brand"].map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), tb)));
   }
@@ -2057,10 +2060,28 @@ function provPanel(pk, compact){
       el("span", {cls: "small", text: saved.length ? "Replaces stored Meta data for the same campaigns and days." : "Load and tick ad accounts first."})));
   }
   if (W.msg) box.appendChild(el("div", {cls: "msg " + W.msg.kind, role: W.msg.kind === "err" ? "alert" : "status", text: W.msg.text}));
+  if (pk === "meta") box.appendChild(metaAutoBox(st, canRun, saved));
   var hist = (sb.uploads || []).filter(function(u){ return (u.meta_files || []).some(function(f){ return f.indexOf(P.prefix) === 0; }); }).slice(0, compact ? 3 : 6);
   if (hist.length) box.appendChild(el("div", null, el("h3", {style: "font-size:14px;margin:10px 0 6px", text: "Recent syncs"}),
     el("ul", {cls: "wz-hist"}, hist.map(function(u){ return el("li", null, new Date(u.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " · " + u.uploaded_by + " · " +
       (u.date_from ? spanText({from: dayOf(Date.parse(u.date_from + "T00:00:00Z")), to: dayOf(Date.parse((u.date_to || u.date_from) + "T00:00:00Z"))}) : "") + " · " + fInt(u.meta_rows) + " rows · " + (u.meta_files || []).length + " account(s)"); }))));
+  return box;
+}
+function metaAutoBox(st, canRun, saved){
+  var S = state.settings, on = !!S.metaAutoSync, box = el("div", {cls: "group auto-box"}, el("h3", {text: "Auto-sync every 30 minutes"}));
+  var auto = (sb.uploads || []).filter(function(u){ return (u.meta_files || []).indexOf("Meta API · auto-sync") >= 0; })[0];
+  var tg = el("input", {type: "checkbox", id: "meta-auto", checked: on ? true : null, disabled: canRun ? null : true});
+  tg.addEventListener("change", function(){ S.metaAutoSync = tg.checked; provSave(); toast(tg.checked ? "Auto-sync on: yesterday + today every 30 minutes" : "Auto-sync off"); render(); renderProvUpload(); });
+  box.appendChild(el("label", {cls: "toggle", "for": "meta-auto"}, tg, el("span", {text: "Pull yesterday + today for the ticked accounts every 30 minutes (replaces those days, so nothing is counted twice)"})));
+  if (!st.cronReady) box.appendChild(el("div", {cls: "banner warn"}, el("div", null, el("b", {text: "One-time setup needed for the 30-minute job. "}),
+    "In Vercel › Settings › Environment Variables add SUPABASE_SERVICE_ROLE_KEY (Supabase › Project Settings › API keys › service_role / secret key) and CRON_SECRET (any long random text you make up), then Redeploy. " +
+    "In GitHub › the repo › Settings › Secrets and variables › Actions: add a secret CRON_SECRET with the same text, and a variable SITE_URL with your dashboard address (for example https://your-site.vercel.app).")));
+  else if (on && !saved.some(function(a){ return a.on !== false; })) box.appendChild(el("div", {cls: "small", text: "Tick at least one ad account above."}));
+  if (auto){
+    var err = String(auto.crm_file || "").indexOf("Last run errors") === 0 ? auto.crm_file : "";
+    box.appendChild(el("div", {cls: "small", text: "Last auto-sync: " + new Date(auto.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " · " + fInt(auto.meta_rows) + " rows stored by auto-sync"}));
+    if (err) box.appendChild(el("div", {cls: "msg err", text: err}));
+  } else if (on && st.cronReady) box.appendChild(el("div", {cls: "small", text: "Waiting for the first run (within 30 minutes)."}));
   return box;
 }
 function windsorPanel(){ return provPanel("windsor", false); }
@@ -3827,7 +3848,7 @@ function dbPickPanel(u){
 }
 /* ---------- add more files to an upload that's already in the database ---------- */
 var CRM_SEP = " | ";
-function crmFilesOf(u){ return String(u.crm_file || "").split(CRM_SEP).map(clean).filter(Boolean); }
+function crmFilesOf(u){ return String(u.crm_file || "").split(CRM_SEP).map(clean).filter(function(f){ return f && f.indexOf("Last run errors") !== 0; }); }
 function readUploadFile(file){
   return readTable(file).then(function(sheets){
     var S = state.settings, crm = pickSheet(sheets, "crm", S);

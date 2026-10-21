@@ -94,3 +94,11 @@ Each sync replaces the stored Meta data for the same campaigns and days, and sho
 1. In Meta Business Settings › Users › System users, create (or pick) a system user, give it the ad accounts under **Assigned assets**, and **Generate new token** with `ads_read`.
 2. In Vercel › Settings › Environment Variables add `META_ACCESS_TOKEN` with that token (optional `META_API_VERSION`, default `v23.0`), save and redeploy.
 3. In the dashboard › Lead data upload › **Meta Ads data from: Meta API (direct)** (or Settings), load the ad accounts, set each account's brand and press **Sync now**.
+
+### Auto-sync every 30 minutes (Meta API)
+
+`.github/workflows/meta-sync.yml` calls `/api/meta-cron` every 30 minutes; it pulls yesterday + today for the ticked accounts and replaces those days.
+One-time setup:
+- Vercel › Environment Variables: `SUPABASE_SERVICE_ROLE_KEY` (Supabase › Project Settings › API keys) and `CRON_SECRET` (any long random text), then redeploy.
+- GitHub › Settings › Secrets and variables › Actions: secret `CRON_SECRET` (same text) and variable `SITE_URL` (the dashboard address).
+- Dashboard › Settings › Meta API (direct): tick **Auto-sync every 30 minutes**.

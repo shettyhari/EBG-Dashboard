@@ -1,0 +1,17 @@
+name: Meta API sync (every 30 minutes)
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pull yesterday + today from Meta into the dashboard
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SITE_URL" ] || [ -z "$CRON_SECRET" ]; then echo "Set the SITE_URL variable and CRON_SECRET secret in GitHub › Settings › Secrets and variables › Actions"; exit 1; fi
+          curl -sS --fail-with-body --max-time 90 -X POST "${SITE_URL%/}/api/meta-cron" -H "x-cron-secret: $CRON_SECRET"
