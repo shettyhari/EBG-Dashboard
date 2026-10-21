@@ -397,6 +397,11 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .pick-item .mn{white-space:normal;color:var(--ink)}
 .pick-item .mm{font-size:12px;color:var(--muted)}
 .btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+.meta-brand-pick{margin-bottom:8px}
+.meta-brand-pick select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font:inherit;font-weight:500}
+.meta-brand-pick select.need{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad-bg)}
+.flist .fbrand select{max-width:190px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:12px}
+.flist li{gap:10px}
 .map-item.none{border-style:dashed;margin-bottom:6px}
 .map-item.on{border-color:var(--accent);background:var(--accent-soft)}
 .map-item .mn{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -777,24 +782,25 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
       </div>
       <div class="drops">
         <div class="drop-col">
+        <div class="field meta-brand-pick"><label for="meta-brand">1. Which brand is this Meta report for?</label><select id="meta-brand"></select></div>
         <label class="drop" id="drop-meta" for="file-meta">
-          <span class="eyebrow">Files 1+ · one or many</span>
+          <span class="eyebrow">2. Meta Ads report(s) · brand-wise</span>
           <h3>Meta Ads exports</h3>
-          <span class="meta">Add one report per brand, or one for everything. Drop several at once or add more later; they are combined. Any column layout: the page finds Campaign, Ad set, Ad, Amount spent, Results (or Leads) and dates by name. Add Breakdown › By time › Day to filter spend by date. CSV or XLSX.</span>
+          <span class="meta">Pick the brand above, then add that brand's report. Repeat for each brand; files are combined. Any column layout: the page finds Campaign, Ad set, Ad, Amount spent, Results (or Leads) and dates by name. Add Breakdown › By time › Day to filter spend by date. CSV or XLSX.</span>
           <span class="state" id="st-meta"></span><span class="err" id="er-meta"></span>
           <input type="file" id="file-meta" accept=".csv,.xlsx,.xls,.txt" multiple hidden>
         </label>
         <ul class="flist" id="list-meta" aria-label="Meta files added"></ul>
         </div>
         <label class="drop" id="drop-crm" for="file-crm">
-          <span class="eyebrow">File 2</span>
+          <span class="eyebrow">TeleCRM · all brands in one file</span>
           <h3>TeleCRM export</h3>
           <span class="meta">Full lead export for the same dates (all 130+ columns are fine). Needs Lead id, Created On, Facebook Campaign / Ad Set / Ad, Status. CSV or XLSX.</span>
           <span class="state" id="st-crm"></span><span class="err" id="er-crm"></span>
           <input type="file" id="file-crm" accept=".csv,.xlsx,.xls,.txt" hidden>
         </label>
       </div>
-      <div class="small">Add one or more Meta reports and the TeleCRM export. The report builds once both sides are in, and rebuilds whenever you add or remove a file.</div>
+      <div class="small">Upload Meta reports brand by brand, the TeleCRM export (all brands), or both. Each side can be added to the database on its own.</div>
       <div id="upload-db"></div>
     </div>
     <div class="source-line" id="source-line"></div>
@@ -957,11 +963,19 @@ function classifyStatus(status, S){
   return {ql: false, reason: "No buying intent yet (early stage)"};
 }
 function campKey(name){ return clean(name).toLowerCase(); }
+/* brand chosen at upload (Meta reports uploaded brand-wise) wins over the brand keywords */
+function metaCampBrands(aoa, S){
+  var out = {}; if (!aoa || !aoa.length) return out;
+  var mh = findMetaHeader(aoa, S.cols.meta); if (mh < 0) return out;
+  var H = aoa[mh], c = detectMetaColumns(H, S.cols.meta), bi = findCol(H, "Brand"); if (bi < 0 || c.campaign < 0) return out;
+  for (var i = mh + 1; i < aoa.length; i++){ var r = aoa[i] || [], cp = clean(r[c.campaign]), b = clean(r[bi]); if (cp && b) out[campKey(cp)] = b; }
+  return out;
+}
 /* duplicate-person keys: phone (last 10 digits), email, Facebook lead id */
 function normPhone(v){ var d = String(v == null ? "" : v).replace(/\D+/g, ""); return d.length >= 7 ? d.slice(-10) : ""; }
 function normEmail(v){ var e = clean(v).toLowerCase(); return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : ""; }
 function crmDupInfo(aoa, ch, S){
-  var cc = S.cols.crm, H = aoa[ch], brandOf = makeBrandOf(S), k = {id: findCol(H, cc.id), created: findCol(H, cc.created), camp: findCol(H, cc.campaign), brand: findCol(H, cc.brand),
+  var cc = S.cols.crm, H = aoa[ch], brandOf = makeBrandOfWith(S, typeof state !== "undefined" && state.R ? state.R.campBrand : null), k = {id: findCol(H, cc.id), created: findCol(H, cc.created), camp: findCol(H, cc.campaign), brand: findCol(H, cc.brand),
     phone: findCol(H, cc.phone), email: findCol(H, cc.email), fbLead: findCol(H, cc.fbLead)}, out = {}, ents = [], lastBy = {};
   if (k.phone < 0 && k.email < 0 && k.fbLead < 0) return out;
   for (var j = ch + 1; j < aoa.length; j++){ var r = aoa[j] || [], at = parseDT(r[k.created]); if (!isNum(at)) continue;
@@ -1050,6 +1064,8 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
   var shownBrand = function(b){ return (b in listed) || S.showOther; };
   var kws = S.keywords.filter(function(k){ return k[0] && k[1]; }).map(function(k){ return [String(k[0]).toLowerCase(), k[1]]; });
   var brandOf = function(t){ var s = String(t || "").toLowerCase(); if (!s) return "Unmapped"; for (var i = 0; i < kws.length; i++) if (s.indexOf(kws[i][0]) >= 0) return kws[i][1]; return "Unmapped"; };
+  var campBrand = metaCampBrands(metaAOA, S), brandOfKw = brandOf;
+  brandOf = function(t){ var b = campBrand[campKey(t)]; return b || brandOfKw(t); };
   var missing = [];
   /* ---------- Meta (columns found by name, any order) ---------- */
   var cm = S.cols.meta, metaAds = {}, metaOrder = [], metaRows = 0, metaResults = 0, dupRows = 0, nonLeadRows = 0, starts = [], ends = [], seen = {};
@@ -1296,7 +1312,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
           partialRows: partialRows, metaRowsIn: metaRowsIn,
           period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
           resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
-          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, needsCall: needsCall, lite: lite, dupList: dupList || [], dupIds: dupIds || {}, dupKeys: !!dupKeysFound, dupExcluded: !!S.dupExclude, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
+          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, campBrand: campBrand, needsCall: needsCall, lite: lite, dupList: dupList || [], dupIds: dupIds || {}, dupKeys: !!dupKeysFound, dupExcluded: !!S.dupExclude, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
           slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform, now: nowT, holidaysActive: Object.keys(hol).length};
 }
 // ENGINE END
@@ -1978,7 +1994,7 @@ function periodLabel(k, gran){ var x = ymd(k);
   if (gran === "month") return MON[x.m] + " " + x.y;
   return "Week of " + x.d + " " + MON[x.m] + " " + x.y; }
 function trendData(gran, ok){
-  var R = state.R, S = state.settings, raw = state.raw, brandOf = makeBrandOf(S), rng = rangeOf(state.range), B = {}, partial = 0, hol = holidaySet(S), nowT = R.now || istNow();
+  var R = state.R, S = state.settings, raw = state.raw, brandOf = makeBrandOfWith(S, R.campBrand), rng = rangeOf(state.range), B = {}, partial = 0, hol = holidaySet(S), nowT = R.now || istNow();
   var ex = {}; (R.excluded || []).forEach(function(x){ if (x.excluded) ex[x.key] = 1; });
   var listed = {}; S.brands.forEach(function(b){ listed[b] = 1; });
   var keep = function(b){ return ((b in listed) || S.showOther) && ok(b); };
@@ -2707,6 +2723,7 @@ function combineMeta(files){
     .concat(["Amount spent" + (code ? " (" + code + ")" : ""), "Results", "Reporting starts", "Reporting ends", "Result indicator"]);
   var ctr = files.every(function(f){ return f.ctr; }); if (ctr) head = head.concat(["Impressions", "Link clicks"]);
   var rch = files.every(function(f){ return f.reach; }); if (rch) head = head.concat(["Reach"]);
+  head = head.concat(["Brand"]);
   out = [head];
   /* the same campaign on the same day in two files: the file added later replaces the earlier one (no double counting) */
   var span = function(r){ var a = parseDT(r[5]), b = parseDT(r[6]); a = isNum(a) ? dayOf(a) : null; b = isNum(b) ? dayOf(b) : a; return a === null ? null : [a, Math.max(a, Math.min(b, a + 400))]; };
@@ -2717,11 +2734,12 @@ function combineMeta(files){
     var sp = span(r), later = false;
     if (sp) for (var d = sp[0]; d <= sp[1]; d++) if (lastFile[campKey(r[0]) + "|" + d] > fi){ later = true; break; }
     if (later){ dropped++; droppedFrom[f.name] = (droppedFrom[f.name] || 0) + 1; return; }
-    out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : []).concat(rch ? [r[10]] : []));
+    out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : []).concat(rch ? [r[10]] : []).concat([f.brand || ""]));
     fileOf.push(f.name); }); });
   return {aoa: out, level: level, currencies: Object.keys(curs), fileOf: fileOf, dropped: dropped, droppedFrom: droppedFrom};
 }
 function renderMetaList(){
+  renderMetaBrandPick();
   var ul = document.getElementById("list-meta"); ul.textContent = "";
   var lv = ["", "Campaign", "Ad set", "Ad"], files = state.metaFiles;
   files.forEach(function(f, i){
@@ -2732,6 +2750,9 @@ function renderMetaList(){
         el("span", {cls: "fm", text: f.rows.length.toLocaleString("en-IN") + " rows · " + Object.keys(f.campaigns).length + (Object.keys(f.campaigns).length === 1 ? " campaign · " : " campaigns · ") + lv[f.level] + " level · " + span + (f.leadCol ? " · leads from “" + f.leadCol + "”" : "")}),
         f.missing.length ? el("span", {cls: "fm warnline", text: " · missing " + f.missing.join(", ")}) : null,
         shared ? el("span", {cls: "fm warnline", text: " · shares campaigns with another file; check it isn't the same data twice"}) : null),
+      el("span", {cls: "fbrand"}, (function(){ var bsel = el("select", {"aria-label": "Brand for " + f.name},
+          [el("option", {value: "", text: "Detect from campaign names"})].concat(state.settings.brands.map(function(b){ return el("option", {value: b, selected: f.brand === b ? true : null, text: b}); })));
+          bsel.value = f.brand || ""; bsel.addEventListener("change", function(){ f.brand = bsel.value; renderMetaList(); tryBuild(true); }); return bsel; })()),
       el("button", {cls: "linkbtn", type: "button", "aria-label": "Remove " + f.name, onclick: function(){ state.metaFiles.splice(i, 1); renderMetaList(); tryBuild(true); }}, "Remove")));
   });
   var st = document.getElementById("st-meta"), drop = document.getElementById("drop-meta");
@@ -2745,19 +2766,21 @@ function renderMetaList(){
 }
 function tryBuild(fromList){
   var crm = state.pending.crm;
-  if (!state.metaFiles.length){
+  if (!state.metaFiles.length && !crm){
     if (state.source === "upload"){ state.R = null; state.raw = null; state.source = "none"; render(); }
     return;
   }
-  if (!crm) return;
-  var first = state.source !== "upload", comb = combineMeta(state.metaFiles);
+  /* either side can be uploaded on its own (Meta brand-wise reports, or the all-brands TeleCRM export) */
+  if (!sb.cfg && (!state.metaFiles.length || !crm)){ renderUploadDb(); return; }
+  if (!crm) crm = {aoa: [], name: "", rows: 0, none: true};
+  var first = state.source !== "upload", comb = state.metaFiles.length ? combineMeta(state.metaFiles) : {aoa: [], fileOf: [], dropped: 0, droppedFrom: {}, currencies: []};
   document.getElementById("team-banner").hidden = true;
   state.raw = {meta: comb.aoa, crm: crm.aoa, metaFileOf: comb.fileOf};
   state.metaReplaced = comb.dropped ? comb.droppedFrom : null;
   if (comb.dropped) toast(fInt(comb.dropped) + " Meta rows replaced by a later file for the same campaign and day (" + Object.keys(comb.droppedFrom).join(", ") + ")");
-  var mrows = comb.aoa.length - 1;
-  state.files = {meta: {name: state.metaFiles.length === 1 ? state.metaFiles[0].name : state.metaFiles.length + " Meta files", rows: mrows,
-                        list: state.metaFiles.map(function(f){ return f.name; })}, crm: {name: crm.name, rows: crm.rows}};
+  var mrows = Math.max(0, comb.aoa.length - 1);
+  state.files = {meta: state.metaFiles.length ? {name: state.metaFiles.length === 1 ? state.metaFiles[0].name : state.metaFiles.length + " Meta files", rows: mrows,
+                        list: state.metaFiles.map(function(f){ return f.name; })} : null, crm: crm.none ? null : {name: crm.name, rows: crm.rows}};
   state.source = "upload"; state.savedInfo = null; state.limit = {}; if (first) state.brand = "All";
   rebuild();
   if (first && !sb.cfg) document.getElementById("upload").hidden = true;
@@ -2765,8 +2788,20 @@ function tryBuild(fromList){
   toast(fromList ? "Report rebuilt with " + state.metaFiles.length + " Meta file" + (state.metaFiles.length > 1 ? "s" : "") : (first ? "Report built from your exports" : "Report updated"));
   if (comb.currencies.length > 1) toast("Meta files use different currencies (" + comb.currencies.join(", ") + "). Spend is added as-is.");
 }
+var META_AUTO = "__auto__";
+function renderMetaBrandPick(){
+  var sel = document.getElementById("meta-brand"); if (!sel || !state.settings) return; var cur = sel.value;
+  sel.textContent = "";
+  sel.appendChild(el("option", {value: "", text: "Choose the brand…"}));
+  state.settings.brands.forEach(function(b){ sel.appendChild(el("option", {value: b, text: b})); });
+  sel.appendChild(el("option", {value: META_AUTO, text: "Several brands in one report (detect from campaign names)"}));
+  sel.value = cur || "";
+}
+function metaBrandChosen(){ var sel = document.getElementById("meta-brand"); return sel ? sel.value : META_AUTO; }
 function addMetaFiles(files){
   var er = document.getElementById("er-meta"), st = document.getElementById("st-meta"); er.textContent = "";
+  var brandTag = metaBrandChosen();
+  if (!brandTag){ er.textContent = "Choose which brand this Meta report is for first (step 1)."; var sb0 = document.getElementById("meta-brand"); if (sb0){ sb0.focus(); sb0.classList.add("need"); } return; }
   var list = Array.prototype.slice.call(files), errs = [], added = 0;
   st.textContent = "Reading " + list.length + " file" + (list.length > 1 ? "s" : "") + "…";
   var chain = Promise.resolve();
@@ -2777,7 +2812,7 @@ function addMetaFiles(files){
       return readTable(file).then(function(sheets){
         var found = pickSheet(sheets, "meta", state.settings);
         if (!found){ errs.push(file.name + ": no Campaign name column found. Is this a Meta Ads export?"); return; }
-        var n = normaliseMeta(found.aoa, found.header, state.settings); n.name = file.name; n.sig = sig;
+        var n = normaliseMeta(found.aoa, found.header, state.settings); n.name = file.name; n.sig = sig; n.brand = brandTag === META_AUTO ? "" : brandTag;
         if (!n.rows.length){ errs.push(file.name + ": no campaign rows found."); return; }
         state.metaFiles.push(n); added++;
       }).catch(function(e){ errs.push("Could not read " + file.name + ": " + e.message); });
@@ -2805,6 +2840,7 @@ function setFile(kind, file){
   drop.addEventListener("dragover", function(e){ e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", function(){ drop.classList.remove("over"); });
   drop.addEventListener("drop", function(e){ e.preventDefault(); drop.classList.remove("over"); var f = e.dataTransfer.files; if (f && f.length){ if (kind === "meta") addMetaFiles(f); else setFile(kind, f[0]); } });
+  if (kind === "meta") drop.addEventListener("click", function(e){ if (!metaBrandChosen()){ e.preventDefault(); document.getElementById("er-meta").textContent = "Choose which brand this Meta report is for first (step 1)."; var bs = document.getElementById("meta-brand"); bs.focus(); bs.classList.add("need"); } });
 });
 document.getElementById("btn-load").addEventListener("click", function(){ var u = document.getElementById("upload"); u.hidden = !u.hidden; document.getElementById("saved").hidden = true; document.getElementById("export").hidden = true; if (!u.hidden) u.scrollIntoView({block: "nearest"}); });
 document.getElementById("tablist").addEventListener("click", function(e){ var t = e.target.closest(".tab"); if (!t) return; state.tab = t.dataset.tab; try { localStorage.setItem("ebg-lead-dash-tab", state.tab); } catch (x) {} render(); });
@@ -3572,6 +3608,7 @@ function sbAll(build, onPage){
 }
 function isoDay(d){ var x = ymd(d); return x.y + "-" + String(x.m + 1).padStart(2, "0") + "-" + String(x.d).padStart(2, "0"); }
 function tsStr(ms){ return isNum(ms) ? new Date(ms).toISOString().slice(0, 19).replace("T", " ") : null; }
+function makeBrandOfWith(S, over){ var base = makeBrandOf(S); return over ? function(t){ var b = over[campKey(t)]; return b || base(t); } : base; }
 function makeBrandOf(S){
   var kws = S.keywords.filter(function(k){ return k[0] && k[1]; }).map(function(k){ return [String(k[0]).toLowerCase(), k[1]]; });
   return function(t){ var s = String(t || "").toLowerCase(); if (!s) return ""; for (var i = 0; i < kws.length; i++) if (s.indexOf(kws[i][0]) >= 0) return kws[i][1]; return "Unmapped"; };
@@ -3671,13 +3708,18 @@ function dbAddToUpload(u, files, onStep){
 function dbAddPanel(u){
   var A = sb.upAdd || (sb.upAdd = {files: []}), box = el("div", {cls: "pick-panel"});
   box.appendChild(el("div", {cls: "small", text: "Add more Meta Ads exports and/or a TeleCRM export to this upload (for example a brand you missed that day). CSV or XLSX; the page tells Meta and TeleCRM files apart. Rows for the same ad and day, or the same Lead id, are updated instead of duplicated."}));
+  var bsel = el("select", {id: "add-brand-" + u.id, "aria-label": "Brand for Meta files"}, [el("option", {value: "", text: "Brand for Meta files: choose…"})]
+    .concat(state.settings.brands.map(function(b){ return el("option", {value: b, selected: A.brand === b ? true : null, text: b}); }))
+    .concat([el("option", {value: META_AUTO, selected: A.brand === META_AUTO ? true : null, text: "Several brands (detect from campaign names)"})]));
+  bsel.addEventListener("change", function(){ A.brand = bsel.value; A.msg = null; });
+  box.appendChild(el("div", {cls: "field meta-brand-pick"}, el("label", {"for": "add-brand-" + u.id, text: "Which brand are the Meta files for? (TeleCRM files don't need this)"}), bsel));
   var inp = el("input", {type: "file", accept: ".csv,.xlsx,.xls,.txt", multiple: true, id: "add-files-" + u.id, hidden: true});
   inp.addEventListener("change", function(){ var list = Array.prototype.slice.call(inp.files || []); inp.value = ""; if (!list.length) return;
     A.reading = true; A.msg = null; renderSavedPanel();
     var chain = Promise.resolve();
     list.forEach(function(file){ chain = chain.then(function(){
       if (A.files.some(function(f){ return f.name === file.name; })) return;
-      return readUploadFile(file).then(function(f){ A.files.push(f); }).catch(function(e){ A.files.push({kind: "err", name: file.name, err: e.message || String(e)}); }); }); });
+      return readUploadFile(file).then(function(f){ if (f.kind === "meta"){ if (!A.brand){ f = {kind: "err", name: file.name, err: "choose the brand for Meta files above, then add it again"}; } else { f.brand = A.brand === META_AUTO ? "" : A.brand; f.norm.brand = f.brand; } } A.files.push(f); }).catch(function(e){ A.files.push({kind: "err", name: file.name, err: e.message || String(e)}); }); }); });
     chain.then(function(){ A.reading = false; renderSavedPanel(); }); });
   box.appendChild(inp);
   box.appendChild(el("label", {cls: "drop add-drop", "for": "add-files-" + u.id}, el("span", {cls: "eyebrow", text: "Choose files"}),
@@ -3685,7 +3727,7 @@ function dbAddPanel(u){
   if (A.files.length){
     var list = el("div", {cls: "pick-list"});
     A.files.forEach(function(f, i){ list.appendChild(el("div", {cls: "pick-item" + (f.kind === "err" ? " bad" : "")}, el("span", {cls: "pill " + (f.kind === "crm" ? "good" : f.kind === "meta" ? "mut" : "bad"), text: f.kind === "crm" ? "TeleCRM" : f.kind === "meta" ? "Meta" : "Error"}),
-      el("span", {cls: "mn", text: f.name + (f.err ? ": " + f.err : "")}),
+      el("span", {cls: "mn", text: f.name + (f.kind === "meta" ? " · " + (f.brand || "brand from campaign names") : "") + (f.err ? ": " + f.err : "")}),
       el("span", {cls: "mm"}, f.rows ? fInt(f.rows) + (f.kind === "crm" ? " leads" : " rows") + " · " : "", el("button", {cls: "linkbtn", type: "button", onclick: function(){ A.files.splice(i, 1); renderSavedPanel(); }}, "Remove")))); });
     box.appendChild(list);
   }
@@ -3704,7 +3746,7 @@ function dbAddPanel(u){
   return box;
 }
 function dbRowsFromRaw(rawIn, crmName){
-  var S = state.settings, raw = rawIn || state.raw, brandOf = makeBrandOf(S), out = {meta: [], crm: [], noDate: 0, level: 3, from: null, to: null};
+  var S = state.settings, raw = rawIn || state.raw, brandOf = makeBrandOfWith(S, metaCampBrands(raw.meta, S)), out = {meta: [], crm: [], noDate: 0, level: 3, from: null, to: null};
   var mh = findMetaHeader(raw.meta, S.cols.meta);
   if (mh >= 0){
     var H = raw.meta[mh], c = detectMetaColumns(H, S.cols.meta), cur = c.spend >= 0 ? String(H[c.spend]).match(/\(([A-Za-z]{3})\)/) : null, code = cur ? cur[1].toUpperCase() : "INR", mm = {};
@@ -3792,7 +3834,7 @@ function dbUpload(onStep){
 function dbLoad(range, onProgress){
   var S = state.settings, cc = S.cols.crm, p = {meta: 0, crm: 0};
   var tell = function(){ if (onProgress) onProgress(p); };
-  var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach").order("id");
+  var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach,brand").order("id");
     return range ? q.lte("day", isoDay(range.to)).gte("day_end", isoDay(range.from)) : q; };
   var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner,manager,prev_lead,prev_created,dup_match").order("lead_id");
     return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
@@ -3801,8 +3843,8 @@ function dbLoad(range, onProgress){
     sb.client.from("team_settings").select("settings,updated_at,updated_by").eq("id", 1).maybeSingle().then(function(r){ return r.error ? null : r.data; })])
   .then(function(res){
     var cur = res[0].length ? res[0][0].currency : "INR";
-    var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach"]]
-      .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach)]; }));
+    var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach", "Brand"]]
+      .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach), m.brand || ""]; }));
     var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager, "Previous lead", "Previous lead created", "Duplicate match"]]
       .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner, l.manager || "",
         l.prev_lead || "", l.prev_created ? l.prev_created.replace("T", " ") : "", l.dup_match || ""]; }));
@@ -3871,7 +3913,8 @@ function dbAddButton(){
 function renderUploadDb(){
   var x = document.getElementById("upload-db"); if (!x) return; x.textContent = "";
   if (sb.cfg && sbCanWrite() && state.raw && state.source !== "db") x.appendChild(dbAddButton());
-  else if (sb.cfg && sbCanWrite()) x.appendChild(el("div", {cls: "small", text: "Once both files are in, an Add this upload to the database button appears here."}));
+  else if (sb.cfg && sbCanWrite()) x.appendChild(el("div", {cls: "small", text: "Add Meta reports, the TeleCRM export, or both; an Add this upload to the database button then appears here."}));
+  else if (!sb.cfg && state.raw === null && (state.metaFiles.length || state.pending.crm)) x.appendChild(el("div", {cls: "small", text: state.metaFiles.length ? "Now add the TeleCRM export to build the report." : "Now add the Meta report(s) to build the report."}));
 }
 function renderDbSection(x){
   var box = el("div", {cls: "group team-box"}), editable = sbCanWrite();
@@ -3967,6 +4010,7 @@ function renderDbSection(x){
 
 /* ================= boot ================= */
 state.settings = loadSettings();
+setTimeout(function(){ renderMetaBrandPick(); var mb = document.getElementById("meta-brand"); if (mb) mb.addEventListener("change", function(){ mb.classList.remove("need"); document.getElementById("er-meta").textContent = ""; }); }, 0);
 try { var g0 = localStorage.getItem("ebg-lead-dash-gran"); if (g0) state.trendGran = g0; } catch (e) {}
 try { var t0 = localStorage.getItem("ebg-lead-dash-tab"); if (t0) state.tab = t0; var r0 = JSON.parse(localStorage.getItem("ebg-lead-dash-range") || "null"); if (r0 && r0.preset) state.range = r0; } catch (e) {}
 function boot(){
