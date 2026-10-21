@@ -403,6 +403,7 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .flist .fbrand select{max-width:190px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:12px}
 .flist li{gap:10px}
 .wz-status{display:flex;gap:10px;align-items:center}
+#windsor .msg.warn{background:var(--warn-bg);color:var(--warn);border:1px solid #fbbc04}
 #wz-load{justify-self:start}
 .wz-sync select{padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font:inherit}
 .wz-hist{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px;color:var(--fg)}
@@ -1937,19 +1938,39 @@ function wzRange(k){
   if (k === "yesterday") return {from: t - 1, to: t - 1};
   var d = {last3: 3, last7: 7, last30: 30}[k] || 3; return {from: t - d, to: t};
 }
+/* pull one account at a time in 7-day pieces, retrying Facebook's "incomplete data, retry shortly" answers; failed pieces are reported, the rest is saved */
+function wzPull(acc, rg, W){
+  var jobs = [], CH = 7;
+  acc.forEach(function(a){ for (var f = rg.from; f <= rg.to; f += CH) jobs.push({a: a, from: f, to: Math.min(rg.to, f + CH - 1)}); });
+  var rows = null, cols = null, failed = [], done = 0;
+  var wait = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
+  var one = function(j, tries){
+    return wzApi("data", {from: isoDay(j.from), to: isoDay(j.to), accounts: j.a.id}).then(function(d){ cols = cols || d.cols; rows = (rows || []).concat(d.rows); })
+      .catch(function(e){ var m = String(e.message || e);
+        if (tries < 3 && /retry|incomplete|rate|429|50\d|timed? ?out|timeout|temporar/i.test(m)) return wait(tries === 0 ? 4000 : 10000).then(function(){ return one(j, tries + 1); });
+        failed.push({account: j.a.name || j.a.id, span: spanText({from: j.from, to: j.to}), err: m.replace(/^Windsor\.ai answered \d+: /, "")}); });
+  };
+  var chain = Promise.resolve();
+  jobs.forEach(function(j){ chain = chain.then(function(){ W.busy = "Pulling " + (j.a.name || j.a.id) + " · " + spanText({from: j.from, to: j.to}) + " (" + (++done) + " of " + jobs.length + ")…";
+    var b = document.getElementById("wz-sync"); if (b) b.textContent = W.busy; return one(j, 0); }); });
+  return chain.then(function(){ return {cols: cols, rows: rows || [], failed: failed, pieces: jobs.length}; });
+}
 function wzSync(W){
   var acc = wzAccountsSaved().filter(function(a){ return a.on !== false; });
   var rg = wzRange(W.range || "last3");
   if (rg.to - rg.from > 92){ W.msg = {kind: "err", text: "Sync up to 93 days at a time."}; render(); return; }
   W.busy = "Pulling from Windsor.ai…"; W.msg = null; render();
   var brandFor = {}; acc.forEach(function(a){ brandFor[a.id] = a.brand || ""; });
-  var kw = makeBrandOf(state.settings), uid, metaRows, files;
-  wzApi("data", {from: isoDay(rg.from), to: isoDay(rg.to), accounts: acc.map(function(a){ return a.id; }).join(",")}).then(function(d){
+  var kw = makeBrandOf(state.settings), uid, metaRows = [], files = [], failed = [], pieces = 0;
+  wzPull(acc, rg, W).then(function(d){
+    failed = d.failed; pieces = d.pieces;
+    if (!d.cols || !d.rows.length){ if (failed.length) throw new Error("nothing could be pulled. " + failed.slice(0, 3).map(function(f){ return f.account + " (" + f.span + "): " + f.err; }).join(" · "));
+      throw new Error("Windsor.ai returned no ad rows for " + spanText(rg) + " in the ticked accounts."); }
     var C = {}; d.cols.forEach(function(c, i){ C[c] = i; });
     var mm = {};
     d.rows.forEach(function(r){
       var camp = clean(r[C.campaign]), adset = clean(r[C.adset]), ad = clean(r[C.ad]), day = r[C.date]; if (!camp) return;
-      var k = [camp, adset, ad, day].join("\\u0001"), x = mm[k];
+      var k = [camp, adset, ad, day].join("|~|"), x = mm[k];
       var row = {source_file: "Windsor · " + (r[C.account_name] || r[C.account_id]), campaign: camp, adset: adset, ad: ad, day: day, day_end: day,
         spend: Number(r[C.spend]) || 0, results: Number(r[C.results]) || 0, result_indicator: r[C.result_indicator] || "", currency: r[C.currency] || "INR",
         brand: brandFor[r[C.account_id]] || brandFor["act_" + r[C.account_id]] || kw(camp), impressions: Number(r[C.impressions]) || 0, clicks: Number(r[C.clicks]) || 0,
@@ -1958,10 +1979,10 @@ function wzSync(W){
         if (!x.result_indicator) x.result_indicator = row.result_indicator; }
       else mm[k] = row; });
     metaRows = Object.keys(mm).map(function(k){ return mm[k]; });
-    if (!metaRows.length) throw new Error("Windsor.ai returned no ad rows for " + spanText(rg) + (acc.length ? " in the ticked accounts" : "") + ".");
     files = Object.keys(metaRows.reduce(function(o, r){ o[r.source_file] = 1; return o; }, {}));
     W.busy = "Saving " + fInt(metaRows.length) + " rows…"; render();
-    return sb.client.from("uploads").insert({meta_files: files, crm_file: null, meta_rows: metaRows.length, crm_rows: 0, date_from: isoDay(rg.from), date_to: isoDay(rg.to)}).select("id").single();
+    var days = metaRows.reduce(function(o, r){ var dd = dayOf(Date.parse(r.day + "T00:00:00Z")); o.a = Math.min(o.a, dd); o.b = Math.max(o.b, dd); return o; }, {a: Infinity, b: -Infinity});
+    return sb.client.from("uploads").insert({meta_files: files, crm_file: null, meta_rows: metaRows.length, crm_rows: 0, date_from: isoDay(days.a), date_to: isoDay(days.b)}).select("id").single();
   }).then(function(r){ if (r.error) throw r.error; uid = r.data.id; return dbReplaceMetaDays(metaRows); })
   .then(function(){
     var now = new Date().toISOString(), B = 500, chain = Promise.resolve(), done = 0;
@@ -1969,7 +1990,10 @@ function wzSync(W){
       return sb.client.from("meta_ad_rows").upsert(batch.map(function(x){ return Object.assign({}, x, {upload_id: uid, updated_at: now}); }), {onConflict: "campaign,adset,ad,day,day_end"})
         .then(function(r){ if (r.error) throw r.error; done += batch.length; W.busy = "Saving… " + fInt(done) + " of " + fInt(metaRows.length); var b = document.getElementById("wz-sync"); if (b) b.textContent = W.busy; }); }); })(metaRows.slice(i, i + B));
     return chain; })
-  .then(function(){ W.busy = null; W.msg = {kind: "ok", text: "Synced " + spanText(rg) + ": " + fInt(metaRows.length) + " ad-day rows from " + files.length + " account" + (files.length === 1 ? "" : "s") + ". Earlier data for the same campaigns and days was replaced."};
+  .then(function(){ W.busy = null;
+    var okText = "Synced " + spanText(rg) + ": " + fInt(metaRows.length) + " ad-day rows from " + files.length + " account" + (files.length === 1 ? "" : "s") + ". Earlier data for the same campaigns and days was replaced.";
+    W.msg = failed.length ? {kind: "warn", text: okText + " Not pulled (" + failed.length + " of " + pieces + " pieces), try these again later: " +
+        failed.map(function(f){ return f.account + " · " + f.span + (/incomplete|retry/i.test(f.err) ? " (Facebook returned incomplete data)" : " (" + f.err.slice(0, 120) + ")"); }).join("; ") + "."} : {kind: "ok", text: okText};
     return dbRefreshLists(); })
   .then(function(){ if (state.source === "db" || sb.status === "ready") return dbOpen(true); })
   .then(function(){ render(); })
