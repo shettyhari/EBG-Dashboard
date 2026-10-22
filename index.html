@@ -471,6 +471,9 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .st-menu-acts{display:flex;flex-wrap:wrap;gap:12px;padding:4px 6px 8px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
 .st-opt{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:6px;border-radius:6px;cursor:pointer;font-size:13px}
 .st-opt:hover{background:var(--row-hover)}
+.auto-range{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 4px}
+.auto-range select{max-width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font:inherit}
+.auto-range label{color:var(--ink);font-weight:500}
 .st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
 .seg{display:inline-flex;background:var(--band);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 14px;border-radius:8px;font-size:12.5px;color:var(--muted);cursor:pointer;font-weight:500;transition:background-color .2s,color .2s}
@@ -2170,19 +2173,38 @@ function provPanel(pk, compact){
       (u.date_from ? spanText({from: dayOf(Date.parse(u.date_from + "T00:00:00Z")), to: dayOf(Date.parse((u.date_to || u.date_from) + "T00:00:00Z"))}) : "") + " · " + fInt(u.meta_rows) + " rows · " + (u.meta_files || []).length + " account(s)"); }))));
   return box;
 }
+var AUTO_RANGES = [["2", "Yesterday + today"], ["today", "Today only"], ["3", "Last 3 days"], ["7", "Last 7 days"], ["14", "Last 14 days"], ["30", "Last 30 days"], ["mtd", "This month"], ["shown", "Dates shown on the dashboard"]];
+function autoRangeText(S){
+  var k = String(S.metaAutoRange || "2");
+  if (k === "shown" && S.metaAutoFrom){ var f = dayOf(Date.parse(S.metaAutoFrom + "T00:00:00Z")), t = S.metaAutoTo ? dayOf(Date.parse(S.metaAutoTo + "T00:00:00Z")) : todayDay();
+    return spanText({from: f, to: t}) + (S.metaAutoTo ? "" : ", moving up to today"); }
+  var x = AUTO_RANGES.filter(function(r){ return r[0] === k; })[0]; return x ? x[1].toLowerCase() : "yesterday + today"; }
 function metaAutoBox(st, canRun, saved){
   var S = state.settings, on = !!S.metaAutoSync, box = el("div", {cls: "group auto-box"}, el("h3", {text: "Auto-sync every 30 minutes"}));
   var auto = (sb.uploads || []).filter(function(u){ return (u.meta_files || []).indexOf("Meta API · auto-sync") >= 0; })[0];
   var tg = el("input", {type: "checkbox", id: "meta-auto", checked: on ? true : null, disabled: canRun ? null : true});
-  tg.addEventListener("change", function(){ S.metaAutoSync = tg.checked; provSave(); toast(tg.checked ? "Auto-sync on: yesterday + today every 30 minutes" : "Auto-sync off"); render(); renderProvUpload(); });
-  box.appendChild(el("label", {cls: "toggle", "for": "meta-auto"}, tg, el("span", {text: "Pull yesterday + today for the ticked accounts every 30 minutes (replaces those days, so nothing is counted twice)"})));
-  if (!st.cronReady) box.appendChild(el("div", {cls: "banner warn"}, el("div", null, el("b", {text: "One-time setup needed for the 30-minute job. "}),
-    "In Vercel › Settings › Environment Variables add SUPABASE_SERVICE_ROLE_KEY (Supabase › Project Settings › API keys › service_role / secret key) and CRON_SECRET (any long random text you make up), then Redeploy. " +
-    "In GitHub › the repo › Settings › Secrets and variables › Actions: add a secret CRON_SECRET with the same text, and a variable SITE_URL with your dashboard address (for example https://your-site.vercel.app).")));
+  tg.addEventListener("change", function(){ S.metaAutoSync = tg.checked; provSave(); toast(tg.checked ? "Auto-sync on: " + autoRangeText(S) + " every 30 minutes" : "Auto-sync off"); render(); renderProvUpload(); });
+  box.appendChild(el("label", {cls: "toggle", "for": "meta-auto"}, tg, el("span", {text: "Pull Meta data for the ticked accounts every 30 minutes (replaces those days, so nothing is counted twice)"})));
+  var cur = String(S.metaAutoRange || "2");
+  var sel = el("select", {id: "meta-auto-range", "aria-label": "Auto-sync date range", disabled: canRun ? null : true}, AUTO_RANGES.map(function(r){
+    var lab = r[0] === "shown" ? r[1] + " (" + (cur === "shown" && S.metaAutoFrom ? autoRangeText(S) : rangeText(false)) + ")" : r[1];
+    return el("option", {value: r[0], selected: r[0] === cur ? true : null}, lab); }));
+  sel.addEventListener("change", function(){
+    S.metaAutoRange = sel.value; delete S.metaAutoCursor;
+    if (sel.value === "shown"){ var r = rangeOf(state.range), t = todayDay(); if (!r) r = {from: t - 30, to: t};
+      S.metaAutoFrom = isoDay(r.from); S.metaAutoTo = r.to >= t ? "" : isoDay(r.to); }
+    provSave(); toast("Auto-sync range: " + autoRangeText(S)); render(); renderProvUpload(); });
+  box.appendChild(el("div", {cls: "auto-range"}, el("label", {"for": "meta-auto-range", cls: "small", text: "Date range to keep refreshed"}), sel));
+  box.appendChild(el("div", {cls: "small", text: cur === "2" || cur === "today" ? "Each run refreshes these days for every ticked account." :
+    "Each run refreshes yesterday + today first, then older days of the range in 7-day pieces, as many as fit in one run; a long range is fully refreshed within a few runs. To follow a new dashboard date range, pick “Dates shown on the dashboard” again."}));
+  if (!st.cronReady) box.appendChild(el("div", {cls: "banner warn"}, el("div", null, el("b", {text: "One-time setup needed. "}),
+    "In Vercel › Settings › Environment Variables add SUPABASE_SERVICE_ROLE_KEY (Supabase › Project Settings › API keys › service_role / secret key), then Redeploy.")));
   else if (on && !saved.some(function(a){ return a.on !== false; })) box.appendChild(el("div", {cls: "small", text: "Tick at least one ad account above."}));
   if (auto){
-    var err = String(auto.crm_file || "").indexOf("Last run errors") === 0 ? auto.crm_file : "";
-    box.appendChild(el("div", {cls: "small", text: "Last auto-sync: " + new Date(auto.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " · " + fInt(auto.meta_rows) + " rows stored by auto-sync"}));
+    var cf = String(auto.crm_file || ""), err = cf.indexOf("Last run errors") === 0 ? cf : "", note = cf.indexOf("Auto-sync:") === 0 ? cf.replace(/^Auto-sync:\s*/, "") : "";
+    var age = (Date.now() - Date.parse(auto.uploaded_at)) / 60000;
+    box.appendChild(el("div", {cls: "small", text: "Last auto-sync: " + new Date(auto.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " (" + (age < 60 ? Math.round(age) + " min ago" : (age / 60).toFixed(1) + " h ago") + ") · " + fInt(auto.meta_rows) + " rows stored by auto-sync" + (note ? " · " + note : "")}));
+    if (on && age > 50) box.appendChild(el("div", {cls: "banner warn", text: "The last run was more than 30 minutes ago, so the scheduler isn't calling the sync on time. GitHub's schedule is often delayed by hours; switch on the Supabase scheduler (one SQL script, see the README › Meta API auto-sync) so it runs every 30 minutes."}));
     if (err) box.appendChild(el("div", {cls: "msg err", text: err}));
   } else if (on && st.cronReady) box.appendChild(el("div", {cls: "small", text: "Waiting for the first run (within 30 minutes)."}));
   return box;
@@ -3954,7 +3976,7 @@ function dbPickPanel(u){
 }
 /* ---------- add more files to an upload that's already in the database ---------- */
 var CRM_SEP = " | ";
-function crmFilesOf(u){ return String(u.crm_file || "").split(CRM_SEP).map(clean).filter(function(f){ return f && f.indexOf("Last run errors") !== 0; }); }
+function crmFilesOf(u){ return String(u.crm_file || "").split(CRM_SEP).map(clean).filter(function(f){ return f && f.indexOf("Last run errors") !== 0 && f.indexOf("Auto-sync:") !== 0; }); }
 function readUploadFile(file){
   return readTable(file).then(function(sheets){
     var S = state.settings, crm = pickSheet(sheets, "crm", S);

@@ -34,7 +34,7 @@ module.exports = async function handler(req, res) {
     const tok = process.env.META_ACCESS_TOKEN || "";
     const me = await whoIs(req);
     if (!me || !me.role) return send(res, 401, { error: "Sign in with a team account first." });
-    if (op === "status") return send(res, 200, { configured: !!tok, last4: tok ? tok.slice(-4) : null, role: me.role, version: VER, cronReady: !!(process.env.CRON_SECRET && process.env.SUPABASE_SERVICE_ROLE_KEY) });
+    if (op === "status") return send(res, 200, { configured: !!tok, last4: tok ? tok.slice(-4) : null, role: me.role, version: VER, cronReady: !!process.env.SUPABASE_SERVICE_ROLE_KEY });
     if (!tok) return send(res, 400, { error: "META_ACCESS_TOKEN is not set in Vercel yet." });
     if (me.role !== "admin" && me.role !== "editor") return send(res, 403, { error: "Only admins and editors can pull Meta data." });
     if (op === "accounts") return send(res, 200, { accounts: await adAccounts() });

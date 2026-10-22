@@ -1,4 +1,4 @@
-name: Meta API sync (every 30 minutes)
+name: Meta API sync (backup scheduler)
 on:
   schedule:
     - cron: "*/30 * * * *"
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Pull yesterday + today from Meta into the dashboard
+      - name: Run the Meta auto-sync (range set in the dashboard)
         env:
           SITE_URL: ${{ vars.SITE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

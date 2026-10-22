@@ -97,8 +97,12 @@ Each sync replaces the stored Meta data for the same campaigns and days, and sho
 
 ### Auto-sync every 30 minutes (Meta API)
 
-`.github/workflows/meta-sync.yml` calls `/api/meta-cron` every 30 minutes; it pulls yesterday + today for the ticked accounts and replaces those days.
-One-time setup:
-- Vercel › Environment Variables: `SUPABASE_SERVICE_ROLE_KEY` (Supabase › Project Settings › API keys) and `CRON_SECRET` (any long random text), then redeploy.
-- GitHub › Settings › Secrets and variables › Actions: secret `CRON_SECRET` (same text) and variable `SITE_URL` (the dashboard address).
-- Dashboard › Settings › Meta API (direct): tick **Auto-sync every 30 minutes**.
+`/api/meta-cron` pulls the chosen range (Settings › Meta API › Auto-sync: yesterday + today, last 3/7/14/30 days, this month, or the dashboard's dates) for the ticked accounts and replaces those days.
+Each run refreshes yesterday + today first, then older days in 7-day pieces (as many as fit in ~45 s), continuing where the last run stopped.
+
+Scheduler (recommended): the Supabase database. GitHub's own schedule is often hours late on small repos.
+- Supabase › SQL Editor › New query: paste `supabase/meta-autosync-scheduler.sql`, Run. It creates its own key in Vault; nothing to copy.
+- Vercel › Environment Variables: `SUPABASE_SERVICE_ROLE_KEY` (Supabase › Project Settings › API keys), then redeploy.
+- Dashboard › Settings › Meta API (direct): tick **Auto-sync every 30 minutes** and pick the range.
+
+Backup: `.github/workflows/meta-sync.yml` can also call it (secret `CRON_SECRET` + variable `SITE_URL` in GitHub, `CRON_SECRET` in Vercel), or run it by hand from GitHub › Actions.
