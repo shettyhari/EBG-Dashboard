@@ -474,6 +474,7 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .auto-range{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 4px}
 .auto-range select{max-width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font:inherit}
 .auto-range label{color:var(--ink);font-weight:500}
+.crm-sel select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px}
 .st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
 .seg{display:inline-flex;background:var(--band);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 14px;border-radius:8px;font-size:12.5px;color:var(--muted);cursor:pointer;font-weight:500;transition:background-color .2s,color .2s}
@@ -771,6 +772,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
       <button class="tab sub" role="tab" data-tab="status" aria-selected="false"><span>Lead status</span></button>
       <div class="side-sec">Lead follow-up</div>
       <button class="tab" role="tab" data-tab="tat" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg><span>TAT &amp; calls</span></button>
+      <button class="tab" role="tab" data-tab="crmdata" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11"/></svg><span>CRM leads data</span></button>
       <div class="side-sec">Setup</div>
       <button class="tab" role="tab" data-tab="checks" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Data checks</span></button>
       <button class="tab" role="tab" data-tab="ql" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span>QL statuses</span></button>
@@ -1158,7 +1160,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
   /* ---------- CRM ---------- */
   var cc = S.cols.crm, ch = findHeaderRow(crmAOA || [], cc.id), leads = [], statusFirst = [], statusSeen = {};
   var cnt = {excluded: 0, outsideSel: 0, pasted: 0, nonMeta: 0, outRange: 0, dupExtra: 0, noId: 0, badCreated: 0, noCampCounted: 0, unmatchedCounted: 0};
-  var crmOnly = {}, crmOnlyOrder = [], unmatched = [], noCampByBrand = {};
+  var crmOnly = {}, crmOnlyOrder = [], unmatched = [], noCampByBrand = {}, rowInfo = {};
   if (ch < 0) missing.push("TeleCRM: " + cc.id);
   else {
     var HC = crmAOA[ch];
@@ -1224,6 +1226,9 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       var key2 = mapped ? "~map|" + campKey(camp2) + "|" + (source || "").toLowerCase() : camp2 ? levelKey(camp2, adset2, ad2, metaLevel)
                        : "~nocamp|" + brand.toLowerCase() + "|" + (source || "(blank source)").toLowerCase();
       var matched = !!(camp2 && !mapped && metaAds[key2]);
+      rowInfo[j] = {brand: brand, mapped: mapped, matched: matched, hasCamp: !!camp2, key: matched ? key2 : null, campaign: camp2, mapAd: mapped ? camp2 : "",
+        ql: status ? !!classifyStatus(status, S).ql : false, dupOf: isDup ? dpi.prev : "",
+        why: counted ? "" : (S.optDedupe && id && !first) ? "Repeated lead id" : (S.optSource && !sourceOK) ? "Not a Meta lead source" : (S.optDates && !inRange) ? "Outside the Meta data dates" : (S.dupExclude && isDup) ? "Duplicate person (left out)" : "Not counted"};
       if (!counted) continue;
       if (camp2 && excl[campKey(camp2)]){ cnt.excluded++; infoOf(camp2, brand).crm++; }
       if (status) statusSeen[status]++;
@@ -1340,7 +1345,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
           partialRows: partialRows, metaRowsIn: metaRowsIn,
           period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
           resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
-          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, campBrand: campBrand, needsCall: needsCall, lite: lite, dupList: dupList || [], dupIds: dupIds || {}, dupKeys: !!dupKeysFound, dupExcluded: !!S.dupExclude, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
+          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, campBrand: campBrand, needsCall: needsCall, lite: lite, crmData: ch >= 0 ? {head: ch, info: rowInfo, metaAds: metaAds} : null, dupList: dupList || [], dupIds: dupIds || {}, dupKeys: !!dupKeysFound, dupExcluded: !!S.dupExclude, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
           slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform, now: nowT, holidaysActive: Object.keys(hol).length};
 }
 // ENGINE END
@@ -1942,6 +1947,72 @@ function viewStatus(){
       el("span", {cls: "small", text: st.rows.length.toLocaleString("en-IN") + " " + {campaign: "campaigns", adset: "ad sets", ad: "ads"}[lv]})),
     colTools(id, st.cols),
     table(id, visibleCols(id, st.cols), st.rows, {total: st.total, brandRule: true, empty: "No CRM leads for this filter."}));
+}
+
+/* ================= CRM leads data: every TeleCRM column, one row per lead, with its Meta ad match ================= */
+var CRM_MATCH = [["all", "All leads"], ["matched", "Matched to a Meta ad"], ["notfound", "Ad not in Meta data"], ["nocamp", "No campaign in CRM"], ["mapped", "Mapped (no ad in CRM)"], ["notcounted", "Not counted in report"]];
+function crmMatchOf(x){ return x.matched ? "matched" : x.mapped ? "mapped" : !x.hasCamp ? "nocamp" : "notfound"; }
+function crmMatchLabel(x){ var lvl = state.R.metaLevel;
+  return x.matched ? "Matched to " + ["", "campaign", "ad set", "ad"][lvl] : x.mapped ? "Mapped to campaign" : !x.hasCamp ? "No campaign in CRM" : "Ad not in Meta data"; }
+function crmDataCols(){
+  var R = state.R, D = R.crmData, A = state.raw.crm, H = A[D.head] || [], cc = state.settings.cols.crm, seen = {};
+  var dtCols = {}; [cc.created, cc.firstCall].forEach(function(n){ dtCols[clean(n).toLowerCase()] = 1; });
+  var main = {}; [cc.id, cc.created, "name", "full name", "lead name", "first name", "customer name", cc.phone, "mobile", "mobile number", "phone number", "contact number", cc.email, cc.status, cc.owner,
+    cc.source, cc.campaign, cc.adset, cc.ad, cc.firstCall].forEach(function(n){ main[clean(n).toLowerCase()] = 1; });
+  var prio = [cc.id, cc.created, "name", "full name", "lead name", "first name", "customer name", cc.phone, "mobile", "mobile number", "phone number", "contact number", cc.email, cc.status, cc.owner,
+    cc.source, cc.campaign, cc.adset, cc.ad].map(function(n){ return clean(n).toLowerCase(); });
+  var mcols = [{k: "mBrand", label: "Brand", t: "text", cls: "nowrap", get: function(r){ return r.x.brand; }},
+    {k: "mMatch", label: "Meta ad match", t: "text", cls: "nowrap", get: function(r){ return crmMatchLabel(r.x); },
+      render: function(r){ var m = crmMatchOf(r.x); return el("span", {cls: "pill " + (m === "matched" ? "good" : m === "notfound" ? "bad" : m === "mapped" ? "warn" : "mut"), text: crmMatchLabel(r.x)}); }},
+    {k: "mAd", label: "Matched Meta ad", t: "text", cls: "name", get: function(r){ var a = r.x.key ? D.metaAds[r.x.key] : null; return a ? (a.ad || a.adset || a.campaign) : r.x.mapped ? r.x.mapAd : ""; }},
+    {k: "mSpend", label: "Ad spend (these dates)", t: "inr", def: false, get: function(r){ var a = r.x.key ? D.metaAds[r.x.key] : null; return a ? a.spend : null; }},
+    {k: "mUi", label: "Ad leads in UI", t: "int", def: false, get: function(r){ var a = r.x.key ? D.metaAds[r.x.key] : null; return a ? a.ui : null; }},
+    {k: "mCpl", label: "Ad CPL", t: "inr", def: false, get: function(r){ var a = r.x.key ? D.metaAds[r.x.key] : null; return a ? a.cpl : null; }},
+    {k: "mQL", label: "Qualified", t: "text", get: function(r){ return r.x.ql ? "QL" : "Not QL"; }, render: function(r){ return el("span", {cls: "pill " + (r.x.ql ? "good" : "mut"), text: r.x.ql ? "QL" : "Not QL"}); }},
+    {k: "mWhy", label: "In report", t: "text", cls: "nowrap", get: function(r){ return r.x.why || "Counted"; }, flag: function(r){ return r.x.why ? "warn" : null; }},
+    {k: "mDup", label: "Same person as lead", t: "text", cls: "nowrap", def: false, get: function(r){ return r.x.dupOf || ""; }}];
+  var cols = [];
+  H.forEach(function(h, i){
+    var name = clean(h) || ("Column " + (i + 1)), key = "h:" + name.toLowerCase(); if (seen[key]){ key += "#" + i; name += " (" + (i + 1) + ")"; } seen[key] = 1;
+    var lk = clean(h).toLowerCase(), isDt = !!dtCols[lk];
+    cols.push({k: key, label: name, t: isDt ? "dt" : "text", cls: isDt ? "nowrap" : (/campaign|ad set|^facebook ad$|ad name/i.test(name) ? "name" : ""), def: !!main[lk],
+      get: isDt ? function(r){ var v = parseDT(r.row[i]); return isNum(v) ? v : null; } : function(r){ var v = r.row[i]; return v === null || v === undefined ? "" : String(v); },
+      _p: prio.indexOf(lk) >= 0 && key.indexOf("#") < 0 ? prio.indexOf(lk) : 999, _i: i});
+  });
+  cols.sort(function(a, b){ return (a._p - b._p) || (a._i - b._i); });
+  var cut = 0; cols.forEach(function(c, n){ if (c._p < 999) cut = n + 1; });
+  return cols.slice(0, cut).concat(mcols).concat(cols.slice(cut));
+}
+function crmDataRows(okBrand, useFilters){
+  var D = state.R.crmData, A = state.raw.crm, out = [], pk = useFilters ? pickedStatuses() : [], pkSet = {}, mf = useFilters ? (state.crmMatch || "all") : "all";
+  pk.forEach(function(x){ pkSet[x] = 1; });
+  var stIx = findCol(A[D.head] || [], state.settings.cols.crm.status), q = useFilters ? (state.q.crmdata || "").trim().toLowerCase() : "";
+  Object.keys(D.info).forEach(function(j){ var x = D.info[j], row = A[j] || [];
+    if (!okBrand(x.brand)) return;
+    if (mf === "notcounted" ? !x.why : mf !== "all" && (x.why || crmMatchOf(x) !== mf)) return;
+    if (pk.length && !pkSet[(stIx >= 0 ? clean(row[stIx]) : "") || "(no status)"]) return;
+    if (q && row.join(" ").toLowerCase().indexOf(q) < 0) return;
+    out.push({j: +j, x: x, row: row}); });
+  return out;
+}
+function viewCrmData(){
+  var R = state.R, sec = el("section", {cls: "panel"});
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "CRM leads data"}),
+    el("span", {cls: "note", text: "Every TeleCRM lead for these dates with all its columns, and the Meta ad it matched (by Facebook campaign, ad set and ad name). Use Customize columns to show any TeleCRM column; the search looks in every column, including phone numbers and lead ids."})));
+  if (!R.crmData || !state.raw || !state.raw.crm){ sec.appendChild(el("div", {cls: "empty", text: "Load the TeleCRM export to see lead data."})); return sec; }
+  var id = "crmdata", all = crmDataCols(), rows = crmDataRows(brandOK, true);
+  var cc = state.settings.cols.crm, H = state.raw.crm[R.crmData.head] || [];
+  if (findCol(H, cc.phone) < 0 && findCol(H, "Mobile") < 0) sec.appendChild(el("div", {cls: "banner warn", text: state.source === "db"
+    ? "Contact numbers, emails and names aren't stored in the team database, so they aren't shown here. Load today's TeleCRM export (Lead data upload) to see every column, including phone numbers."
+    : "This TeleCRM export has no Phone column."}));
+  var counts = {}; crmDataRows(brandOK, false).forEach(function(r){ var m = r.x.why ? "notcounted" : crmMatchOf(r.x); counts[m] = (counts[m] || 0) + 1; counts.all = (counts.all || 0) + 1; });
+  var mSel = el("select", {id: "crm-match", "aria-label": "Meta ad match"}, CRM_MATCH.map(function(m){ return el("option", {value: m[0], selected: (state.crmMatch || "all") === m[0] ? true : null}, m[1] + " (" + fInt(counts[m[0]] || 0) + ")"); }));
+  mSel.addEventListener("change", function(){ state.crmMatch = mSel.value; state.limit[id] = 0; render(); });
+  sec.appendChild(el("div", {cls: "tbl-tools"}, searchBox(id, "Search lead id, phone, name, ad…"), statusPicker(), el("span", {cls: "crm-sel"}, mSel),
+    el("span", {cls: "small", text: fInt(rows.length) + " leads"})));
+  sec.appendChild(colTools(id, all));
+  sec.appendChild(table(id, visibleCols(id, all), rows, {empty: "No leads for this filter."}));
+  return sec;
 }
 function setCampaignExcluded(name, ex){
   var S = state.settings, k = campKey(name);
@@ -2882,7 +2953,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus,
+  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData,
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   DRAWS.forEach(function(f){ try { f(true); } catch (e) { console.error(e); } });
@@ -3165,7 +3236,7 @@ function loadExcelJS(){
     document.head.appendChild(s); });
   return loadExcelJS._p;
 }
-var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["trends", "Trends (by day / week / month, as on the Trends tab)"], ["campaigns", "Campaign → Ad set → Ad (hierarchy)"], ["camplist", "Campaign level (flat)"], ["adsets", "Ad set level"], ["ads", "Ad level"], ["status", "Lead status by campaign, ad set and ad"],
+var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["trends", "Trends (by day / week / month, as on the Trends tab)"], ["campaigns", "Campaign → Ad set → Ad (hierarchy)"], ["camplist", "Campaign level (flat)"], ["adsets", "Ad set level"], ["ads", "Ad level"], ["status", "Lead status by campaign, ad set and ad"], ["crmdata", "CRM leads data (every TeleCRM column, with Meta ad match)"],
   ["owners", "TAT by owner"], ["calls", "Leads needing attention"], ["excluded", "Campaigns with results excluded"], ["ql", "QL statuses"], ["checks", "Data checks"], ["unmatched", "Unmatched CRM leads"]];
 var EXPORT_KEY = "ebg-lead-dash-export";
 function exportPrefs(){
@@ -3291,6 +3362,8 @@ function exportSpecs(brand, want){
   if (want.status){ statusLevels().forEach(function(x){ var st = statusTable(x[0], "n", function(r){ return ok(r.brand); }, false);
     specs.push({name: "Status by " + x[1].toLowerCase(), title: "Lead status by " + x[1].toLowerCase(), note: "Leads in CRM split by TeleCRM status. ★ = counts as a qualified lead.",
       cols: pick("status-" + x[0], st.cols), rows: st.rows, total: st.total, freeze: x[0] === "campaign" ? 2 : x[0] === "adset" ? 3 : 4, brandRule: true}); }); }
+  if (want.crmdata && R.crmData && state.raw && state.raw.crm){ var cdc = pick("crmdata", crmDataCols()).map(function(c){ return c.render ? Object.assign({}, c, {render: null}) : c; });
+    specs.push({name: "CRM leads data", title: "CRM leads data", note: "Every TeleCRM lead for these dates, with the Meta ad it matched. Columns as chosen on the CRM leads data tab.", cols: cdc, rows: crmDataRows(function(b){ return ok(b); }, false), freeze: 1}); }
   if (want.owners && R.hasManager){ var mr2 = managerRows(ok), mc2 = pick("owners", managerTreeCols()), mf2 = managerFlat(mc2, mr2.rows, true); mr2.total.owner = "TOTAL";
     specs.push({name: "TAT by manager", title: "TAT by manager and assignee", note: "Use the + / − outline buttons to open managers. Manager rows add up their assignees' leads; TAT and SLA are recalculated.", cols: mc2, rows: mf2, total: mr2.total, freeze: 1, tree: true}); }
   if (want.owners){ var ow = ownerRows(ok); specs.push({name: "TAT by owner", title: "TAT by owner", note: "Overall TAT counts all hours; working-hrs TAT counts Mon–Sat 10 AM–9 PM IST without Sundays and active holidays. SLA % = within ÷ (within + call delayed + not contacted).", cols: pick("owners", ownerCols()), rows: ow.rows, total: ow.total, freeze: 1}); }
