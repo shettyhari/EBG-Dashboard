@@ -460,6 +460,9 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .g4{background:linear-gradient(135deg,#0284c7,#38bdf8)} .g5{background:linear-gradient(135deg,#ea580c,#fb923c)} .g6{background:linear-gradient(135deg,#d97706,#fbbf24)}
 .g7{background:linear-gradient(135deg,#6d28d9,#8b5cf6)} .g8{background:linear-gradient(135deg,#db2777,#f472b6)} .g9{background:linear-gradient(135deg,#0f766e,#2dd4bf)}
 .g10{background:linear-gradient(135deg,#4338ca,#818cf8)} .g11{background:linear-gradient(135deg,#be123c,#fb7185)} .g12{background:linear-gradient(135deg,#475569,#94a3b8)}
+.heat{display:inline-block;min-width:46px;padding:2px 7px;border-radius:6px;text-align:right;background:color-mix(in srgb,var(--accent) calc(var(--h,0) * 60%),transparent)}
+.heat.zero{color:var(--muted);background:none}
+.st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
 .seg{display:inline-flex;background:var(--band);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 14px;border-radius:8px;font-size:12.5px;color:var(--muted);cursor:pointer;font-weight:500;transition:background-color .2s,color .2s}
 .seg button[aria-pressed="true"]{background:var(--btn-bg);color:#fff;box-shadow:0 4px 10px rgba(37,99,235,.25)}
@@ -753,6 +756,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
       <button class="tab" role="tab" data-tab="campaigns" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l15-6v14L3 13z"/><path d="M7 13v5a2 2 0 0 0 4 0v-4"/></svg><span>Campaigns</span></button>
       <button class="tab sub" role="tab" data-tab="adsets" aria-selected="false"><span>Ad sets</span></button>
       <button class="tab sub" role="tab" data-tab="ads" aria-selected="false"><span>Ads</span></button>
+      <button class="tab sub" role="tab" data-tab="status" aria-selected="false"><span>Lead status</span></button>
       <div class="side-sec">Lead follow-up</div>
       <button class="tab" role="tab" data-tab="tat" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg><span>TAT &amp; calls</span></button>
       <div class="side-sec">Setup</div>
@@ -1438,7 +1442,7 @@ function metricCols(level){
     {k: "ql", label: "Qualified leads", t: "int"},
     {k: "qlRate", label: "QL rate", t: "pct"},
     {k: "cpql", label: "CPQL", t: "inr"}]
-    .concat(mediaCols()).concat(tatCols())
+    .concat(mediaCols()).concat(tatCols()).concat(statusCols(allStatuses(), "n", false))
     .concat([{k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}]);
 }
 function brandCols(){ var R = state.R;
@@ -1836,6 +1840,60 @@ function viewLevel(level){
     table(id, visibleCols(id, cols), rows, {total: T, brandRule: true, rowCls: level === "campaign" ? function(r){ var f = R.campFlags && R.campFlags[campKey(r.campaign)]; return f && f.nonLead && !f.excluded ? "flagged" : ""; } : null}));
   if (level === "campaign") sec.appendChild(excludedSection());
   return sec;
+}
+
+/* ================= lead status by campaign / ad set / ad ================= */
+/* statuses found in these rows, QL statuses first, then by lead count */
+function statusList(rows){
+  var n = {}, S = state.settings;
+  rows.forEach(function(r){ if (r.statusN) for (var k in r.statusN) n[k] = (n[k] || 0) + r.statusN[k]; });
+  return Object.keys(n).map(function(k){ return {status: k, n: n[k], ql: k !== "(no status)" && !!classifyStatus(k, S).ql}; })
+    .sort(function(a, b){ return (b.ql - a.ql) || (b.n - a.n) || a.status.localeCompare(b.status); });
+}
+function allStatuses(){ var R = state.R; if (!R) return []; if (R._stList) return R._stList; return (R._stList = statusList(R.ads || [])); }
+/* one column per CRM status: count, or share of the row's CRM leads */
+function statusCols(list, mode, def, heat){
+  var share = mode === "pct";
+  return list.map(function(s){
+    var val = function(r){ var v = (r.statusN && r.statusN[s.status]) || 0; return share ? (r.crm ? v / r.crm : null) : v; };
+    var c = {k: "st:" + s.status, label: (s.ql ? "★ " : "") + s.status + (def === false ? " (lead status)" : ""), t: share ? "pct" : "int", def: def, get: val};
+    if (heat) c.render = function(r){ var v = (r.statusN && r.statusN[s.status]) || 0, h = r.crm ? v / r.crm : 0;
+      return el("span", {cls: "heat" + (v ? "" : " zero"), style: "--h:" + h.toFixed(3), title: fInt(v) + " of " + fInt(r.crm) + " CRM leads (" + (h * 100).toFixed(1) + "%)",
+        text: share ? (r.crm ? (h * 100).toFixed(1) + "%" : "N/A") : fInt(v)}); };
+    return c; });
+}
+function statusLevels(){ var R = state.R, out = [["campaign", "Campaign"]]; if (R.metaLevel >= 2) out.push(["adset", "Ad set"]); if (R.metaLevel >= 3) out.push(["ad", "Ad"]); return out; }
+function statusTable(level, mode, ok, heat){
+  var R = state.R, src = level === "campaign" ? R.camps : level === "adset" ? R.adsets : R.ads;
+  var rows = src.filter(function(r){ return ok(r) && r.crm > 0; }), list = statusList(rows);
+  var lead = [{k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign name", t: "text", cls: "name", w: 44}];
+  if (level !== "campaign") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name", w: 38});
+  if (level === "ad") lead.push({k: "ad", label: "Ad name", t: "text", cls: "name", w: 38});
+  lead.push({k: "spend", label: "Amount spent", t: "inr", def: false}, {k: "ui", label: "Leads in UI", t: "int", def: false},
+    {k: "crm", label: "Leads in CRM", t: "int"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "qlRate", label: "QL rate", t: "pct"}, {k: "cpql", label: "CPQL", t: "inr", def: false});
+  var T = sumRows(rows); T.brand = "TOTAL (" + rows.length + ")"; T.campaign = ""; T.adset = ""; T.ad = "";
+  return {cols: lead.concat(statusCols(list, mode, true, heat)), rows: rows, total: T, list: list};
+}
+function viewStatus(){
+  var R = state.R, levels = statusLevels(), lv = state.stLevel || "campaign";
+  if (!levels.some(function(x){ return x[0] === lv; })) lv = "campaign";
+  var mode = state.stMode || "n", id = "status-" + lv;
+  var nameF = lv === "campaign" ? ["campaign"] : lv === "adset" ? ["campaign", "adset"] : ["campaign", "adset", "ad"];
+  var st = statusTable(lv, mode, function(r){ return brandOK(r.brand) && matchQ("status", r, nameF); }, true);
+  var seg = function(label, cur, opts, set){ return el("div", {cls: "seg", role: "group", "aria-label": label}, opts.map(function(x){
+    return el("button", {type: "button", "aria-pressed": cur === x[0] ? "true" : "false", onclick: function(){ set(x[0]); render(); }}, x[1]); })); };
+  var lvlNote = R.metaLevel < 2 ? " This Meta export is at campaign level, so ad set and ad views aren't available." : R.metaLevel < 3 ? " This Meta export has no ad-level columns, so the ad view isn't available." : "";
+  var qlN = st.list.filter(function(s){ return s.ql; }).length;
+  return el("section", {cls: "panel"},
+    el("div", {cls: "sec-head"}, el("h2", {text: "Lead status by " + {campaign: "campaign", adset: "ad set", ad: "ad"}[lv]}),
+      el("span", {cls: "note", text: "Each TeleCRM status as its own column, so you can see which campaigns, ad sets and ads bring interested leads and which bring junk. ★ = counts as a qualified lead (" + qlN + " of " + st.list.length + " statuses; change on the QL statuses tab). Shading shows the share of that row's CRM leads. Only rows with CRM leads are listed. Click a status column to rank by it." + lvlNote})),
+    el("div", {cls: "st-tools"},
+      seg("Level", lv, levels, function(v){ state.stLevel = v; }),
+      seg("Show", mode, [["n", "Lead count"], ["pct", "% of CRM leads"]], function(v){ state.stMode = v; }),
+      searchBox("status", "Search " + (lv === "ad" ? "campaign, ad set or ad" : lv === "adset" ? "campaign or ad set" : "campaign")),
+      el("span", {cls: "small", text: st.rows.length.toLocaleString("en-IN") + " " + {campaign: "campaigns", adset: "ad sets", ad: "ads"}[lv]})),
+    colTools(id, st.cols),
+    table(id, visibleCols(id, st.cols), st.rows, {total: st.total, brandRule: true, empty: "No CRM leads for this filter."}));
 }
 function setCampaignExcluded(name, ex){
   var S = state.settings, k = campKey(name);
@@ -2757,7 +2815,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); },
+  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus,
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   DRAWS.forEach(function(f){ try { f(true); } catch (e) { console.error(e); } });
@@ -3040,7 +3098,7 @@ function loadExcelJS(){
     document.head.appendChild(s); });
   return loadExcelJS._p;
 }
-var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["trends", "Trends (by day / week / month, as on the Trends tab)"], ["campaigns", "Campaign → Ad set → Ad (hierarchy)"], ["camplist", "Campaign level (flat)"], ["adsets", "Ad set level"], ["ads", "Ad level"],
+var EXPORT_SHEETS = [["summary", "Summary and brand summary"], ["trends", "Trends (by day / week / month, as on the Trends tab)"], ["campaigns", "Campaign → Ad set → Ad (hierarchy)"], ["camplist", "Campaign level (flat)"], ["adsets", "Ad set level"], ["ads", "Ad level"], ["status", "Lead status by campaign, ad set and ad"],
   ["owners", "TAT by owner"], ["calls", "Leads needing attention"], ["excluded", "Campaigns with results excluded"], ["ql", "QL statuses"], ["checks", "Data checks"], ["unmatched", "Unmatched CRM leads"]];
 var EXPORT_KEY = "ebg-lead-dash-export";
 function exportPrefs(){
@@ -3163,6 +3221,9 @@ function exportSpecs(brand, want){
     rowFill: function(r){ var fl = R.campFlags && R.campFlags[campKey(r.campaign)]; return fl && fl.nonLead && !fl.excluded ? "warn" : null; }}); }
   if (want.adsets){ var c2 = lvl("adset"); specs.push({name: "Ad sets", title: "Ad set level report", cols: c2.cols, rows: c2.rows, total: c2.total, freeze: 2, brandRule: true}); }
   if (want.ads){ var c3 = lvl("ad"); specs.push({name: "Ads", title: "Ad level report", cols: c3.cols, rows: c3.rows, total: c3.total, freeze: 2, brandRule: true}); }
+  if (want.status){ statusLevels().forEach(function(x){ var st = statusTable(x[0], "n", function(r){ return ok(r.brand); }, false);
+    specs.push({name: "Status by " + x[1].toLowerCase(), title: "Lead status by " + x[1].toLowerCase(), note: "Leads in CRM split by TeleCRM status. ★ = counts as a qualified lead.",
+      cols: pick("status-" + x[0], st.cols), rows: st.rows, total: st.total, freeze: x[0] === "campaign" ? 2 : x[0] === "adset" ? 3 : 4, brandRule: true}); }); }
   if (want.owners && R.hasManager){ var mr2 = managerRows(ok), mc2 = pick("owners", managerTreeCols()), mf2 = managerFlat(mc2, mr2.rows, true); mr2.total.owner = "TOTAL";
     specs.push({name: "TAT by manager", title: "TAT by manager and assignee", note: "Use the + / − outline buttons to open managers. Manager rows add up their assignees' leads; TAT and SLA are recalculated.", cols: mc2, rows: mf2, total: mr2.total, freeze: 1, tree: true}); }
   if (want.owners){ var ow = ownerRows(ok); specs.push({name: "TAT by owner", title: "TAT by owner", note: "Overall TAT counts all hours; working-hrs TAT counts Mon–Sat 10 AM–9 PM IST without Sundays and active holidays. SLA % = within ÷ (within + call delayed + not contacted).", cols: pick("owners", ownerCols()), rows: ow.rows, total: ow.total, freeze: 1}); }
