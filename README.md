@@ -54,7 +54,7 @@ When Supabase is connected, the Vercel site keeps one shared database of every u
 - **Trends** tab: spend, Leads in UI vs CRM, CPL, CPQL, QL rate, TAT and SLA by day, week or month, with CPL / CPQL change vs the previous period.
 - **Shared settings**: brand keywords, QL rules and excluded campaigns changed by an editor apply for the whole team.
 - **Logins**: each person signs in with their own email and password. Roles: *viewer* (sees data), *editor* (adds uploads, changes shared settings), *admin* (also removes uploads and manages members). People not on the team see nothing, even with an account.
-- Stored per lead: lead id, created time, source, campaign / ad set / ad, status, CRM brand, owner, first call time, plus the report brand, QL flag and TAT. **No names, phone numbers or emails.**
+- Stored per lead: lead id, created time, source, campaign / ad set / ad, status, CRM brand, owner, first call time, plus the report brand, QL flag and TAT, and for the CRM leads data tab the lead's name, phone, email and every other TeleCRM column (only signed-in team members can read them).
 
 ### Status
 Connected to Supabase project `oggmosadlkarwlurxdjk` (tables, row level security, views and the first admin are set up; `api/config.js` points the site at it). To use another project, set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in Vercel.

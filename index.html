@@ -807,7 +807,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
     <div id="upload" class="upload" hidden>
       <div class="sec-head">
         <h2 style="font-size:18px">Lead data upload</h2>
-        <span class="note">Files are read in your browser. Save data keeps a copy in this browser only. Nothing leaves this page unless you press Save for team, which stores the report data only: lead IDs, owners, campaigns, statuses and call times. No names, phone numbers or emails.</span>
+        <span class="note">Files are read in your browser. Save data keeps a copy in this browser only. Nothing leaves this page unless you press Save for team, which stores the data in your team database (only signed-in team members can open it), including TeleCRM contact details for the CRM leads data tab.</span>
       </div>
       <div class="drops">
         <div class="drop-col">
@@ -1954,6 +1954,24 @@ var CRM_MATCH = [["all", "All leads"], ["matched", "Matched to a Meta ad"], ["no
 function crmMatchOf(x){ return x.matched ? "matched" : x.mapped ? "mapped" : !x.hasCamp ? "nocamp" : "notfound"; }
 function crmMatchLabel(x){ var lvl = state.R.metaLevel;
   return x.matched ? "Matched to " + ["", "campaign", "ad set", "ad"][lvl] : x.mapped ? "Mapped to campaign" : !x.hasCamp ? "No campaign in CRM" : "Ad not in Meta data"; }
+
+/* team database: load the full TeleCRM row (extra) for the loaded leads, once, and add those columns */
+function crmLoadExtra(){
+  var raw = state.raw; if (!raw || raw.crmExtra || raw.crmExtraP) return;
+  var ids = [], A = raw.crm; for (var j = 1; j < A.length; j++){ var id = clean(A[j][0]); if (id) ids.push(id); }
+  var got = {}, B = 300, chain = Promise.resolve(), done = 0;
+  for (var i = 0; i < ids.length; i += B) (function(part){ chain = chain.then(function(){
+    return sb.client.from("crm_leads").select("lead_id,extra").in("lead_id", part).then(function(r){ if (r.error) throw r.error;
+      (r.data || []).forEach(function(x){ if (x.extra) got[x.lead_id] = x.extra; }); done += part.length; raw.crmExtraBusy = "Loading all TeleCRM columns… " + fInt(done) + " of " + fInt(ids.length); }); }); })(ids.slice(i, i + B));
+  raw.crmExtraP = chain.then(function(){
+    if (state.raw !== raw) return;
+    var keys = [], seen = {}; Object.keys(got).forEach(function(id){ Object.keys(got[id]).forEach(function(k){ if (!seen[k]){ seen[k] = 1; keys.push(k); } }); });
+    var have = {}; A[0].forEach(function(h){ have[clean(h).toLowerCase()] = 1; }); keys = keys.filter(function(k){ return !have[clean(k).toLowerCase()]; });
+    A[0] = A[0].concat(keys.map(function(k){ return k.trim(); }));
+    for (var j = 1; j < A.length; j++){ var x = got[clean(A[j][0])] || {}; A[j] = A[j].concat(keys.map(function(k){ return k in x ? x[k] : ""; })); }
+    raw.crmExtra = true; raw.crmExtraBusy = ""; rebuild(); render();
+  }).catch(function(e){ raw.crmExtra = true; raw.crmExtraBusy = ""; toast("Could not load all TeleCRM columns: " + (e.message || e)); render(); });
+}
 function crmDataCols(){
   var R = state.R, D = R.crmData, A = state.raw.crm, H = A[D.head] || [], cc = state.settings.cols.crm, seen = {};
   var dtCols = {}; [cc.created, cc.firstCall].forEach(function(n){ dtCols[clean(n).toLowerCase()] = 1; });
@@ -2000,11 +2018,13 @@ function viewCrmData(){
   sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "CRM leads data"}),
     el("span", {cls: "note", text: "Every TeleCRM lead for these dates with all its columns, and the Meta ad it matched (by Facebook campaign, ad set and ad name). Use Customize columns to show any TeleCRM column; the search looks in every column, including phone numbers and lead ids."})));
   if (!R.crmData || !state.raw || !state.raw.crm){ sec.appendChild(el("div", {cls: "empty", text: "Load the TeleCRM export to see lead data."})); return sec; }
+  if (state.source === "db" && sb.status === "ready" && !state.raw.crmExtra){ crmLoadExtra(); sec.appendChild(el("div", {cls: "small", text: state.raw.crmExtraBusy || "Loading all TeleCRM columns…"})); }
   var id = "crmdata", all = crmDataCols(), rows = crmDataRows(brandOK, true);
   var cc = state.settings.cols.crm, H = state.raw.crm[R.crmData.head] || [];
-  if (findCol(H, cc.phone) < 0 && findCol(H, "Mobile") < 0) sec.appendChild(el("div", {cls: "banner warn", text: state.source === "db"
-    ? "Contact numbers, emails and names aren't stored in the team database, so they aren't shown here. Load today's TeleCRM export (Lead data upload) to see every column, including phone numbers."
-    : "This TeleCRM export has no Phone column."}));
+  var phIx = findCol(H, cc.phone), noPh = 0;
+  if (phIx >= 0) Object.keys(R.crmData.info).forEach(function(j){ if (!clean((state.raw.crm[j] || [])[phIx])) noPh++; });
+  if (phIx < 0) sec.appendChild(el("div", {cls: "banner warn", text: "This TeleCRM export has no Phone column."}));
+  else if (state.source === "db" && noPh) sec.appendChild(el("div", {cls: "banner warn", text: fInt(noPh) + " of these leads were saved before contact details were kept, so their phone, email, name and other TeleCRM columns are empty. Upload the TeleCRM export for those dates again (Lead data upload › Save) to fill them in."}));
   var counts = {}; crmDataRows(brandOK, false).forEach(function(r){ var m = r.x.why ? "notcounted" : crmMatchOf(r.x); counts[m] = (counts[m] || 0) + 1; counts.all = (counts.all || 0) + 1; });
   var mSel = el("select", {id: "crm-match", "aria-label": "Meta ad match"}, CRM_MATCH.map(function(m){ return el("option", {value: m[0], selected: (state.crmMatch || "all") === m[0] ? true : null}, m[1] + " (" + fInt(counts[m[0]] || 0) + ")"); }));
   mSel.addEventListener("change", function(){ state.crmMatch = mSel.value; state.limit[id] = 0; render(); });
@@ -4155,6 +4175,10 @@ function dbRowsFromRaw(rawIn, crmName){
   if (ch >= 0){
     var HC = raw.crm[ch], k = {}; Object.keys(cc).forEach(function(f){ k[f] = findCol(HC, cc[f]); });
     var g = function(row, ix){ return ix >= 0 ? clean(row[ix]) : ""; }, cm = {};
+    /* contact details and every other TeleCRM column, so the CRM leads data tab shows the full lead from the team database */
+    var nameIx = -1; ["Name", "Full Name", "Lead Name", "Customer Name", "First Name"].some(function(n){ nameIx = findCol(HC, n); return nameIx >= 0; });
+    var known = {}; Object.keys(k).forEach(function(f){ if (k[f] >= 0) known[k[f]] = 1; }); if (nameIx >= 0) known[nameIx] = 1;
+    var extraCols = []; HC.forEach(function(h, ix){ var nm = clean(h); if (nm && !known[ix]) extraCols.push([ix, nm]); });
     for (var j = ch + 1; j < raw.crm.length; j++){
       var row = raw.crm[j] || []; if (!row.some(function(v){ return v !== null && v !== undefined && String(v).trim() !== ""; })) continue;
       var created = k.created >= 0 ? parseDT(row[k.created]) : null, fc = k.firstCall >= 0 ? parseDT(row[k.firstCall]) : null;
@@ -4164,6 +4188,8 @@ function dbRowsFromRaw(rawIn, crmName){
       cm[lid] = {source_file: crmName || (state.files && state.files.crm && state.files.crm.name) || "", lead_id: lid, created_on: tsStr(created), lead_source: g(row, k.source), campaign: camp2, adset: g(row, k.adset), ad: g(row, k.ad),
         status: status, crm_brand: crmBrand, first_call: tsStr(fc), owner: g(row, k.owner), manager: g(row, k.manager), brand: camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign"),
         is_ql: status ? !!classifyStatus(status, S).ql : false, tat_min: tat,
+        phone: g(row, k.phone) || null, email: g(row, k.email) || null, lead_name: g(row, nameIx) || null,
+        extra: (function(){ var x = {}, n = 0; extraCols.forEach(function(c){ var v = row[c[0]]; if (v === null || v === undefined) return; v = typeof v === "string" ? v.trim() : v; if (v === "") return; var key = c[1]; while (key in x) key += " "; x[key] = v; n++; }); return n ? x : null; })(),
         fb_lead_id: k.fbLead >= 0 ? normFbLead(row[k.fbLead]) : "", _ph: k.phone >= 0 ? normPhone(row[k.phone]) : "", _em: k.email >= 0 ? normEmail(row[k.email]) : ""};
       if (isNum(created)){ var cd = dayOf(created); out.from = out.from === null ? cd : Math.min(out.from, cd); out.to = out.to === null ? cd : Math.max(out.to, cd); }
     }
@@ -4171,7 +4197,7 @@ function dbRowsFromRaw(rawIn, crmName){
   }
   return out;
 }
-/* turn phone / email into keyed hashes on the server (the raw values are never stored), then drop them from the rows */
+/* turn phone / email into keyed hashes on the server for duplicate detection (the contact columns themselves are saved for the CRM leads data tab) */
 /* before writing Meta rows, clear what's stored for the same campaigns on the same days (latest upload wins) */
 function dbReplaceMetaDays(metaRows){
   var seen = {}, items = [];
@@ -4220,7 +4246,7 @@ function dbLoad(range, onProgress){
   var tell = function(){ if (onProgress) onProgress(p); };
   var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach,brand").order("id");
     return range ? q.lte("day", isoDay(range.to)).gte("day_end", isoDay(range.from)) : q; };
-  var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner,manager,prev_lead,prev_created,dup_match").order("lead_id");
+  var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner,manager,prev_lead,prev_created,dup_match,lead_name,phone,email").order("lead_id");
     return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
   return Promise.all([sbAll(mq, function(n){ p.meta = n; tell(); }), sbAll(cq, function(n){ p.crm = n; tell(); }),
     sb.client.from("data_days").select("d").then(function(r){ if (r.error) throw r.error; return r.data; }),
@@ -4229,9 +4255,9 @@ function dbLoad(range, onProgress){
     var cur = res[0].length ? res[0][0].currency : "INR";
     var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach", "Brand"]]
       .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach), m.brand || ""]; }));
-    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager, "Previous lead", "Previous lead created", "Duplicate match"]]
+    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager, "Previous lead", "Previous lead created", "Duplicate match", "Name", cc.phone, cc.email]]
       .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner, l.manager || "",
-        l.prev_lead || "", l.prev_created ? l.prev_created.replace("T", " ") : "", l.dup_match || ""]; }));
+        l.prev_lead || "", l.prev_created ? l.prev_created.replace("T", " ") : "", l.dup_match || "", l.lead_name || "", l.phone || "", l.email || ""]; }));
     sb.days = (res[2] || []).map(function(r){ return dayOf(Date.parse(r.d + "T00:00:00Z")); }).sort(function(a, b){ return a - b; });
     if (res[3] && res[3].settings){ state.settings = mergeSettings(res[3].settings); sb.settingsAt = res[3].updated_at; }
     return {meta: meta, crm: crm, metaRows: res[0].length, crmRows: res[1].length};

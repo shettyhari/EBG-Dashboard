@@ -274,3 +274,6 @@ grant select on public.v_meta_daily, public.v_crm_leads, public.v_brand_daily to
 -- grant select on public.v_meta_daily, public.v_crm_leads, public.v_brand_daily to looker_reader;
 -- create policy looker_read on public.meta_ad_rows for select to looker_reader using (true);
 -- create policy looker_read on public.crm_leads   for select to looker_reader using (true);
+
+-- contact details and the full TeleCRM row for the CRM leads data tab (team members only, via the table's row-level security)
+alter table public.crm_leads add column if not exists phone text, add column if not exists email text, add column if not exists lead_name text, add column if not exists extra jsonb;
