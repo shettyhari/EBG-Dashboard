@@ -462,6 +462,15 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .g10{background:linear-gradient(135deg,#4338ca,#818cf8)} .g11{background:linear-gradient(135deg,#be123c,#fb7185)} .g12{background:linear-gradient(135deg,#475569,#94a3b8)}
 .heat{display:inline-block;min-width:46px;padding:2px 7px;border-radius:6px;text-align:right;background:color-mix(in srgb,var(--accent) calc(var(--h,0) * 60%),transparent)}
 .heat.zero{color:var(--muted);background:none}
+.st-pick{position:relative;display:inline-block}
+.st-pick>summary{list-style:none;display:inline-flex;gap:8px;align-items:center;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:7px 12px;background:var(--panel);font-size:13px;max-width:300px}
+.st-pick>summary::-webkit-details-marker{display:none}
+.st-pick-k{color:var(--muted)} .st-pick-v{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .st-pick-c{color:var(--muted)}
+.st-pick[open]>summary{border-color:var(--accent)}
+.st-menu{position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:280px;max-width:min(360px,calc(100vw - 32px));max-height:360px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:8px}
+.st-menu-acts{display:flex;flex-wrap:wrap;gap:12px;padding:4px 6px 8px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
+.st-opt{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:6px;border-radius:6px;cursor:pointer;font-size:13px}
+.st-opt:hover{background:var(--row-hover)}
 .st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
 .seg{display:inline-flex;background:var(--band);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 14px;border-radius:8px;font-size:12.5px;color:var(--muted);cursor:pointer;font-weight:500;transition:background-color .2s,color .2s}
@@ -1441,8 +1450,8 @@ function metricCols(level){
     {k: "cpl", label: "CPL", t: "inr"},
     {k: "ql", label: "Qualified leads", t: "int"},
     {k: "qlRate", label: "QL rate", t: "pct"},
-    {k: "cpql", label: "CPQL", t: "inr"}]
-    .concat(mediaCols()).concat(tatCols()).concat(statusCols(allStatuses(), "n", false))
+    {k: "cpql", label: "CPQL", t: "inr"}].concat(pickedCols())
+    .concat(mediaCols()).concat(tatCols())
     .concat([{k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}]);
 }
 function brandCols(){ var R = state.R;
@@ -1609,7 +1618,7 @@ function viewCampaignTree(){
   var sec = el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: "Campaigns → Ad sets → Ads"}),
       el("span", {cls: "note", text: "Click ▸ to open a campaign's ad sets, and an ad set's ads. Each level's numbers are its own; the total row adds campaigns only, and CTR, CPC and CPL are recalculated from totals. Leads in UI is Meta's count; Leads in CRM is TeleCRM leads matched by campaign, ad set and ad name." + lvlNote})),
-    el("div", {cls: "tbl-tools"}, searchBox(id, "Search campaign, ad set or ad"),
+    el("div", {cls: "tbl-tools"}, searchBox(id, "Search campaign, ad set or ad"), statusPicker(),
       el("span", {cls: "opt-row"},
         R.metaLevel >= 2 ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ camps.forEach(function(c){ state.treeOpen["c:" + (c.brand + "|" + c.campaign).toLowerCase()] = true; });
           if (R.metaLevel >= 3) R.adsets.forEach(function(s){ state.treeOpen["s:" + (s.brand + "|" + s.campaign + "|" + s.adset).toLowerCase()] = true; }); render(); }}, "Expand all") : null,
@@ -1834,7 +1843,7 @@ function viewLevel(level){
   var title = {campaign: "Campaign level", adset: "Ad set level", ad: "Ad level"}[level];
   var sec = el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: title}), el("span", {cls: "note", text: "Sorted by brand, then spend. Click a column to sort. The total row follows the brand filter and search."})),
-    el("div", {cls: "tbl-tools"}, searchBox(id, "Search " + (level === "ad" ? "campaign, ad set or ad" : level === "adset" ? "campaign or ad set" : "campaign")),
+    el("div", {cls: "tbl-tools"}, searchBox(id, "Search " + (level === "ad" ? "campaign, ad set or ad" : level === "adset" ? "campaign or ad set" : "campaign")), statusPicker(),
       el("span", {cls: "small", text: rows.length.toLocaleString("en-IN") + " " + (level === "ad" ? "ads" : level === "adset" ? "ad sets" : "campaigns")})),
     colTools(id, cols),
     table(id, visibleCols(id, cols), rows, {total: T, brandRule: true, rowCls: level === "campaign" ? function(r){ var f = R.campFlags && R.campFlags[campKey(r.campaign)]; return f && f.nonLead && !f.excluded ? "flagged" : ""; } : null}));
@@ -1862,10 +1871,45 @@ function statusCols(list, mode, def, heat){
         text: share ? (r.crm ? (h * 100).toFixed(1) + "%" : "N/A") : fInt(v)}); };
     return c; });
 }
+
+/* one shared Lead status filter (dropdown): drives a single "Selected status" column on every level */
+var STPICK_KEY = "ebg-lead-dash-stpick";
+function pickedStatuses(){ if (!state.stPick){ try { state.stPick = JSON.parse(localStorage.getItem(STPICK_KEY) || "[]") || []; } catch (e){ state.stPick = []; } }
+  var known = {}; allStatuses().forEach(function(x){ known[x.status] = 1; }); return state.stPick.filter(function(x){ return known[x]; }); }
+function setPicked(a){ state.stPick = a; try { localStorage.setItem(STPICK_KEY, JSON.stringify(a)); } catch (e) {} }
+function pickedLabel(pk){ return !pk.length ? "All statuses" : pk.length === 1 ? pk[0] : pk.length + " statuses"; }
+function pickedCols(){
+  var pk = pickedStatuses(); if (!pk.length) return [];
+  var n = function(r){ var t = 0; if (r.statusN) pk.forEach(function(s){ t += r.statusN[s] || 0; }); return t; };
+  var nm = pk.length === 1 ? pk[0] : "selected statuses";
+  return [{k: "stSel", label: "Lead status: " + nm, t: "int", get: n, flag: null},
+    {k: "stSelPct", label: "% of CRM leads (" + nm + ")", t: "pct", get: function(r){ return r.crm ? n(r) / r.crm : null; }}];
+}
+function statusPicker(){
+  var all = allStatuses(), pk = pickedStatuses(), on = {}; pk.forEach(function(x){ on[x] = 1; });
+  var d = el("details", {cls: "st-pick"}); if (state.stPickOpen) d.setAttribute("open", "");
+  d.addEventListener("toggle", function(){ state.stPickOpen = d.open; });
+  d.appendChild(el("summary", {"aria-label": "Filter by lead status"}, el("span", {cls: "st-pick-k", text: "Lead status"}), el("span", {cls: "st-pick-v", text: pickedLabel(pk)}), el("span", {cls: "st-pick-c", "aria-hidden": "true", text: "▾"})));
+  var apply = function(a){ setPicked(a); state.stPickOpen = true; render(); };
+  var menu = el("div", {cls: "st-menu", role: "group", "aria-label": "Lead statuses"},
+    el("div", {cls: "st-menu-acts"},
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ apply(all.filter(function(x){ return x.ql; }).map(function(x){ return x.status; })); }}, "All QL statuses"),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ apply(all.filter(function(x){ return !x.ql; }).map(function(x){ return x.status; })); }}, "All not-QL"),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ apply([]); }}, "Clear"),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.stPickOpen = false; render(); }}, "Done")));
+  all.forEach(function(x){
+    var cb = el("input", {type: "checkbox", checked: on[x.status] ? true : null});
+    cb.addEventListener("change", function(){ var a = pk.filter(function(s){ return s !== x.status; }); if (cb.checked) a.push(x.status); apply(a); });
+    menu.appendChild(el("label", {cls: "st-opt"}, cb, el("span", {text: (x.ql ? "★ " : "") + x.status}), el("span", {cls: "small", text: fInt(x.n)}))); });
+  if (!all.length) menu.appendChild(el("div", {cls: "small", text: "No statuses in the CRM data."}));
+  d.appendChild(menu);
+  return d;
+}
 function statusLevels(){ var R = state.R, out = [["campaign", "Campaign"]]; if (R.metaLevel >= 2) out.push(["adset", "Ad set"]); if (R.metaLevel >= 3) out.push(["ad", "Ad"]); return out; }
 function statusTable(level, mode, ok, heat){
   var R = state.R, src = level === "campaign" ? R.camps : level === "adset" ? R.adsets : R.ads;
-  var rows = src.filter(function(r){ return ok(r) && r.crm > 0; }), list = statusList(rows);
+  var rows = src.filter(function(r){ return ok(r) && r.crm > 0; }), list = statusList(rows), pk = pickedStatuses();
+  if (pk.length) list = list.filter(function(x){ return pk.indexOf(x.status) >= 0; });
   var lead = [{k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign name", t: "text", cls: "name", w: 44}];
   if (level !== "campaign") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name", w: 38});
   if (level === "ad") lead.push({k: "ad", label: "Ad name", t: "text", cls: "name", w: 38});
@@ -1886,10 +1930,11 @@ function viewStatus(){
   var qlN = st.list.filter(function(s){ return s.ql; }).length;
   return el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: "Lead status by " + {campaign: "campaign", adset: "ad set", ad: "ad"}[lv]}),
-      el("span", {cls: "note", text: "Each TeleCRM status as its own column, so you can see which campaigns, ad sets and ads bring interested leads and which bring junk. ★ = counts as a qualified lead (" + qlN + " of " + st.list.length + " statuses; change on the QL statuses tab). Shading shows the share of that row's CRM leads. Only rows with CRM leads are listed. Click a status column to rank by it." + lvlNote})),
+      el("span", {cls: "note", text: "Each TeleCRM status as its own column, so you can see which campaigns, ad sets and ads bring interested leads and which bring junk. ★ = counts as a qualified lead (" + qlN + " of " + st.list.length + " statuses; change on the QL statuses tab). Shading shows the share of that row's CRM leads. Only rows with CRM leads are listed. Use the Lead status filter to show just the statuses you need; click a status column to rank by it." + lvlNote})),
     el("div", {cls: "st-tools"},
       seg("Level", lv, levels, function(v){ state.stLevel = v; }),
       seg("Show", mode, [["n", "Lead count"], ["pct", "% of CRM leads"]], function(v){ state.stMode = v; }),
+      statusPicker(),
       searchBox("status", "Search " + (lv === "ad" ? "campaign, ad set or ad" : lv === "adset" ? "campaign or ad set" : "campaign")),
       el("span", {cls: "small", text: st.rows.length.toLocaleString("en-IN") + " " + {campaign: "campaigns", adset: "ad sets", ad: "ads"}[lv]})),
     colTools(id, st.cols),
