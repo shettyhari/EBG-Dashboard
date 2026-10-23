@@ -1,7 +1,16 @@
 {
   "functions": {
-    "api/windsor.js": { "maxDuration": 60 },
-    "api/meta.js": { "maxDuration": 60 },
-    "api/meta-cron.js": { "maxDuration": 60 }
+    "api/windsor.js": {
+      "maxDuration": 60
+    },
+    "api/meta.js": {
+      "maxDuration": 60
+    },
+    "api/meta-cron.js": {
+      "maxDuration": 60
+    },
+    "api/crm-push.js": {
+      "maxDuration": 60
+    }
   }
 }

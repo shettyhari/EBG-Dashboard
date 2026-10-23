@@ -475,6 +475,7 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .auto-range select{max-width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font:inherit}
 .auto-range label{color:var(--ink);font-weight:500}
 .crm-sel select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px}
+.push-setup{margin-top:10px}.push-setup summary{cursor:pointer;font-weight:500;color:var(--ink)}.push-setup ol{margin:8px 0 0;padding-left:20px;line-height:1.6;font-size:13px}.push-setup code{font-size:12px;background:var(--band);padding:1px 5px;border-radius:4px;word-break:break-all}
 .st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
 .seg{display:inline-flex;background:var(--band);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 14px;border-radius:8px;font-size:12.5px;color:var(--muted);cursor:pointer;font-weight:500;transition:background-color .2s,color .2s}
@@ -2320,6 +2321,29 @@ function metaAutoBox(st, canRun, saved){
   } else if (on && st.cronReady) box.appendChild(el("div", {cls: "small", text: "Waiting for the first run (within 30 minutes)."}));
   return box;
 }
+
+/* TeleCRM leads sent in by n8n (POST /api/crm-push): status and setup */
+function crmPushPanel(){
+  var box = el("div", {cls: "panel", id: "crm-push-panel"}, el("div", {cls: "sec-head"}, el("h2", {text: "TeleCRM via n8n · automatic leads"}),
+    el("span", {cls: "note", text: "n8n reads leads from TeleCRM with its own connection and sends them here, so nobody has to upload the TeleCRM export. Leads are matched by lead id: new ones are added, existing ones get the latest status, owner and other columns."})));
+  if (!sb.cfg || sb.status !== "ready"){ box.appendChild(el("div", {cls: "small", text: "Sign in to the team database to see n8n pushes."})); return box; }
+  if (!sb.histAsked){ sb.histAsked = true; dbRefreshLists().then(function(){ if (state.tab === "settings") render(); }).catch(function(){}); }
+  var u = (sb.uploads || []).filter(function(x){ return x.crm_file === "TeleCRM · n8n push"; })[0];
+  if (u){ var age = (Date.now() - Date.parse(u.uploaded_at)) / 60000;
+    box.appendChild(el("div", {cls: "wz-status"}, el("span", {cls: "pill " + (age > 50 ? "warn" : "good"), text: age > 50 ? "Late" : "Receiving"}),
+      el("span", {cls: "small", text: "Last push: " + new Date(u.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " (" + (age < 60 ? Math.round(age) + " min ago" : (age / 60).toFixed(1) + " h ago") + ") · " + fInt(u.crm_rows) + " leads added by n8n so far" +
+        (u.date_from ? " · " + spanText({from: dayOf(Date.parse(u.date_from + "T00:00:00Z")), to: dayOf(Date.parse((u.date_to || u.date_from) + "T00:00:00Z"))}) : "")})));
+    if (age > 50) box.appendChild(el("div", {cls: "banner warn", text: "No push for more than 30 minutes. Check the n8n workflow's executions."}));
+  } else box.appendChild(el("div", {cls: "small", text: "No pushes received yet."}));
+  var url = (location.origin && /^https?:/.test(location.origin) && location.hostname.indexOf("claude") < 0 ? location.origin : "https://ebg-dashboard.vercel.app") + "/api/crm-push";
+  box.appendChild(el("details", {cls: "push-setup"}, el("summary", {text: "Setup (one time)"}),
+    el("ol", null,
+      el("li", null, "Vercel › Settings › Environment Variables: add ", el("b", {text: "CRM_PUSH_KEY"}), " = any long random text you make up (keep a copy), then Redeploy. SUPABASE_SERVICE_ROLE_KEY must be there too."),
+      el("li", null, "n8n: import the “TeleCRM → Dashboard” workflow (from the repo: n8n/telecrm-to-dashboard.json). In its TeleCRM step pick your existing TeleCRM credential and enterprise id; in its last step put the same CRM_PUSH_KEY."),
+      el("li", null, "Send leads with POST to ", el("code", {text: url}), " with header ", el("code", {text: "x-push-key: <CRM_PUSH_KEY>"}), " and a JSON array of leads. Column names like the TeleCRM export (Lead id, Created On, Status, Facebook Campaign Name, Facebook Ad Set Name, Facebook Ad, Assignee name, First Attempted Call, Phone, Email…) or TeleCRM API leads ({id, fields}) both work."),
+      el("li", null, "Activate the workflow. It runs every 30 minutes; the status above shows the last push."))));
+  return box;
+}
 function windsorPanel(){ return provPanel("windsor", false); }
 /* Lead data upload: choose where the Meta data comes from */
 function metaSourceNow(){ var v; try { v = localStorage.getItem("ebg-meta-source"); } catch (e) {} return v === "windsor" || v === "meta" ? v : "file"; }
@@ -2390,7 +2414,7 @@ function viewSettings(){
     el("div", {cls: "actions"},
       el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
       el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
-  return el("div", {cls: "panel"}, sb.cfg ? provPanel("windsor", false) : null, sb.cfg ? provPanel("meta", false) : null, form, sourceMapPanel(), holidayPanel());
+  return el("div", {cls: "panel"}, sb.cfg ? provPanel("windsor", false) : null, sb.cfg ? provPanel("meta", false) : null, sb.cfg ? crmPushPanel() : null, form, sourceMapPanel(), holidayPanel());
 }
 function applySettings(){
   var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };
@@ -4322,7 +4346,7 @@ window.addEventListener("pagehide", function(){ if (dbSettingsChanged._pending &
 function dbRefreshLists(){
   if (sb.status !== "ready") return Promise.resolve();
   return Promise.all([
-    sb.client.from("uploads").select("*").order("id", {ascending: false}).limit(15).then(function(r){ sb.uploads = r.error ? [] : r.data; }),
+    sb.client.from("uploads").select("*").order("uploaded_at", {ascending: false}).limit(15).then(function(r){ sb.uploads = r.error ? [] : r.data; }),
     sb.role === "admin" ? sb.client.from("team_members").select("*").order("email").then(function(r){ sb.members = r.error ? [] : r.data; }) : Promise.resolve()]);
 }
 function dbAddButton(){

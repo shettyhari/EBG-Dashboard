@@ -106,3 +106,12 @@ Scheduler (recommended): the Supabase database. GitHub's own schedule is often h
 - Dashboard › Settings › Meta API (direct): tick **Auto-sync every 30 minutes** and pick the range.
 
 Backup: `.github/workflows/meta-sync.yml` can also call it (secret `CRON_SECRET` + variable `SITE_URL` in GitHub, `CRON_SECRET` in Vercel), or run it by hand from GitHub › Actions.
+
+### TeleCRM leads via n8n (automatic, every 30 minutes)
+
+n8n reads leads from TeleCRM with its own TeleCRM connection and POSTs them to `/api/crm-push`; nobody needs the TeleCRM token.
+- Vercel › Environment Variables: `CRM_PUSH_KEY` (any long random text, 16+ characters) and `SUPABASE_SERVICE_ROLE_KEY`, then redeploy.
+- n8n › Import from file: `n8n/telecrm-to-dashboard.json`. In "TeleCRM: latest 500 leads" pick the existing TeleCRM credential and replace `YOUR_ENTERPRISE_ID`; in "Send to dashboard" create a Header Auth credential `x-push-key` = the same `CRM_PUSH_KEY`. Activate.
+- Body: a JSON array of leads (or `{ "leads": [...] }`), either export-style columns (Lead id, Created On, Status, Facebook Campaign Name, Facebook Ad Set Name, Facebook Ad, Assignee name, First Attempted Call, Phone, Email, …) or TeleCRM API leads (`{ id, fields }`). Leads are upserted by lead id; values not sent keep what is stored.
+- Leads without a Created On stay undated (hidden from date views) unless the call adds `?estimateCreated=1`. The n8n workflow dates a lead the first time it sees it (after its first run). A TeleCRM export upload still fills exact Created On and First Attempted Call (TAT).
+- Settings › "TeleCRM via n8n" shows the last push.
