@@ -476,6 +476,13 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .auto-range label{color:var(--ink);font-weight:500}
 .crm-sel select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px}
 .push-setup{margin-top:10px}.push-setup summary{cursor:pointer;font-weight:500;color:var(--ink)}.push-setup ol{margin:8px 0 0;padding-left:20px;line-height:1.6;font-size:13px}.push-setup code{font-size:12px;background:var(--band);padding:1px 5px;border-radius:4px;word-break:break-all}
+.acc-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0}
+.acc-row .prov-load{margin:0}
+.acc-pick>summary{max-width:none}
+.acc-menu{min-width:min(420px,calc(100vw - 32px));max-height:420px}
+.acc-find{width:100%;margin:2px 0 6px;box-sizing:border-box}
+.acc-nm{display:flex;flex-direction:column;min-width:0}
+.acc-nm span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
 .seg{display:inline-flex;background:var(--band);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 14px;border-radius:8px;font-size:12.5px;color:var(--muted);cursor:pointer;font-weight:500;transition:background-color .2s,color .2s}
@@ -2243,7 +2250,7 @@ function provPanel(pk, compact){
   box.appendChild(el("div", {cls: "wz-status"}, el("span", {cls: "pill good", text: "Connected"}), el("span", {cls: "small", text: P.what + " ending ••••" + st.last4 + " · stored in Vercel" + (st.version ? " · Graph API " + st.version : "")})));
   var saved = provAccounts(pk), byId = {}; saved.forEach(function(a){ byId[a.id] = a; });
   var accBox = el("div", {cls: "group"}, el("h3", {text: "Ad accounts"}),
-    el("div", {cls: "small", text: saved.length ? "Ticked accounts are synced. Pick each account's brand (every campaign in it counts for that brand), or let the brand come from campaign names." : "Load the ad accounts this connection can see, then tick the ones to sync."}));
+    el("div", {cls: "small", text: saved.length ? "Choose the accounts to sync from the dropdown. For each selected account pick its brand (every campaign in it counts for that brand), or let the brand come from campaign names." : "Load the ad accounts this connection can see, then tick the ones to sync."}));
   if (canRun) accBox.appendChild(el("button", {cls: "btn ghost prov-load", type: "button", id: pk + "-load" + (compact ? "-up" : ""), disabled: W.loadingAcc ? true : null, onclick: function(){
     W.loadingAcc = true; W.msg = null; render(); renderProvUpload();
     provApi(pk, "accounts").then(function(d){ var list = d.accounts.map(function(a){ var o = byId[a.id] || {}; return {id: a.id, name: a.name, brand: o.brand || "", on: o.id ? o.on !== false : a.active !== false, currency: a.currency}; });
@@ -2268,14 +2275,39 @@ function provPanel(pk, compact){
     var d = amt / per;
     return el("td", {cls: "nowrap " + (d < 3 ? "flag-bad" : d < 7 ? "flag-warn" : "")}, el("b", {text: d < 1 ? "< 1 day" : "~" + Math.floor(d) + " days"}), el("div", {cls: "small", text: "at " + FMT.inr(per) + "/day (last 7 days)"})); };
   if (saved.length){
-    var tb = el("tbody");
+    /* pick accounts from a dropdown; the table below lists only the ticked ones */
+    var onList = saved.filter(function(a){ return a.on !== false; }), qk = pk + (compact ? "-up" : "");
+    var dd = el("details", {cls: "st-pick acc-pick"}); if (W.accOpen === qk) dd.setAttribute("open", "");
+    dd.addEventListener("toggle", function(){ W.accOpen = dd.open ? qk : null; if (dd.open){ var f = dd.querySelector("input[type=search]"); if (f) f.focus(); } });
+    dd.appendChild(el("summary", {"aria-label": "Ad accounts to sync"}, el("span", {cls: "st-pick-k", text: "Ad accounts to sync"}),
+      el("span", {cls: "st-pick-v", text: onList.length ? onList.length + " of " + saved.length + " selected" : "None selected"}), el("span", {cls: "st-pick-c", "aria-hidden": "true", text: "▾"})));
+    var menu = el("div", {cls: "st-menu acc-menu", role: "group", "aria-label": "Ad accounts"});
+    var find = el("input", {type: "search", cls: "search acc-find", placeholder: "Search accounts", "aria-label": "Search accounts", value: W.accQ || ""});
+    var opts = [];
+    var filt = function(){ var q = find.value.trim().toLowerCase(); W.accQ = find.value; opts.forEach(function(o){ o.el.hidden = !!q && o.txt.indexOf(q) < 0; }); };
+    find.addEventListener("input", filt);
+    var setAll = function(v){ saved.forEach(function(a){ a.on = v; }); provSave(); W.accOpen = qk; render(); renderProvUpload(); };
+    menu.appendChild(find);
+    if (canRun) menu.appendChild(el("div", {cls: "st-menu-acts"},
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ setAll(true); }}, "Select all"),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ setAll(false); }}, "Clear"),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ W.accOpen = null; render(); renderProvUpload(); }}, "Done")));
     saved.forEach(function(a){
-      var cb = el("input", {type: "checkbox", checked: a.on !== false ? true : null, disabled: canRun ? null : true, "aria-label": "Sync " + a.name});
-      cb.addEventListener("change", function(){ a.on = cb.checked; provSave(); });
-      var bs = el("select", {disabled: canRun ? null : true, "aria-label": "Brand for " + a.name}, [el("option", {value: "", text: "From campaign names"})].concat(S.brands.map(function(b){ return el("option", {value: b, text: b}); })));
-      bs.value = a.brand || ""; bs.addEventListener("change", function(){ a.brand = bs.value; provSave(); });
-      tb.appendChild(el("tr", null, el("td", null, cb), el("td", {cls: "name", text: a.name}), el("td", {cls: "nowrap small", text: a.id}), el("td", null, bs), showFunds ? fundsCell(a) : null, showFunds ? daysCell(a) : null)); });
-    accBox.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:" + (compact ? "260px" : "none")}, el("table", null, el("thead", null, el("tr", null, ["Sync", "Account", "ID", "Brand"].concat(showFunds ? ["Available funds", "Funds last"] : []).map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), tb)));
+      var cb = el("input", {type: "checkbox", checked: a.on !== false ? true : null, disabled: canRun ? null : true});
+      cb.addEventListener("change", function(){ a.on = cb.checked; provSave(); W.accOpen = qk; render(); renderProvUpload(); });
+      var f = showFunds ? fundsOf(a) : null, tag = f ? (isNum(f.funds) ? FMT.inr(f.funds) : isNum(f.capLeft) ? FMT.inr(f.capLeft) + " limit" : "") : "";
+      var row = el("label", {cls: "st-opt acc-opt"}, cb, el("span", {cls: "acc-nm"}, el("span", {text: a.name}), el("span", {cls: "small", text: a.id})), el("span", {cls: "small", text: tag}));
+      opts.push({el: row, txt: (a.name + " " + a.id).toLowerCase()}); menu.appendChild(row); });
+    dd.appendChild(menu); filt();
+    accBox.appendChild(el("div", {cls: "acc-row"}, dd, accBox.querySelector(".prov-load")));
+    if (onList.length){
+      var tb = el("tbody");
+      onList.forEach(function(a){
+        var bs = el("select", {disabled: canRun ? null : true, "aria-label": "Brand for " + a.name}, [el("option", {value: "", text: "From campaign names"})].concat(S.brands.map(function(b){ return el("option", {value: b, text: b}); })));
+        bs.value = a.brand || ""; bs.addEventListener("change", function(){ a.brand = bs.value; provSave(); });
+        tb.appendChild(el("tr", null, el("td", {cls: "name"}, el("div", {text: a.name}), el("div", {cls: "small", text: a.id})), el("td", null, bs), showFunds ? fundsCell(a) : null, showFunds ? daysCell(a) : null)); });
+      accBox.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:" + (compact ? "260px" : "none")}, el("table", null, el("thead", null, el("tr", null, ["Account", "Brand"].concat(showFunds ? ["Available funds", "Funds last"] : []).map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), tb)));
+    } else accBox.appendChild(el("div", {cls: "small", text: "No accounts selected. Pick the ones to sync from the dropdown."}));
     if (showFunds) accBox.appendChild(el("div", {cls: "small funds-note"}, el("span", {text: W.fundsErr ? "Couldn't read funds from Meta: " + W.fundsErr + " " : F ? "Funds live from Meta at " + new Date(F.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". Prepaid accounts show the available balance; card or invoiced accounts show the spending limit left, if one is set. " : ""}),
       el("button", {cls: "linkbtn", type: "button", disabled: W.fundsLoading ? true : null, onclick: function(){ W.funds = null; W.fundsErr = ""; render(); renderProvUpload(); }}, W.fundsLoading ? "Checking…" : "Refresh funds")));
   }
