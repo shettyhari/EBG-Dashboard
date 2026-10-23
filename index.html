@@ -2126,10 +2126,8 @@ function dupSection(){
     el("div", {cls: "tbl-tools"}, searchBox("dups", "Search lead id, earlier lead id or campaign")),
     table("dups", cols, list, {empty: R.dupKeys ? "No duplicate leads for this filter." : "Duplicate detection needs Phone, Email or Facebook Lead ID in the TeleCRM data."}));
 }
-/* ================= live Meta Ads data: Windsor.ai or Meta API direct (keys live in Vercel, never in the page) ================= */
+/* ================= live Meta Ads data: Meta API direct (token lives in Vercel, never in the page) ================= */
 var PROV = {
-  windsor: {api: "windsor", label: "Windsor.ai", key: "windsorAccounts", prefix: "Windsor · ", env: "WINDSOR_API_KEY", what: "Windsor.ai API key",
-    help: "Windsor.ai › Settings › API key (connect your Meta ad accounts in Windsor first)"},
   meta: {api: "meta", label: "Meta API (direct)", key: "metaAccounts", prefix: "Meta API · ", env: "META_ACCESS_TOKEN", what: "System User access token",
     help: "Meta Business Settings › Users › System users › your system user › Generate new token (tick ads_read; give the system user access to the ad accounts under Assigned assets)"}
 };
@@ -2159,7 +2157,7 @@ function provPull(pk, acc, rg, W){
     return provApi(pk, "data", {from: isoDay(j.from), to: isoDay(j.to), accounts: j.a.id}).then(function(d){ cols = cols || d.cols; rows = (rows || []).concat(d.rows); })
       .catch(function(e){ var m = String(e.message || e);
         if (tries < 3 && /retry|incomplete|rate|limit|429|50\d|timed? ?out|timeout|temporar|code (1|2|4|17|32|613|80000|80004)\b/i.test(m)) return wait(tries === 0 ? 4000 : 10000).then(function(){ return one(j, tries + 1); });
-        failed.push({account: j.a.name || j.a.id, span: spanText({from: j.from, to: j.to}), err: m.replace(/^(Windsor\.ai|Meta) answered \d+: /, "")}); });
+        failed.push({account: j.a.name || j.a.id, span: spanText({from: j.from, to: j.to}), err: m.replace(/^Meta answered \d+: /, "")}); });
   };
   var chain = Promise.resolve();
   jobs.forEach(function(j){ chain = chain.then(function(){ W.busy = "Pulling " + (j.a.name || j.a.id) + " · " + spanText({from: j.from, to: j.to}) + " (" + (++done) + " of " + jobs.length + ")…";
@@ -2344,15 +2342,14 @@ function crmPushPanel(){
       el("li", null, "Activate the workflow. It runs every 30 minutes; the status above shows the last push."))));
   return box;
 }
-function windsorPanel(){ return provPanel("windsor", false); }
 /* Lead data upload: choose where the Meta data comes from */
-function metaSourceNow(){ var v; try { v = localStorage.getItem("ebg-meta-source"); } catch (e) {} return v === "windsor" || v === "meta" ? v : "file"; }
+function metaSourceNow(){ var v; try { v = localStorage.getItem("ebg-meta-source"); } catch (e) {} return v === "meta" ? v : "file"; }
 function renderProvUpload(){
   var host = document.getElementById("meta-src"), col = document.querySelector(".drop-col"); if (!host || !col) return;
   var cur = metaSourceNow(); host.textContent = "";
   if (!sb.cfg){ host.hidden = true; return; } host.hidden = false;
   host.appendChild(el("div", {cls: "small", style: "font-weight:500;color:var(--ink)", text: "Meta Ads data from"}));
-  host.appendChild(el("div", {cls: "seg src-seg", role: "group", "aria-label": "Meta data source"}, [["file", "Upload file"], ["windsor", "Windsor.ai"], ["meta", "Meta API (direct)"]].map(function(x){
+  host.appendChild(el("div", {cls: "seg src-seg", role: "group", "aria-label": "Meta data source"}, [["file", "Upload file"], ["meta", "Meta API (direct)"]].map(function(x){
     return el("button", {type: "button", "aria-pressed": cur === x[0] ? "true" : "false", onclick: function(){ try { localStorage.setItem("ebg-meta-source", x[0]); } catch (e) {} renderProvUpload(); }}, x[1]); })));
   ["meta-brand-pick", "drop-meta", "list-meta"].forEach(function(id){ var e = id === "meta-brand-pick" ? col.querySelector(".meta-brand-pick") : document.getElementById(id); if (e) e.hidden = cur !== "file"; });
   var slot = document.getElementById("meta-prov"); if (slot) slot.remove();
@@ -2414,7 +2411,7 @@ function viewSettings(){
     el("div", {cls: "actions"},
       el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
       el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
-  return el("div", {cls: "panel"}, sb.cfg ? provPanel("windsor", false) : null, sb.cfg ? provPanel("meta", false) : null, sb.cfg ? crmPushPanel() : null, form, sourceMapPanel(), holidayPanel());
+  return el("div", {cls: "panel"}, sb.cfg ? provPanel("meta", false) : null, sb.cfg ? crmPushPanel() : null, form, sourceMapPanel(), holidayPanel());
 }
 function applySettings(){
   var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };

@@ -80,15 +80,6 @@ Team data is sent to the browser only through `/api/team` after the passcode is 
 On the Claude artifact, team saving uses the page's built-in shared storage instead: editors save, everyone the page is shared with can open.
 
 
-## Windsor.ai (Meta Ads data without downloading reports)
-
-1. In Windsor.ai, connect your Meta (Facebook) ad accounts and copy your API key (Windsor.ai › Settings › API key).
-2. In Vercel › this project › Settings › Environment Variables, add `WINDSOR_API_KEY` with that key (Production), save, then redeploy.
-3. In the dashboard › Settings › Windsor.ai, load the ad accounts, tick the ones to sync, pick each account's brand, and press **Sync now**.
-
-The key stays in Vercel; `api/windsor.js` checks that the caller is signed in and on the team (admins and editors can sync).
-Each sync replaces the stored Meta data for the same campaigns and days, and shows up in Saved data as an upload with one file per account.
-
 ## Meta Marketing API (direct)
 
 1. In Meta Business Settings › Users › System users, create (or pick) a system user, give it the ad accounts under **Assigned assets**, and **Generate new token** with `ads_read`.
