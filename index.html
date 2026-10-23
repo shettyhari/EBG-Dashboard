@@ -815,6 +815,20 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
 .set-bar.dirty{border-color:var(--accent)}
 .set-bar.dirty #set-bar-msg{color:var(--accent);font-weight:500}
 @media (max-width:640px){ .set-nav{flex-wrap:nowrap;overflow-x:auto} .row-item.rule .small{display:none} }
+/* ---------- plain-language layer ---------- */
+.has-tip{text-decoration:underline dotted color-mix(in srgb,var(--muted) 70%,transparent);text-underline-offset:3px;cursor:help}
+.note-more{font-size:inherit;padding:0;margin-left:2px}
+.tag.live{color:#137333;border-color:#a8dab5;background:#e6f4ea}
+.checks-sum{margin:8px 0 10px}.banner.good{background:#e6f4ea;border-color:#a8dab5;color:#0d652d}
+.checks-more{margin:6px 0 18px}.checks-more>summary{cursor:pointer;color:var(--accent);font-size:13.5px;padding:8px 0}
+.help-page{display:grid;gap:16px;max-width:1100px}
+.help-steps{margin:0;padding-left:20px;line-height:1.7;font-size:14px}
+.help-pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:10px}
+.help-page-btn{display:grid;gap:4px;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:12px 14px;cursor:pointer;font:inherit;color:var(--fg)}
+.help-page-btn:hover{border-color:var(--accent)}.help-page-btn b{color:var(--accent);font-weight:500}.help-page-btn span{font-size:13px;color:var(--muted)}
+.help-gloss td{vertical-align:top}
+.faq{border-top:1px solid var(--line-soft);padding:10px 0}.faq summary{cursor:pointer;font-weight:500;color:var(--ink)}.faq p{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--fg)}
+header.top .period{max-width:760px;line-height:1.5}
 </style>
 
 <script>try{var _t=localStorage.getItem("ebg-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
@@ -844,6 +858,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
       <button class="tab" role="tab" data-tab="checks" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Data checks</span></button>
       <button class="tab" role="tab" data-tab="ql" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span>QL statuses</span></button>
       <button class="tab" role="tab" data-tab="settings" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
+      <button class="tab" role="tab" data-tab="help" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.9"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/></svg><span>Help &amp; terms</span></button>
   </nav>
   <div class="side-foot"><div class="tagline">Every lead,<br>accounted for.<i></i></div></div>
 </aside>
@@ -874,7 +889,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
     <div id="upload" class="upload" hidden>
       <div class="sec-head">
         <h2 style="font-size:18px">Lead data upload</h2>
-        <span class="note">Files are read in your browser. Save data keeps a copy in this browser only. Nothing leaves this page unless you press Save for team, which stores the data in your team database (only signed-in team members can open it), including TeleCRM contact details for the CRM leads data tab.</span>
+        <span class="note">Usually not needed: Meta and TeleCRM data arrive automatically every 30 minutes (Settings › Data connections). Use this only to add older data or a missing day. Files are read in your browser; Save adds them to the team database.</span>
       </div>
       <div class="drops">
         <div class="drop-col">
@@ -1120,7 +1135,7 @@ function leadTiming(created, fc, S, hol, now){
 }
 function median(a){ if (!a || !a.length) return null; var x = a.slice().sort(function(p, q){ return p - q; }), m = x.length >> 1; return x.length % 2 ? x[m] : (x[m - 1] + x[m]) / 2; }
 /* display labels for the SLA states (stored values stay the same) */
-var SLA_LABEL = {"Within SLA": "Within SLA", "Delayed": "Call delayed", "Pending": "Not Contacted", "Invalid timestamp": "Invalid timestamp"};
+var SLA_LABEL = {"Within SLA": "Within SLA", "Delayed": "Call delayed", "Pending": "Not Contacted", "Invalid timestamp": "Unreadable call time"};
 function slaLabel(v){ return SLA_LABEL[v] || v || ""; }
 function newAcc(o){ o.crm = 0; o.ql = 0; o.ts = 0; o.called = 0; o.win = 0; o.elig = 0; o.pend = 0; o.tats = []; o.whs = []; o.wsum = 0; o.pendO = 0; o.pendW = 0; o.statusN = {}; return o; }
 /* add one group's lead counts into another (never adds a parent into its own child) */
@@ -1442,7 +1457,7 @@ function fTime(t){ if (!isNum(t)) return ""; var x = new Date(t); var h = x.getU
 function fInt(v){ return isNum(v) ? Math.round(v).toLocaleString("en-IN") : "N/A"; }
 var CUR = "₹";
 function fINR(v){ return isNum(v) ? (v < 0 ? "-" : "") + CUR + Math.abs(Math.round(v)).toLocaleString("en-IN") : "N/A"; }
-function fPct(v){ return isNum(v) ? (v * 100).toFixed(1) + "%" : "N/A"; }
+function fPct(v){ return !isNum(v) ? "N/A" : v >= 10 ? "> 999%" : v <= -10 ? "< −999%" : (v * 100).toFixed(1) + "%"; }
 /* TAT: minutes up to 60, then hours and minutes (over a day: hours only) */
 function fDur(v){ if (!isNum(v)) return "N/A"; if (v < 59.95) return v.toFixed(1) + " min";
   var m = Math.round(v), h = Math.floor(m / 60), r = m % 60; if (h >= 24) return Math.round(v / 60).toLocaleString("en-IN") + " hrs";
@@ -1670,7 +1685,7 @@ function treeNameCol(){
 }
 function campaignTreeCols(){
   var editable = !!state.raw;
-  return [{k: "inc", label: "Count results", t: "text", nosort: true, cls: "inc", get: function(){ return ""; }, totalText: "", render: function(r){
+  return [{k: "inc", label: "Count Meta leads", t: "text", nosort: true, cls: "inc", get: function(){ return ""; }, totalText: "", render: function(r){
       if (r._lvl !== 1) return document.createTextNode("");
       if (r.nocamp || !editable) return document.createTextNode(r.nocamp ? "" : "✓");
       var cb = el("input", {type: "checkbox", checked: r.uiExcluded ? null : true, "aria-label": (r.uiExcluded ? "Count results of " : "Stop counting results of ") + r.campaign,
@@ -1907,7 +1922,7 @@ function viewLevel(level){
   if (level === "adset") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "nAds", label: "Ads", t: "int"});
   if (level === "ad") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "ad", label: "Ad name", t: "text", cls: "name"});
   var editable = !!state.raw;
-  if (level === "campaign") lead.unshift({k: "inc", label: "Count results", t: "text", nosort: true, cls: "inc", get: function(){ return ""; }, totalText: "", render: function(r){
+  if (level === "campaign") lead.unshift({k: "inc", label: "Count Meta leads", t: "text", nosort: true, cls: "inc", get: function(){ return ""; }, totalText: "", render: function(r){
     if (r.nocamp || !editable) return document.createTextNode(r.nocamp ? "" : "✓");
     var cb = el("input", {type: "checkbox", checked: r.uiExcluded ? null : true, "aria-label": (r.uiExcluded ? "Count results of " : "Stop counting results of ") + r.campaign,
       title: r.uiExcluded ? "Tick to count this campaign's results as leads again" : "Untick if this campaign's results aren't leads (spend is still counted)"});
@@ -2160,19 +2175,121 @@ function viewTAT(){
     colTools("calls", callCols()),
     table("calls", visibleCols("calls", callCols()), list, {empty: "No leads need attention for this filter."}));
 }
+
+/* ================= plain-language layer: page titles, term explanations, folded notes, help page ================= */
+var PAGE_INFO = {
+  overview: ["Overview", "Your results at a glance: money spent, leads received, lead quality and how fast leads were called."],
+  trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
+  campaigns: ["Campaigns", "Every campaign with its spend, leads and cost. Click ▸ to see its ad sets and ads."],
+  adsets: ["Ad sets", "The same numbers for each ad set, so you can see which audiences work."],
+  ads: ["Ads", "The same numbers for each ad, so you can see which creatives work."],
+  status: ["Lead status", "Where leads stand in TeleCRM (interested, not interested, site visit…) for each campaign, ad set and ad."],
+  tat: ["TAT & calls", "How quickly the sales team called each lead, and which leads still need a call."],
+  crmdata: ["CRM leads data", "Every TeleCRM lead with all its details and the Meta ad it came from. Search by phone number or lead id."],
+  checks: ["Data checks", "Automatic checks that Meta and TeleCRM data match up, so you know the numbers can be trusted."],
+  ql: ["QL statuses", "Which TeleCRM statuses count as a qualified lead (QL)."],
+  settings: ["Settings", "Connections, brands, rules and holidays."],
+  help: ["Help & terms", "What each page shows and what every term means, in plain words."]
+};
+function pageTitle(){
+  var info = PAGE_INFO[state.tab] || PAGE_INFO.overview, h = document.querySelector("header.top h1"), p = document.getElementById("period");
+  if (h) h.textContent = info[0];
+  if (p && state.R){ var pr = state.R.period;
+    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" ? "" : "  ·  Dates: " + rangeText(false));
+    p.title = pr.metaStart !== null ? "Meta data available " + fDay(pr.metaStart) + " – " + fDay(pr.metaEnd) : "No Meta data in these dates yet"; }
+}
+var GLOSS = [
+  ["Leads in UI", "Leads counted by Meta Ads Manager (lead forms and WhatsApp chats started). “UI” = Meta's own numbers."],
+  ["Leads in CRM", "Leads that actually reached TeleCRM in these dates."],
+  ["Lead difference", "Meta leads minus TeleCRM leads. A big gap means leads are being lost, duplicated, or saved without a campaign."],
+  ["Difference", "Meta leads minus TeleCRM leads, as a % of Meta leads. Red when the gap is bigger than your alert level."],
+  ["Amount spent", "Money spent on Meta ads in these dates."],
+  ["CPL", "Cost per lead = amount spent ÷ Meta leads. Lower is better."],
+  ["CPQL", "Cost per qualified lead = amount spent ÷ qualified leads. Lower is better; this is the real cost of a good lead."],
+  ["Qualified leads", "Leads whose TeleCRM status shows real interest (interested, site visit, details shared…). Set on the QL statuses page."],
+  ["QL rate", "Share of CRM leads that are qualified. Higher is better."],
+  ["Impressions", "How many times the ads were shown."],
+  ["Reach", "How many different people saw the ads."],
+  ["Clicks", "Link clicks on the ads."],
+  ["CTR", "Click-through rate = clicks ÷ impressions. Shows how attractive the ad is."],
+  ["CPC", "Cost per click = amount spent ÷ clicks."],
+  ["Overall TAT", "Turnaround time: how long from the lead arriving to the first call attempt, counting every hour."],
+  ["Working-hrs TAT", "Same as TAT, but counting only working hours (Mon–Sat, 10 AM–9 PM, holidays skipped)."],
+  ["TAT", "Turnaround time: how long from the lead arriving to the first call attempt."],
+  ["SLA", "Share of leads called within your target time (set in Settings › Lead rules). Higher is better."],
+  ["Not Contacted", "Leads with no call attempt yet."],
+  ["Call delayed", "Leads called, but later than your target time."],
+  ["Within SLA", "Leads called within your target time."],
+  ["Unreadable call time", "The lead's created or first-call time couldn't be read, so its TAT can't be worked out."],
+  ["Contacted", "Leads that got at least one call attempt."],
+  ["Matched to a campaign", "Share of TeleCRM leads that could be linked to a Meta campaign."],
+  ["Count Meta leads", "Untick for campaigns whose Meta results aren't real leads (for example traffic campaigns). Their spend still counts."],
+  ["Meta ad match", "Whether this lead could be linked to a Meta ad by its campaign, ad set and ad name."],
+  ["Funds last", "Days until the ad account runs out of money at its average daily spend over the last 7 days."],
+  ["Available funds", "Money left in the ad account (prepaid) or spending limit left (card / invoiced)."]
+];
+function glossFor(t){ t = String(t || "").replace(/[↑↓▾ⓘ]/g, "").trim().toLowerCase(); if (!t || t.length > 60) return null;
+  for (var i = 0; i < GLOSS.length; i++){ var k = GLOSS[i][0].toLowerCase(); if (t === k || t.indexOf(k) === 0) return GLOSS[i]; } return null; }
+function friendly(root){
+  if (!root) return;
+  /* explain terms on hover: table headings, KPI and chart labels */
+  [].forEach.call(root.querySelectorAll("th, .kpi .eyebrow, .ga-tl, .eyebrow, .conn-top b"), function(n){
+    var txt = n.firstChild && n.firstChild.nodeType === 3 ? n.firstChild.nodeValue : n.textContent, g = glossFor(txt);
+    if (g && !n.title){ n.title = g[0] + ": " + g[1]; n.classList.add("has-tip"); } });
+  /* long notes beside headings: first sentence, with More */
+  [].forEach.call(root.querySelectorAll(".sec-head .note"), function(n){
+    var t = n.textContent; if (t.length < 140 || n.dataset.folded) return;
+    var m = t.match(/^.+?[.!?](\s|$)/), first = m ? m[0].trim() : t.slice(0, 120) + "…"; if (first.length >= t.length - 5) return;
+    n.dataset.folded = "1"; n.textContent = "";
+    var short = el("span", {text: first + " "}), more = el("button", {cls: "linkbtn note-more", type: "button"}, "More");
+    more.addEventListener("click", function(){ n.textContent = t; });
+    n.appendChild(short); n.appendChild(more); });
+}
+function viewHelp(){
+  var sec = el("section", {cls: "panel help-page"});
+  sec.appendChild(el("div", {cls: "group set-card"}, el("h3", {text: "How this dashboard works"}),
+    el("ol", {cls: "help-steps"},
+      el("li", null, el("b", {text: "Data comes in by itself. "}), "Every 30 minutes the dashboard pulls ad spend and results from Meta, and n8n sends new leads from TeleCRM. Nobody has to upload files."),
+      el("li", null, el("b", {text: "Leads are matched to ads. "}), "Each TeleCRM lead carries the Facebook campaign, ad set and ad it came from, so every lead is linked to the ad that brought it."),
+      el("li", null, el("b", {text: "You pick what to look at. "}), "Use the date button and the brand dropdown at the top. Every page follows them."),
+      el("li", null, el("b", {text: "Share it. "}), "Download Excel sends the same numbers to anyone."))));
+  var pages = [["overview", "Start here every day: spend, leads, cost per lead, lead quality and call speed."], ["trends", "Is cost per lead going up or down? Compare days, weeks or months."],
+    ["campaigns", "Which campaigns bring cheap, good leads, and which waste money."], ["adsets", "Which audiences work best."], ["ads", "Which creatives work best."],
+    ["status", "Lead quality per campaign, ad set and ad (interested vs not interested…)."], ["tat", "Which salespeople call leads fast, and which leads still need a call."],
+    ["crmdata", "Look up any lead by phone number or lead id and see which ad it came from."], ["checks", "If numbers look odd, check here first."],
+    ["ql", "Decide which TeleCRM statuses mean a good lead."], ["settings", "Connections, brands, targets and holidays (for the person managing the dashboard)."]];
+  sec.appendChild(el("div", {cls: "group set-card"}, el("h3", {text: "What each page is for"}),
+    el("div", {cls: "help-pages"}, pages.map(function(p){ return el("button", {cls: "help-page-btn", type: "button", onclick: function(){ state.tab = p[0]; render(); window.scrollTo(0, 0); }},
+      el("b", {text: PAGE_INFO[p[0]][0]}), el("span", {text: p[1]})); }))));
+  var tb = el("tbody"); GLOSS.forEach(function(g){ tb.appendChild(el("tr", null, el("td", {cls: "nowrap"}, el("b", {text: g[0]})), el("td", {text: g[1]}))); });
+  sec.appendChild(el("div", {cls: "group set-card"}, el("h3", {text: "What the terms mean"}), el("p", {cls: "small set-intro", text: "Tip: hover over a column or figure name anywhere in the dashboard to see its meaning."}),
+    el("div", {cls: "tbl-wrap"}, el("table", {cls: "help-gloss"}, el("thead", null, el("tr", null, el("th", {text: "Term"}), el("th", {text: "Meaning"}))), tb))));
+  var faq = [["Why are Meta leads and CRM leads different?", "Meta counts every form or chat; TeleCRM may get some leads without a campaign (WhatsApp, website), repeat leads from the same person, or leads Meta hasn't reported yet. Data checks shows the reasons, and Settings › Brands & campaigns › Leads without a campaign lets you link WhatsApp leads to their campaign."],
+    ["A feed says “Late”. What do I do?", "Open Settings › Data connections. For Meta, check the ad accounts are still selected and the token is valid. For TeleCRM, open n8n and make sure the workflow is Active."],
+    ["What is a good CPL or CPQL?", "Compare with last week on the Trends page. CPQL matters most: it is what one interested lead really costs."],
+    ["A campaign shows as “Unmapped”.", "Its name doesn't match any brand. Add a rule in Settings › Brands & campaigns, e.g. “Campaign name contains Daewoo → Daewoo”."]];
+  sec.appendChild(el("div", {cls: "group set-card"}, el("h3", {text: "Common questions"}), faq.map(function(q){ return el("details", {cls: "faq"}, el("summary", {text: q[0]}), el("p", {text: q[1]})); })));
+  return sec;
+}
 function viewChecks(){
-  var R = state.R, box = el("div", {cls: "checks"});
-  R.checks.forEach(function(c){ var tone = c.kind === "bad" ? "bad" : c.kind === "warn" ? "warn" : c.kind === "ok" ? "good" : "mut";
+  var R = state.R, box = el("div", {cls: "checks"}), infoBox = el("div", {cls: "checks"});
+  var rank = {bad: 0, warn: 1, ok: 2, info: 3};
+  var list = R.checks.slice().sort(function(a, b){ return (rank[a.kind] === undefined ? 3 : rank[a.kind]) - (rank[b.kind] === undefined ? 3 : rank[b.kind]); });
+  var nBad = list.filter(function(c){ return c.kind === "bad"; }).length, nWarn = list.filter(function(c){ return c.kind === "warn"; }).length;
+  var sum = el("div", {cls: "banner " + (nBad ? "warn" : nWarn ? "" : "good") + " checks-sum"}, el("b", {text: nBad ? nBad + " thing" + (nBad > 1 ? "s" : "") + " to fix" + (nWarn ? " and " + nWarn + " to review" : "") : nWarn ? "Nothing broken · " + nWarn + " thing" + (nWarn > 1 ? "s" : "") + " worth a look" : "All checks passed"}),
+    el("span", {text: " — these checks compare Meta and TeleCRM data so you know the report can be trusted. “Fix” means numbers may be wrong; “Review” means worth a look; “OK” and “Info” need no action."}));
+  list.forEach(function(c){ var box0 = c.kind === "bad" || c.kind === "warn" ? box : infoBox; var tone = c.kind === "bad" ? "bad" : c.kind === "warn" ? "warn" : c.kind === "ok" ? "good" : "mut";
     var word = c.kind === "bad" ? "Fix" : c.kind === "warn" ? "Review" : c.kind === "ok" ? "OK" : "Info";
-    box.appendChild(el("div", {cls: "check"}, el("div", null, el("div", {text: c.label}), c.detail ? el("div", {cls: "d", text: c.detail}) : null),
+    box0.appendChild(el("div", {cls: "check"}, el("div", null, el("div", {text: c.label}), c.detail ? el("div", {cls: "d", text: c.detail}) : null),
       el("div", {cls: "n", text: typeof c.n === "number" ? c.n.toLocaleString("en-IN") : String(c.n)}), el("span", {cls: "st pill " + tone, text: word}))); });
   var ucols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap"}, {k: "created", label: "Created", t: "text", cls: "nowrap", get: function(r){ return fTime(r.created); }},
     {k: "brand", label: "Brand", t: "text", cls: "nowrap"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "adset", label: "Ad set", t: "text", cls: "name"},
     {k: "ad", label: "Ad", t: "text", cls: "name"}, {k: "reason", label: "Reason", t: "text"}];
   var un = R.unmatched.filter(function(u){ return brandOK(u.brand) && matchQ("unm", u, ["id", "campaign", "adset", "ad"]); });
   return el("section", {cls: "panel"},
-    el("div", {cls: "sec-head"}, el("h2", {text: "Data checks"}), el("span", {cls: "note", text: "Run on every load. With counting rules off, leads in the report plus leads left out must equal the CRM rows pasted."})),
-    box,
+    el("div", {cls: "sec-head"}, el("h2", {text: "Check results"})),
+    sum, box,
+    el("details", {cls: "checks-more"}, el("summary", {text: "Show the " + infoBox.childNodes.length + " checks that need no action"}), infoBox),
     dupSection(),
     el("div", {cls: "sec-head"}, el("h2", {text: "CRM leads not matched to a Meta ad"}), el("span", {cls: "note", text: "Matched on Facebook Campaign + Ad Set + Ad name. These keep their own rows; nothing is guessed onto another ad."})),
     el("div", {cls: "tbl-tools"}, searchBox("unm", "Search lead id, campaign or ad")),
@@ -2529,7 +2646,7 @@ function viewSettings(){
   var mv = function(arr, i, d){ var j = i + d; if (j < 0 || j >= arr.length) return; var x = arr[i]; arr[i] = arr[j]; arr[j] = x; setDirty(); render(); };
   var iconBtn = function(txt, label, fn, dis){ return el("button", {cls: "icon-mini", type: "button", "aria-label": label, title: label, disabled: dis ? true : null, onclick: fn}, txt); };
 
-  var head = el("div", {cls: "set-head"}, el("h1", {text: "Settings"}),
+  var head = el("div", {cls: "set-head"},
     el("p", {cls: "small", text: (sb.cfg && sb.status === "ready" && sbCanWrite() ? "Changes are shared with your whole team when you save." : "Changes are saved in this browser.") + (editable ? "" : " Load data to see their effect on the report.")}));
   var nav = el("div", {cls: "set-nav", role: "tablist", "aria-label": "Settings sections"}, SET_TABS.filter(function(t){ return t[0] !== "connections" || sb.cfg; }).map(function(t){
     return el("button", {type: "button", role: "tab", "aria-selected": t[0] === tab ? "true" : "false", onclick: function(){ go(t[0]); }}, t[1]); }));
@@ -2874,7 +2991,7 @@ function viewOverview(){
   var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows);
   var sec = el("section", {cls: "panel ov-classic"});
   sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (state.brand === "All" ? "All listed brands" : state.brand + " dashboard") + " · " + rangeText(true)}),
-    el("span", {cls: "note", text: "Blended figures are totals ÷ totals. Leads in UI = sum of Meta " + (R.resultsCol || "Results") + "; Leads in CRM = TeleCRM rows."})));
+    el("span", {cls: "note", text: "Hover over any figure's name to see what it means."})));
   var exList = (R.excluded || []).filter(function(x){ return x.excluded && brandOK(x.brand); });
   if (exList.length) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: exList.length + " campaign" + (exList.length > 1 ? "s have" : " has") + " results excluded: " +
       fInt(exList.reduce(function(s, x){ return s + (x.ui || 0); }, 0)) + " non-lead results (landing page views, clicks…) aren't counted as Leads in UI. Their spend (" +
@@ -3064,19 +3181,20 @@ function renderHeader(){
   document.getElementById("period").textContent = "Showing " + rangeText(false) + (p.metaStart !== null ? " · Meta data " + fDay(p.metaStart) + " – " + fDay(p.metaEnd) : " · No data in these dates yet") + " · Leads in UI vs TeleCRM";
   renderDatePicker();
   var sl = document.getElementById("source-line"); sl.textContent = "";
-  if (state.source === "upload") sl.appendChild(el("span", {cls: "tag mine", text: "Your upload · not saved for team"}));
+  var fx = state.source === "team" && state.team ? state.team.files : state.files, ftip = fx ? [fx.meta ? "Meta: " + (fx.meta.list || [fx.meta.name]).join(", ") + " (" + fInt(fx.meta.rows) + " rows)" : "", fx.crm ? "TeleCRM: " + fx.crm.name + " (" + fInt(fx.crm.rows) + " rows)" : ""].filter(Boolean).join("\n") : "";
+  if (state.source === "upload") sl.appendChild(el("span", {cls: "tag mine", title: ftip, text: "Your uploaded files · only in this browser"}));
   if (state.source === "team") sl.appendChild(el("span", {cls: "tag team", text: "Team data" + (state.team && state.team.name ? " · " + state.team.name : "")}));
-  if (state.source === "db") sl.appendChild(el("span", {cls: "tag team", title: sb.email, text: "Team database" + (sb.role ? " · " + sb.role : "")}));
+  if (state.source === "db") sl.appendChild(el("span", {cls: "tag team live", title: "Signed in as " + sb.email + (sb.role ? " (" + sb.role + ")" : ""), text: "● Live team data"}));
+  if (state.source === "db" && !sb.busy) sl.appendChild(el("span", {cls: "small", text: "Meta and TeleCRM update automatically every 30 minutes"}));
   if (sb.busy) sl.appendChild(el("span", {cls: "small", text: sb.busy}));
   if (state.source === "saved") sl.appendChild(el("span", {cls: "tag saved", title: state.savedInfo ? "Saved " + new Date(state.savedInfo.savedAt).toLocaleString("en-IN") : null,
     text: "Saved data" + (state.savedInfo ? " · " + state.savedInfo.name : "")}));
   if (sb.cfg ? (state.source === "upload" || state.source === "saved") && sbCanWrite() : state.source === "upload" && (saved.ok || team.kind))
     sl.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ if (sb.cfg){ var u = document.getElementById("upload"); u.hidden = false; renderUploadDb(); u.scrollIntoView({block: "nearest"}); } else toggleSaved(); }},
-      sb.cfg ? "Not in the database yet: add it" : "Not saved yet: save this data"));
+      sb.cfg ? "Save these files to the team database" : "Save this data"));
   var f = state.source === "team" && state.team ? state.team.files : state.files;
   {
-    if (f && f.meta) sl.appendChild(el("span", {title: (f.meta.list || [f.meta.name]).join("\n"), text: "Meta: " + f.meta.name + " (" + f.meta.rows.toLocaleString("en-IN") + " rows)" + (f.meta.list && f.meta.list.length > 1 ? " — " + f.meta.list.join(", ") : "")}));
-    if (f && f.crm) sl.appendChild(el("span", {text: "TeleCRM: " + f.crm.name + " (" + f.crm.rows.toLocaleString("en-IN") + " rows)"}));
+
     if (state.source === "team" && state.team) sl.appendChild(el("span", {text: "Saved " + new Date(state.team.savedAt).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}));
   }
   var chips = document.getElementById("brand-chips"); chips.textContent = "";
@@ -3111,6 +3229,20 @@ function renderEmpty(){
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"); v.textContent = "";
   var step = function(n, t, d){ return el("div", {cls: "kpi"}, el("div", {cls: "eyebrow", text: "Step " + n}), el("div", {cls: "v", style: "font-size:20px", text: t}), el("div", {cls: "s", text: d})); };
+  if (sb.cfg){
+    v.appendChild(el("section", {cls: "panel"},
+      el("div", {cls: "sec-head"}, el("h2", {text: sb.status === "ready" ? "Loading your data…" : "Welcome"})),
+      el("p", {cls: "set-lead", text: sb.status === "ready" ? "Meta spend and TeleCRM leads arrive automatically every 30 minutes. If nothing appears, pick a wider date range at the top, or check Settings › Data connections." : "Sign in to see your team's report. Meta spend and TeleCRM leads arrive automatically every 30 minutes, so there's nothing to upload."}),
+      el("div", {cls: "kpis"},
+        step(1, "See the overview", "Money spent, leads received, qualified leads and how fast leads were called."),
+        step(2, "Pick dates and a brand", "Use the date button and the brand dropdown at the top."),
+        step(3, "Find what works", "Campaigns, Ad sets and Ads show cost per lead and lead quality for each one."),
+        step(4, "Follow up leads", "TAT & calls lists leads that weren't called in time."),
+        step(5, "Share", "Download Excel to send the report to anyone.")),
+      el("div", {cls: "actions"}, sb.status !== "ready" ? el("button", {cls: "btn", type: "button", onclick: toggleSaved}, "Sign in") : null,
+        el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "help"; render(); }}, "How this dashboard works"))));
+    return;
+  }
   v.appendChild(el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: "No report yet"}), el("span", {cls: "note", text: "Your numbers stay in this browser until you choose Save for team."})),
     el("div", {cls: "kpis"},
@@ -3238,7 +3370,7 @@ function friendlyAuthError(e){
 function render(){
   if (gated()){ renderLogin(); return; }
   setChrome(true); applyAccess();
-  if (!state.R){ renderEmpty(); return; }
+  if (!state.R){ renderEmpty(); if (state.tab === "help"){ var hv = document.getElementById("view"); hv.textContent = ""; hv.appendChild(viewHelp()); var h1 = document.querySelector("header.top h1"); if (h1) h1.textContent = "Help & terms"; } return; }
   CUR = state.R.currency || "₹";
   renderHeader();
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
@@ -3249,9 +3381,11 @@ function render(){
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
   var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData,
-             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings};
+             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
+  pageTitle();
   DRAWS.forEach(function(f){ try { f(true); } catch (e) { console.error(e); } });
+  friendly(v);
   window.scrollTo(0, y);
 }
 function recompute(){
