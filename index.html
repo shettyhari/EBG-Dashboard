@@ -781,6 +781,16 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
 .set-body>*{min-width:0}
 .set-body>.panel{margin:0}
 .set-lead{margin:0;color:var(--muted);font-size:13.5px}
+.conn-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.conn-head .linkbtn{margin-left:auto}
+.conn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
+.conn-tile{border:1px solid var(--line);border-left:4px solid var(--faint);border-radius:8px;padding:12px 14px;display:grid;gap:6px;background:var(--panel);min-width:0}
+.conn-tile.conn-ok{border-left-color:#1e8e3e}.conn-tile.conn-late{border-left-color:#f9ab00}.conn-tile.conn-err{border-left-color:#d93025}
+.conn-top{display:flex;align-items:center;gap:8px}.conn-top b{color:var(--ink);font-weight:500}.conn-top .pill{margin-left:auto}
+.conn-dot{width:9px;height:9px;border-radius:50%;background:var(--faint)}
+.conn-ok .conn-dot{background:#1e8e3e;box-shadow:0 0 0 3px rgba(30,142,62,.18)}.conn-late .conn-dot{background:#f9ab00}.conn-err .conn-dot{background:#d93025}
+.conn-main{font-size:14px;color:var(--ink)}
+.conn-lines{margin:0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.6}
+.conn-tile .linkbtn{justify-self:start}
 .set-card h3{margin:0;font-size:15px;color:var(--ink)}
 .set-intro{margin:-6px 0 0;line-height:1.5}
 .form.compact{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
@@ -2402,6 +2412,44 @@ function metaAutoBox(st, canRun, saved){
 }
 
 /* TeleCRM leads sent in by n8n (POST /api/crm-push): status and setup */
+
+/* one place to see both automatic feeds: Meta API sync and TeleCRM leads from n8n */
+function connStatusCard(){
+  var ago = function(t){ var m = (Date.now() - Date.parse(t)) / 60000; return m < 1 ? "just now" : m < 60 ? Math.round(m) + " min ago" : m < 1440 ? (m / 60).toFixed(1) + " h ago" : Math.round(m / 1440) + " days ago"; };
+  var when = function(t){ return new Date(t).toLocaleString("en-IN", {day: "numeric", month: "short", hour: "numeric", minute: "2-digit"}); };
+  if (sb.status === "ready" && !sb.histAsked){ sb.histAsked = true; dbRefreshLists().then(function(){ if (state.tab === "settings") render(); }).catch(function(){}); }
+  var ups = sb.uploads || [], S = state.settings, W = (state.prov || {}).meta || {};
+  var tile = function(o){
+    return el("div", {cls: "conn-tile conn-" + o.kind},
+      el("div", {cls: "conn-top"}, el("span", {cls: "conn-dot", "aria-hidden": "true"}), el("b", {text: o.name}), el("span", {cls: "pill " + ({ok: "good", late: "warn", off: "mut", err: "bad"}[o.kind]), text: o.state})),
+      el("div", {cls: "conn-main", text: o.main}),
+      o.lines.length ? el("ul", {cls: "conn-lines"}, o.lines.map(function(l){ return el("li", {text: l}); })) : null,
+      o.err ? el("div", {cls: "msg err", text: o.err}) : null,
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ var e = document.getElementById(o.target); if (e) e.scrollIntoView({behavior: "smooth", block: "start"}); }}, "Details ↓")); };
+  /* Meta */
+  var accs = (S.metaAccounts || []).filter(function(a){ return a.on !== false; }), auto = ups.filter(function(u){ return (u.meta_files || []).indexOf("Meta API · auto-sync") >= 0; })[0];
+  var m = {name: "Meta Ads · API sync", target: "meta-panel", lines: [], kind: "off", state: "Off", main: ""};
+  var tokenOk = W.status ? !!W.status.configured : null;
+  if (tokenOk === false){ m.kind = "err"; m.state = "Not connected"; m.main = "No Meta token in Vercel yet."; }
+  else if (!S.metaAutoSync){ m.kind = "off"; m.state = "Auto-sync off"; m.main = auto ? "Last synced " + ago(auto.uploaded_at) + " · turn on auto-sync below" : "Turn on auto-sync below to pull Meta data every 30 minutes."; }
+  else if (auto){ var age = (Date.now() - Date.parse(auto.uploaded_at)) / 60000; m.kind = age > 50 ? "late" : "ok"; m.state = age > 50 ? "Late" : "Live"; m.main = "Last sync " + ago(auto.uploaded_at) + " (" + when(auto.uploaded_at) + ")"; }
+  else { m.kind = "late"; m.state = "Waiting"; m.main = "Waiting for the first automatic run."; }
+  m.lines.push(accs.length + " ad account" + (accs.length === 1 ? "" : "s") + " selected · range: " + autoRangeText(S) + " · every 30 min");
+  if (auto) m.lines.push(fInt(auto.meta_rows) + " Meta rows kept up to date");
+  if (auto && String(auto.crm_file || "").indexOf("Last run errors") === 0){ m.err = auto.crm_file; if (m.kind === "ok"){ m.kind = "late"; m.state = "Some accounts failed"; } }
+  /* TeleCRM */
+  var push = ups.filter(function(u){ return u.crm_file === "TeleCRM · n8n push"; })[0];
+  var t = {name: "TeleCRM leads · via n8n", target: "crm-push-panel", lines: [], kind: "off", state: "Not set up", main: "No leads received yet. See setup below."};
+  if (push){ var a2 = (Date.now() - Date.parse(push.uploaded_at)) / 60000; t.kind = a2 > 50 ? "late" : "ok"; t.state = a2 > 50 ? "Late" : "Live";
+    t.main = "Last push " + ago(push.uploaded_at) + " (" + when(push.uploaded_at) + ")";
+    t.lines.push(fInt(push.crm_rows) + " new leads added by n8n so far · every 30 min");
+    if (a2 > 50) t.err = "No leads from n8n for over 30 minutes. Check that the n8n workflow is Active and look at its last execution."; }
+  var allOk = m.kind === "ok" && t.kind === "ok";
+  return el("div", {cls: "group set-card conn-card"},
+    el("div", {cls: "conn-head"}, el("h3", {text: "Connection status"}), el("span", {cls: "small", text: allOk ? "Both feeds are running." : "Check the feed marked below."}),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ sb.histAsked = false; if (state.prov && state.prov.meta) state.prov.meta.status = null; render(); }}, "Refresh")),
+    el("div", {cls: "conn-grid"}, tile(m), tile(t)));
+}
 function crmPushPanel(){
   var box = el("div", {cls: "panel", id: "crm-push-panel"}, el("div", {cls: "sec-head"}, el("h2", {text: "TeleCRM via n8n · automatic leads"}),
     el("span", {cls: "note", text: "n8n reads leads from TeleCRM with its own connection and sends them here, so nobody has to upload the TeleCRM export. Leads are matched by lead id: new ones are added, existing ones get the latest status, owner and other columns."})));
@@ -2490,7 +2538,7 @@ function viewSettings(){
   var needsSave = false;
 
   if (tab === "connections"){
-    body.appendChild(provPanel("meta", false)); body.appendChild(crmPushPanel());
+    body.appendChild(connStatusCard()); body.appendChild(provPanel("meta", false)); body.appendChild(crmPushPanel());
   }
   if (tab === "brands"){
     needsSave = true;
