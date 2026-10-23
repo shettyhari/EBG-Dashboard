@@ -144,6 +144,10 @@ module.exports = async function handler(req, res) {
       (rows || []).forEach((r) => { if (r.brand && r.brand !== "Unmapped") campBrand[r.campaign.toLowerCase()] = r.brand; });
     }
     const brandOf = (t) => campBrand[String(t || "").toLowerCase()] || kwBrand(t);
+    // TeleCRM's API gives the assignee as an email; the export gives the name. Look the name (and usual manager) up
+    // from earlier export uploads (their "Assignee emailid" column), so TAT by owner doesn't split one person in two.
+    const ownerMap = {}, ownerEmails = Array.from(new Set(ids.map((id) => leads[id].owner).filter((x) => x && x.indexOf("@") > 0).map((x) => x.toLowerCase())));
+    if (ownerEmails.length) { try { (await sbFetch("rpc/owner_name_map", { method: "POST", body: JSON.stringify({ emails: ownerEmails }) }) || []).forEach((r) => { ownerMap[r.email] = r; }); } catch (e) { /* names stay as emails */ } }
 
     // upload record for pushes (one, refreshed every call)
     let up = await sbFetch("uploads?select=id,date_from,date_to&crm_file=eq." + encodeURIComponent(PUSH_FILE) + "&order=id.desc&limit=1");
@@ -165,9 +169,16 @@ module.exports = async function handler(req, res) {
       const tA = createdOn ? Date.parse(createdOn.replace(" ", "T") + "Z") : NaN, tB = firstCall ? Date.parse(firstCall.replace(" ", "T") + "Z") : NaN;
       const day = createdOn && !(o && o.upload_id && o.upload_id !== uid) ? createdOn.slice(0, 10) : null; if (day && (!minDay || day < minDay)) minDay = day; if (day && (!maxDay || day > maxDay)) maxDay = day;
       const phone = pickV(L.phone, o && o.phone), email = pickV(L.email, o && o.email);
+      let owner = L.owner, manager = L.manager;
+      if (owner && owner.indexOf("@") > 0) {
+        const em = owner.toLowerCase(), mp = ownerMap[em] || {}, oldEm = String((o && o.extra && o.extra["Assignee emailid"]) || "").toLowerCase(), sameAs = !!o && (!oldEm || oldEm === em);
+        extra["Assignee emailid"] = em;
+        owner = mp.owner || (sameAs && o.owner && o.owner.indexOf("@") < 0 ? o.owner : "") || em;
+        if (!manager) manager = mp.manager || (sameAs && o.manager) || "";
+      }
       return {
         lead_id: id, created_on: createdOn, first_call: firstCall, lead_source: pickV(L.source, o && o.lead_source), campaign, adset: pickV(L.adset, o && o.adset), ad: pickV(L.ad, o && o.ad),
-        status, crm_brand: crmBrand, owner: pickV(L.owner, o && o.owner), manager: pickV(L.manager, o && o.manager),
+        status, crm_brand: crmBrand, owner: pickV(owner, o && o.owner), manager: pickV(manager, o && o.manager),
         brand: campaign ? brandOf(campaign) : crmBrand ? brandOf(crmBrand) : "No campaign", is_ql: classify(status, S),
         tat_min: isFinite(tA) && isFinite(tB) && tB >= tA ? Math.round((tB - tA) / 6000) / 10 : null,
         phone: phone || null, email: email || null, lead_name: pickV(L.name, o && o.lead_name) || null, fb_lead_id: normFbLead(L.fbLead) || (o && o.fb_lead_id) || "",
