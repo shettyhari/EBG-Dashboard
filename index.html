@@ -769,6 +769,42 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
   body.side-mini .side-nav .sub .sub-ico{display:block;width:17px;height:17px;opacity:.85}
   body.side-mini .side-sec{font-size:0;line-height:0;padding:0;margin:8px 18px;border-top:1px solid var(--line)}
 }
+/* ---------- settings page ---------- */
+.settings-page{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding-bottom:80px;min-width:0}
+.set-head h1{font-size:22px;font-weight:500;margin:0 0 4px;color:var(--ink)}
+.set-head p{margin:0}
+.set-nav{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+.set-nav button{border:0;background:none;padding:10px 14px;font:inherit;font-size:14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
+.set-nav button:hover{color:var(--ink)}
+.set-nav button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
+.set-body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;max-width:1100px;min-width:0}
+.set-body>*{min-width:0}
+.set-body>.panel{margin:0}
+.set-lead{margin:0;color:var(--muted);font-size:13.5px}
+.set-card h3{margin:0;font-size:15px;color:var(--ink)}
+.set-intro{margin:-6px 0 0;line-height:1.5}
+.form.compact{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.with-suffix{display:flex;align-items:center;gap:8px}.with-suffix input{max-width:140px}.with-suffix span{color:var(--muted);font-size:13px}
+.tog-hint{display:block;margin-top:2px}
+.toggle>span{display:block}
+.row-list{display:grid;gap:6px}
+.row-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row-item input[type=text]{flex:1 1 200px;min-width:0;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13.5px}
+.row-item select{flex:0 1 220px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13.5px;border-radius:4px}
+.row-item.rule input[type=text]{flex:1 1 160px}
+.row-n{width:22px;text-align:right;color:var(--faint);font-size:12px;font-variant-numeric:tabular-nums}
+.icon-mini{width:30px;height:30px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:6px;cursor:pointer;font-size:13px;line-height:1}
+.icon-mini:hover:not([disabled]){color:var(--ink);border-color:var(--ink)}
+.icon-mini[disabled]{opacity:.35;cursor:default}
+.row-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row-add input{flex:1 1 220px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13.5px;border-radius:4px}
+.adv-cols summary{cursor:pointer;font-weight:500;color:var(--ink)}
+.btn.danger{color:#c5221f;border-color:#f3b8b4}
+.set-bar{position:sticky;bottom:0;z-index:15;display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:12px 16px;background:var(--panel);border:1px solid var(--line);box-shadow:0 -6px 18px rgba(0,0,0,.08);max-width:1100px}
+.set-bar #set-bar-msg{margin-right:auto}
+.set-bar.dirty{border-color:var(--accent)}
+.set-bar.dirty #set-bar-msg{color:var(--accent);font-weight:500}
+@media (max-width:640px){ .set-nav{flex-wrap:nowrap;overflow-x:auto} .row-item.rule .small{display:none} }
 </style>
 
 <script>try{var _t=localStorage.getItem("ebg-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
@@ -2416,60 +2452,153 @@ function viewQL(){
       el("span", {cls: "note", text: "Decided by intent: rejection words are checked first (not interested, lost, junk…), then buying-intent words (details shared, interested, site visit, booked…). Early stages like New Lead or Attempt 1 are not QL. Override any status here." + (editable ? "" : " Load the exports to change overrides.")})),
     table("ql", cols, R.statuses, {empty: "No statuses in the CRM data."}));
 }
+/* ================= settings: sections, row editors, one save bar ================= */
+var SET_TABS = [["connections", "Data connections", "Where the dashboard gets Meta and TeleCRM data automatically."],
+  ["brands", "Brands & campaigns", "Which brands appear in reports, how each campaign is assigned to a brand, and campaigns to leave out."],
+  ["rules", "Lead rules", "Speed-to-lead targets, what counts as a qualified lead, and how repeat leads are handled."],
+  ["hours", "Working hours & holidays", "Days that don't count towards working-hours TAT."],
+  ["advanced", "Advanced", "Rarely needed: report date overrides, lead-source filter and export column names."]];
+function setDraft(){ var S = state.settings;
+  if (state.setDraft && state.setDraft.base !== S && !state.setDraft.dirty) state.setDraft = null;   /* settings reloaded (e.g. from the team database) */
+  if (!state.setDraft) state.setDraft = {base: S, brands: S.brands.slice(), keywords: S.keywords.map(function(k){ return [k[0], k[1]]; }), inputs: {}, dirty: false};
+  return state.setDraft; }
+function setDirty(){ var D = setDraft(); if (!D.dirty){ D.dirty = true; var bar = document.getElementById("set-bar"); if (bar) bar.classList.add("dirty"); var m = document.getElementById("set-bar-msg"); if (m) m.textContent = "You have unsaved changes"; } }
 function viewSettings(){
-  var S = state.settings, editable = !!state.raw;
-  function numField(id, label, val, step, hint){ return el("div", {cls: "field"}, el("label", {"for": id, text: label}), el("input", {type: "number", id: id, value: val, step: step || "1", min: "0"}), hint ? el("span", {cls: "small", text: hint}) : null); }
-  function txt(id, label, val, hint){ return el("div", {cls: "field"}, el("label", {"for": id, text: label}), el("textarea", {id: id, spellcheck: "false"}, val), hint ? el("span", {cls: "small", text: hint}) : null); }
-  function tog(id, label, on){ return el("label", {cls: "toggle", "for": id}, el("input", {type: "checkbox", id: id, checked: on ? true : null}), el("span", {text: label})); }
-  var colFields = [];
-  ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ colFields.push(el("div", {cls: "field"}, el("label", {"for": "col-" + src + "-" + k, text: (src === "meta" ? "Meta · " : "TeleCRM · ") + k}),
-    el("input", {type: "text", id: "col-" + src + "-" + k, value: S.cols[src][k]}))); }); });
-  var form = el("div", {cls: "panel"},
-    el("div", {cls: "sec-head"}, el("h2", {text: "Settings"}), el("span", {cls: "note", text: "Saved in this browser. Save for team also stores them with the report." + (editable ? "" : " Load the exports to apply changes to a saved report.")})),
-    el("div", {cls: "form"},
-      el("div", {cls: "group"}, el("h3", {text: "Targets"}),
-        numField("s-sla", "First-call SLA (minutes)", S.slaMin, "1"),
-        numField("s-slat", "SLA compliance target (%)", Math.round(S.slaTarget * 100), "1", "Below this, SLA cells turn amber."),
-        numField("s-diff", "Flag lead difference above (%)", Math.round(S.diffAlert * 100), "1"),
-        el("div", {cls: "field"}, el("label", {"for": "s-plat", text: "Ad platform label"}), el("input", {type: "text", id: "s-plat", value: S.platform}))),
-      el("div", {cls: "group"}, el("h3", {text: "Brands"}),
-        txt("s-brands", "Brands in report order (one per line)", S.brands.join("\n")),
-        tog("s-other", "Also show campaigns and leads from other brands", S.showOther)),
-      el("div", {cls: "group"}, el("h3", {text: "Excluded campaigns"}),
-        tog("s-autoex", "Automatically exclude campaigns whose Meta result isn't a lead (landing page views, link clicks…)", S.autoExcludeNonLead !== false),
-        txt("s-excl", "Always exclude these campaigns (one per line)", (S.excludedCampaigns || []).join("\n"), "Exact campaign names, ignoring case. You can also untick campaigns on the Campaigns tab.")),
-      el("div", {cls: "group"}, el("h3", {text: "Brand keywords"}),
-        txt("s-kw", "keyword = Brand (first match from the top wins)", S.keywords.map(function(k){ return k[0] + " = " + k[1]; }).join("\n"), "Matched anywhere in the campaign name, ignoring case. Keep “Shayreen” above “Natuf”.")),
-      el("div", {cls: "group"}, el("h3", {text: "Counting rules (default: count every CRM row)"}),
-        tog("s-osrc", "Count only Meta-source leads (sources below)", S.optSource),
-        el("div", {cls: "field"}, el("label", {"for": "s-src", text: "Meta lead sources (comma-separated)"}), el("input", {type: "text", id: "s-src", value: S.metaSources.join(", ")})),
-        tog("s-odate", "Count only leads created within the report dates", S.optDates),
-        el("div", {cls: "field"}, el("label", {"for": "s-from", text: "Report from (blank = Meta export start)"}), el("input", {type: "date", id: "s-from", value: S.from || ""})),
-        el("div", {cls: "field"}, el("label", {"for": "s-to", text: "Report to (blank = Meta export end)"}), el("input", {type: "date", id: "s-to", value: S.to || ""})),
-        tog("s-odup", "Count a duplicated Lead id only once (first row kept)", S.optDedupe),
-        tog("s-dupx", "Leave out duplicate leads: same person (phone, email or Facebook lead id) already came in for the same brand", S.dupExclude !== false),
-        numField("s-dupd", "…only if the earlier lead was within this many days (0 = any time)", num(S.dupDays) || 0, "1", "Example: 30 counts someone who comes back after a month as a new lead.")),
-      el("div", {cls: "group"}, el("h3", {text: "Qualified-lead intent words"}),
-        txt("s-neg", "Not QL words (checked first)", S.qlNeg.join("\n")),
-        txt("s-pos", "QL words (buying intent)", S.qlPos.join("\n"))),
-      el("div", {cls: "group"}, el("h3", {text: "Export column names"}), el("span", {cls: "small", text: "Meta columns are also found automatically under Meta's usual names (Results or Leads, Amount spent in any currency, Day or Reporting starts), in any order. Use these only if your export names a column differently."}), colFields)),
-    el("div", {cls: "actions"},
-      el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, editable ? "Apply and rebuild report" : "Save settings"),
-      el("button", {cls: "btn ghost", type: "button", id: "s-reset", onclick: function(){ state.settings = clone(DEFAULT_SETTINGS); storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset to defaults")));
-  return el("div", {cls: "panel"}, sb.cfg ? provPanel("meta", false) : null, sb.cfg ? crmPushPanel() : null, form, sourceMapPanel(), holidayPanel());
+  var S = state.settings, D = setDraft(), editable = !!state.raw;
+  var tab = state.setTab; if (!tab){ try { tab = localStorage.getItem("ebg-set-tab"); } catch (e) {} }
+  if (!SET_TABS.some(function(t){ return t[0] === tab; })) tab = sb.cfg ? "connections" : "brands";
+  if (tab === "connections" && !sb.cfg) tab = "brands";
+  var go = function(t){ state.setTab = t; try { localStorage.setItem("ebg-set-tab", t); } catch (e) {} render(); window.scrollTo(0, 0); };
+  /* inputs keep their unsaved value while you switch sections */
+  var val = function(id, cur){ return id in D.inputs ? D.inputs[id] : cur; };
+  var track = function(node, id){ var f = function(){ D.inputs[id] = node.type === "checkbox" ? node.checked : node.value; setDirty(); }; node.addEventListener("input", f); node.addEventListener("change", f); return node; };
+  function numField(id, label, cur, hint, suffix){ var inp = track(el("input", {type: "number", id: id, value: val(id, cur), step: "1", min: "0"}), id);
+    return el("div", {cls: "field"}, el("label", {"for": id, text: label}), suffix ? el("div", {cls: "with-suffix"}, inp, el("span", {text: suffix})) : inp, hint ? el("span", {cls: "small", text: hint}) : null); }
+  function textField(id, label, cur, hint, type){ return el("div", {cls: "field"}, el("label", {"for": id, text: label}), track(el("input", {type: type || "text", id: id, value: val(id, cur)}), id), hint ? el("span", {cls: "small", text: hint}) : null); }
+  function area(id, label, cur, hint, rows){ var t = track(el("textarea", {id: id, spellcheck: "false", rows: rows || 6}, val(id, cur)), id); return el("div", {cls: "field"}, el("label", {"for": id, text: label}), t, hint ? el("span", {cls: "small", text: hint}) : null); }
+  function tog(id, label, cur, hint){ var c = val(id, cur); return el("label", {cls: "toggle", "for": id}, track(el("input", {type: "checkbox", id: id, checked: c ? true : null}), id), el("span", null, el("span", {text: label}), hint ? el("span", {cls: "small tog-hint", text: hint}) : null)); }
+  function card(title, intro){ var c = el("div", {cls: "group set-card"}, el("h3", {text: title})); if (intro) c.appendChild(el("p", {cls: "small set-intro", text: intro})); for (var i = 2; i < arguments.length; i++) if (arguments[i]) c.appendChild(arguments[i]); return c; }
+  var mv = function(arr, i, d){ var j = i + d; if (j < 0 || j >= arr.length) return; var x = arr[i]; arr[i] = arr[j]; arr[j] = x; setDirty(); render(); };
+  var iconBtn = function(txt, label, fn, dis){ return el("button", {cls: "icon-mini", type: "button", "aria-label": label, title: label, disabled: dis ? true : null, onclick: fn}, txt); };
+
+  var head = el("div", {cls: "set-head"}, el("h1", {text: "Settings"}),
+    el("p", {cls: "small", text: (sb.cfg && sb.status === "ready" && sbCanWrite() ? "Changes are shared with your whole team when you save." : "Changes are saved in this browser.") + (editable ? "" : " Load data to see their effect on the report.")}));
+  var nav = el("div", {cls: "set-nav", role: "tablist", "aria-label": "Settings sections"}, SET_TABS.filter(function(t){ return t[0] !== "connections" || sb.cfg; }).map(function(t){
+    return el("button", {type: "button", role: "tab", "aria-selected": t[0] === tab ? "true" : "false", onclick: function(){ go(t[0]); }}, t[1]); }));
+  var info = SET_TABS.filter(function(t){ return t[0] === tab; })[0];
+  var body = el("div", {cls: "set-body"}, el("p", {cls: "set-lead", text: info[2]}));
+  var needsSave = false;
+
+  if (tab === "connections"){
+    body.appendChild(provPanel("meta", false)); body.appendChild(crmPushPanel());
+  }
+  if (tab === "brands"){
+    needsSave = true;
+    /* brands: rows with move up / down / remove */
+    var bl = el("div", {cls: "row-list"});
+    D.brands.forEach(function(b, i){
+      var inp = el("input", {type: "text", value: b, "aria-label": "Brand " + (i + 1)}); inp.addEventListener("input", function(){ D.brands[i] = inp.value; setDirty(); });
+      bl.appendChild(el("div", {cls: "row-item"}, el("span", {cls: "row-n", text: String(i + 1)}), inp,
+        iconBtn("↑", "Move up", function(){ mv(D.brands, i, -1); }, i === 0), iconBtn("↓", "Move down", function(){ mv(D.brands, i, 1); }, i === D.brands.length - 1),
+        iconBtn("✕", "Remove " + (b || "brand"), function(){ D.brands.splice(i, 1); setDirty(); render(); }))); });
+    var nb = el("input", {type: "text", placeholder: "New brand name", "aria-label": "New brand name"});
+    var addB = function(){ var x = nb.value.trim(); if (!x) return; D.brands.push(x); setDirty(); render(); };
+    nb.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); addB(); } });
+    body.appendChild(card("Brands in your reports", "The order here is the order brands appear in tables and the brand dropdown.", bl,
+      el("div", {cls: "row-add"}, nb, el("button", {cls: "btn ghost", type: "button", onclick: addB}, "+ Add brand")),
+      tog("s-other", "Also show leads and campaigns that don't belong to these brands", S.showOther, "They appear as “Unmapped” or “No campaign”.")));
+    /* brand rules: if campaign name contains X → brand */
+    var brandOpts = D.brands.filter(function(x){ return x.trim(); });
+    var kl = el("div", {cls: "row-list"});
+    D.keywords.forEach(function(k, i){
+      var w = el("input", {type: "text", value: k[0], placeholder: "word in campaign name", "aria-label": "Rule " + (i + 1) + " word"}); w.addEventListener("input", function(){ k[0] = w.value; setDirty(); });
+      var opts = brandOpts.indexOf(k[1]) < 0 && k[1] ? brandOpts.concat([k[1]]) : brandOpts;
+      var sel = el("select", {"aria-label": "Rule " + (i + 1) + " brand"}, [el("option", {value: "", text: "Choose brand…"})].concat(opts.map(function(x){ return el("option", {value: x, selected: x === k[1] ? true : null, text: x}); })));
+      sel.addEventListener("change", function(){ k[1] = sel.value; setDirty(); });
+      kl.appendChild(el("div", {cls: "row-item rule"}, el("span", {cls: "row-n", text: String(i + 1)}), el("span", {cls: "small", text: "Campaign name contains"}), w, el("span", {cls: "small", text: "→"}), sel,
+        iconBtn("↑", "Move up", function(){ mv(D.keywords, i, -1); }, i === 0), iconBtn("↓", "Move down", function(){ mv(D.keywords, i, 1); }, i === D.keywords.length - 1),
+        iconBtn("✕", "Remove rule", function(){ D.keywords.splice(i, 1); setDirty(); render(); }))); });
+    body.appendChild(card("How campaigns are assigned to brands", "Checked from the top; the first rule that matches wins, so put more specific words first (for example “Shayreen” above “Natuf”). Matching ignores capital letters. An ad account set to a brand on the Data connections section overrides these rules.", kl,
+      el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ D.keywords.push(["", ""]); setDirty(); render(); }}, "+ Add rule"))));
+    body.appendChild(card("Campaigns to leave out of “Leads in UI”", "Their spend and CRM leads still count; only Meta's result number is ignored (for example traffic or engagement campaigns).",
+      tog("s-autoex", "Leave out campaigns whose Meta result isn't a lead (landing page views, link clicks…) automatically", S.autoExcludeNonLead !== false),
+      area("s-excl", "Always leave out these campaigns (one exact name per line)", (S.excludedCampaigns || []).join("\n"), "You can also untick a campaign on the Campaigns page.", 4)));
+    body.appendChild(sourceMapPanel());
+  }
+  if (tab === "rules"){
+    needsSave = true;
+    body.appendChild(card("Speed-to-lead targets", null,
+      el("div", {cls: "form compact"},
+        numField("s-sla", "First call should happen within", S.slaMin, "Leads called later count as “Call delayed”.", "minutes"),
+        numField("s-slat", "Target share of leads called in time", Math.round(S.slaTarget * 100), "Below this, SLA turns amber.", "%"),
+        numField("s-diff", "Flag Meta vs CRM lead gap above", Math.round(S.diffAlert * 100), null, "%"))));
+    body.appendChild(card("What counts as a qualified lead (QL)", "A CRM status is checked against these words. “Not QL” words are checked first. You can also set any single status by hand on the QL statuses page.",
+      el("div", {cls: "form compact"},
+        area("s-pos", "QL words (buying intent), one per line", S.qlPos.join("\n"), null, 8),
+        area("s-neg", "Not-QL words, one per line", S.qlNeg.join("\n"), null, 8)),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "ql"; render(); }}, "Open QL statuses →")));
+    body.appendChild(card("Repeat leads", "When the same person (same phone, email or Facebook lead id) comes in again for the same brand.",
+      tog("s-dupx", "Don't count repeat leads as new leads", S.dupExclude !== false),
+      numField("s-dupd", "…only if the earlier lead came in within", num(S.dupDays) || 0, "0 = any time. Example: 30 means someone returning after a month counts as a new lead.", "days"),
+      tog("s-odup", "If the same Lead id appears twice, count it once", S.optDedupe)));
+  }
+  if (tab === "hours"){
+    body.appendChild(card("Working hours", "Working-hours TAT counts Monday to Saturday, 10 AM – 9 PM (IST). Sundays and the holidays below are skipped."));
+    body.appendChild(holidayPanel());
+  }
+  if (tab === "advanced"){
+    needsSave = true;
+    body.appendChild(card("Lead source filter", null,
+      tog("s-osrc", "Count only leads from these TeleCRM lead sources", S.optSource, "Off = every CRM lead counts."),
+      textField("s-src", "Lead sources (comma-separated)", S.metaSources.join(", "))));
+    body.appendChild(card("Report date overrides", "Normally the report follows the date picker. Use these only to force fixed dates.",
+      tog("s-odate", "Count only leads created within the report dates", S.optDates),
+      el("div", {cls: "form compact"}, textField("s-from", "From (blank = automatic)", S.from || "", null, "date"), textField("s-to", "To (blank = automatic)", S.to || "", null, "date"))));
+    body.appendChild(card("Labels", null, textField("s-plat", "Ad platform name shown in tables", S.platform)));
+    var colFields = [];
+    ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ colFields.push(textField("col-" + src + "-" + k, (src === "meta" ? "Meta · " : "TeleCRM · ") + k, S.cols[src][k])); }); });
+    body.appendChild(el("details", {cls: "group set-card adv-cols"}, el("summary", {text: "Export column names (only if your exports use different headings)"}),
+      el("p", {cls: "small set-intro", text: "Meta columns are found automatically under Meta's usual names (Results or Leads, Amount spent in any currency, Day or Reporting starts), in any order."}),
+      el("div", {cls: "form compact"}, colFields)));
+    body.appendChild(card("Start over", "Puts every setting back to the original defaults (brands, rules, targets, words).",
+      el("button", {cls: "btn ghost danger", type: "button", id: "s-reset", onclick: function(){ if (!confirmReset._armed){ confirmReset._armed = true; toast("Click again to reset all settings"); setTimeout(function(){ confirmReset._armed = false; }, 4000); return; }
+        confirmReset._armed = false; state.settings = clone(DEFAULT_SETTINGS); state.setDraft = null; storeSettings(); recompute(); toast("Settings reset to defaults"); }}, "Reset all settings")));
+  }
+  var page = el("div", {cls: "settings-page"}, head, nav, body);
+  if (needsSave) page.appendChild(el("div", {cls: "set-bar" + (D.dirty ? " dirty" : ""), id: "set-bar"},
+    el("span", {cls: "small", id: "set-bar-msg", text: D.dirty ? "You have unsaved changes" : "No unsaved changes"}),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.setDraft = null; render(); toast("Changes discarded"); }}, "Discard"),
+    el("button", {cls: "btn", type: "button", id: "s-apply", onclick: applySettings}, "Save changes")));
+  return page;
 }
+function confirmReset(){}
 function applySettings(){
-  var S = state.settings, v = function(id){ var e = document.getElementById(id); return e ? e.value : ""; }, c = function(id){ var e = document.getElementById(id); return !!(e && e.checked); };
-  var lines = function(id){ return v(id).split(/\n/).map(function(s){ return s.trim(); }).filter(Boolean); };
-  S.slaMin = Math.max(1, Number(v("s-sla")) || 30); S.slaTarget = Math.min(1, Math.max(0, (Number(v("s-slat")) || 80) / 100)); S.diffAlert = Math.max(0, (Number(v("s-diff")) || 10) / 100);
-  S.platform = v("s-plat").trim() || "Meta Ads"; S.brands = lines("s-brands"); S.showOther = c("s-other");
-  S.keywords = lines("s-kw").map(function(l){ var p = l.split("="); return [p[0].trim(), (p.slice(1).join("=") || "").trim()]; }).filter(function(k){ return k[0] && k[1]; });
-  S.autoExcludeNonLead = c("s-autoex"); S.excludedCampaigns = lines("s-excl");
-  S.optSource = c("s-osrc"); S.optDates = c("s-odate"); S.optDedupe = c("s-odup"); S.dupExclude = c("s-dupx"); S.dupDays = Math.max(0, Math.round(Number((document.getElementById("s-dupd") || {}).value) || 0)); S.from = v("s-from"); S.to = v("s-to");
-  S.metaSources = v("s-src").split(",").map(function(s){ return s.trim(); }).filter(Boolean);
-  S.qlNeg = lines("s-neg").map(function(s){ return s.toLowerCase(); }); S.qlPos = lines("s-pos").map(function(s){ return s.toLowerCase(); });
-  ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ var x = v("col-" + src + "-" + k).trim(); if (x) S.cols[src][k] = x; }); });
-  storeSettings(); recompute(); toast(state.raw ? "Report rebuilt with the new settings" : "Settings saved");
+  var S = state.settings, D = setDraft();
+  /* read each field from the page, or from the unsaved draft of another section; untouched fields keep their value */
+  var get = function(id){ var e = document.getElementById(id); if (e) return e.type === "checkbox" ? e.checked : e.value; return id in D.inputs ? D.inputs[id] : undefined; };
+  var has = function(id){ return get(id) !== undefined; };
+  var lines = function(id){ return String(get(id)).split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean); };
+  if (has("s-sla")) S.slaMin = Math.max(1, Number(get("s-sla")) || 30);
+  if (has("s-slat")) S.slaTarget = Math.min(1, Math.max(0, (Number(get("s-slat")) || 80) / 100));
+  if (has("s-diff")) S.diffAlert = Math.max(0, (Number(get("s-diff")) || 10) / 100);
+  if (has("s-plat")) S.platform = String(get("s-plat")).trim() || "Meta Ads";
+  S.brands = D.brands.map(function(x){ return x.trim(); }).filter(Boolean);
+  S.keywords = D.keywords.map(function(k){ return [String(k[0]).trim(), String(k[1]).trim()]; }).filter(function(k){ return k[0] && k[1]; });
+  if (has("s-other")) S.showOther = !!get("s-other");
+  if (has("s-autoex")) S.autoExcludeNonLead = !!get("s-autoex");
+  if (has("s-excl")) S.excludedCampaigns = lines("s-excl");
+  if (has("s-osrc")) S.optSource = !!get("s-osrc");
+  if (has("s-odate")) S.optDates = !!get("s-odate");
+  if (has("s-odup")) S.optDedupe = !!get("s-odup");
+  if (has("s-dupx")) S.dupExclude = !!get("s-dupx");
+  if (has("s-dupd")) S.dupDays = Math.max(0, Math.round(Number(get("s-dupd")) || 0));
+  if (has("s-from")) S.from = get("s-from"); if (has("s-to")) S.to = get("s-to");
+  if (has("s-src")) S.metaSources = String(get("s-src")).split(",").map(function(x){ return x.trim(); }).filter(Boolean);
+  if (has("s-neg")) S.qlNeg = lines("s-neg").map(function(x){ return x.toLowerCase(); });
+  if (has("s-pos")) S.qlPos = lines("s-pos").map(function(x){ return x.toLowerCase(); });
+  ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ var id = "col-" + src + "-" + k; if (has(id)){ var x = String(get(id)).trim(); if (x) S.cols[src][k] = x; } }); });
+  state.setDraft = null; storeSettings(); recompute();
+  toast(state.raw ? "Saved. The report now uses the new settings." : "Settings saved");
 }
 
 /* ================= trends (by day, week or month) ================= */
@@ -2707,7 +2836,7 @@ function viewOverview(){
   var unm = R.ads.filter(function(a){ return a.nocamp && brandOK(a.brand) && /whatsapp/i.test(a.srcName || a.campaign) && a.crm && !mapIsNone(smap[(a.brand + "|" + (a.srcName || "")).toLowerCase()]); });
   if (unm.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: fInt(unm.reduce(function(s, a){ return s + a.crm; }, 0)) + " WhatsApp leads have no campaign in TeleCRM (" +
       unm.map(function(a){ return a.brand + ": " + fInt(a.crm); }).join(", ") + "), so they aren't matched to Meta's Leads in UI. Map them to their Meta campaign to compare correctly."}),
-    el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Map campaigns")));
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Map campaigns")));
   sec.appendChild(gaSnapshot(T, prevTotals()));
   var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
   sec.appendChild(grp("Media", [
@@ -2753,7 +2882,7 @@ function viewOverview(){
       {k: "tat", label: "Overall TAT (avg)", t: "min"}, {k: "pend", label: "Not Contacted", t: "int"}, {k: "sla", label: "SLA %", t: "pct"}];
     sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Mapped campaigns"}),
       el("span", {cls: "note", text: "Campaigns you mapped no-campaign TeleCRM leads to (Settings › Leads without a campaign). Leads in CRM includes the mapped leads, so UI vs CRM, CPQL and TAT compare like for like."}),
-      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Edit mapping")));
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Edit mapping")));
     sec.appendChild(colTools("mapped", mcols));
     sec.appendChild(table("mapped", visibleCols("mapped", mcols), mrows, {total: mrows.length > 1 ? mt : null}));
   }
