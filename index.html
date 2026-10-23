@@ -2237,6 +2237,24 @@ function provPanel(pk, compact){
     provApi(pk, "accounts").then(function(d){ var list = d.accounts.map(function(a){ var o = byId[a.id] || {}; return {id: a.id, name: a.name, brand: o.brand || "", on: o.id ? o.on !== false : a.active !== false, currency: a.currency}; });
       S[P.key] = list; provSave(); W.msg = {kind: "ok", text: list.length + " ad account" + (list.length === 1 ? "" : "s") + " found."}; })
       .catch(function(e){ W.msg = {kind: "err", text: "Couldn't load accounts: " + e.message}; }).then(function(){ W.loadingAcc = false; render(); renderProvUpload(); }); }}, W.loadingAcc ? "Loading…" : saved.length ? "Reload accounts" : "Load ad accounts"));
+  var showFunds = pk === "meta" && saved.length, F = W.funds;
+  if (showFunds && !W.fundsLoading && !F && !W.fundsErr){ W.fundsLoading = true;
+    provApi(pk, "funds", {accounts: saved.map(function(a){ return a.id; }).join(",")}).then(function(d){ var m = {}; (d.accounts || []).forEach(function(x){ m[String(x.id).replace(/^act_/, "")] = x; }); W.funds = {by: m, at: d.at}; W.fundsErr = ""; })
+      .catch(function(e){ W.fundsErr = e.message || String(e); }).then(function(){ W.fundsLoading = false; render(); renderProvUpload(); }); }
+  var fundsOf = function(a){ return F ? F.by[String(a.id).replace(/^act_/, "")] : null; };
+  var fundsCell = function(a){ var f = fundsOf(a);
+    if (W.fundsLoading && !F) return el("td", {cls: "small", text: "Checking…"});
+    if (!f) return el("td", {cls: "small na", text: W.fundsErr ? "Unavailable" : "—"});
+    if (isNum(f.funds)) return el("td", {cls: "nowrap"}, el("b", {text: FMT.inr(f.funds)}), el("div", {cls: "small", text: "Prepaid balance"}));
+    if (isNum(f.capLeft)) return el("td", {cls: "nowrap"}, el("b", {text: FMT.inr(f.capLeft)}), el("div", {cls: "small", text: "Spending limit left"}));
+    if (f.prepay) return el("td", {cls: "small", text: "Prepaid · Meta didn't share the balance (the token may need business access to billing)"});
+    return el("td", {cls: "small", text: (f.fundingText ? f.fundingText + " · " : "") + "no balance (card / invoiced)"}); };
+  var daysCell = function(a){ var f = fundsOf(a); if (!f) return el("td", {cls: "small na", text: ""});
+    var amt = isNum(f.funds) ? f.funds : f.capLeft, per = isNum(f.spend7) ? f.spend7 / 7 : null;
+    if (!isNum(amt)) return el("td", {cls: "small na", text: isNum(per) && per > 0 ? FMT.inr(per) + "/day" : ""});
+    if (!per) return el("td", {cls: "small", text: "No spend in 7 days"});
+    var d = amt / per;
+    return el("td", {cls: "nowrap " + (d < 3 ? "flag-bad" : d < 7 ? "flag-warn" : "")}, el("b", {text: d < 1 ? "< 1 day" : "~" + Math.floor(d) + " days"}), el("div", {cls: "small", text: "at " + FMT.inr(per) + "/day (last 7 days)"})); };
   if (saved.length){
     var tb = el("tbody");
     saved.forEach(function(a){
@@ -2244,8 +2262,10 @@ function provPanel(pk, compact){
       cb.addEventListener("change", function(){ a.on = cb.checked; provSave(); });
       var bs = el("select", {disabled: canRun ? null : true, "aria-label": "Brand for " + a.name}, [el("option", {value: "", text: "From campaign names"})].concat(S.brands.map(function(b){ return el("option", {value: b, text: b}); })));
       bs.value = a.brand || ""; bs.addEventListener("change", function(){ a.brand = bs.value; provSave(); });
-      tb.appendChild(el("tr", null, el("td", null, cb), el("td", {cls: "name", text: a.name}), el("td", {cls: "nowrap small", text: a.id}), el("td", null, bs))); });
-    accBox.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:" + (compact ? "260px" : "none")}, el("table", null, el("thead", null, el("tr", null, ["Sync", "Account", "ID", "Brand"].map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), tb)));
+      tb.appendChild(el("tr", null, el("td", null, cb), el("td", {cls: "name", text: a.name}), el("td", {cls: "nowrap small", text: a.id}), el("td", null, bs), showFunds ? fundsCell(a) : null, showFunds ? daysCell(a) : null)); });
+    accBox.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:" + (compact ? "260px" : "none")}, el("table", null, el("thead", null, el("tr", null, ["Sync", "Account", "ID", "Brand"].concat(showFunds ? ["Available funds", "Funds last"] : []).map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), tb)));
+    if (showFunds) accBox.appendChild(el("div", {cls: "small funds-note"}, el("span", {text: W.fundsErr ? "Couldn't read funds from Meta: " + W.fundsErr + " " : F ? "Funds live from Meta at " + new Date(F.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". Prepaid accounts show the available balance; card or invoiced accounts show the spending limit left, if one is set. " : ""}),
+      el("button", {cls: "linkbtn", type: "button", disabled: W.fundsLoading ? true : null, onclick: function(){ W.funds = null; W.fundsErr = ""; render(); renderProvUpload(); }}, W.fundsLoading ? "Checking…" : "Refresh funds")));
   }
   box.appendChild(accBox);
   if (canRun){

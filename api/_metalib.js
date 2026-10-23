@@ -51,4 +51,28 @@ async function adAccounts() {
   return list.map((a) => ({ id: a.id, name: a.name || a.id, currency: a.currency || "", active: a.account_status === 1, spend: n(a.amount_spent) }))
     .sort((a, b) => (b.active - a.active) || (b.spend - a.spend));
 }
-module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, n };
+
+/* money left on each ad account, live from Meta (never stored).
+   Prepaid: the available balance Meta shows (funding source "Available balance …").
+   Card / invoiced: no balance to show; the account spending limit left, if one is set.
+   Amounts from Meta are in the currency's minor unit (paise); divided by 100. */
+const parseMoney = (t) => { const m = String(t || "").replace(/,/g, "").match(/(-?\d+(?:\.\d+)?)/); return m ? Number(m[1]) : null; };
+async function accountFunds(ids) {
+  const base = "id,name,currency,account_status,amount_spent,spend_cap,balance,is_prepay_account";
+  let list;
+  try { list = await all(GRAPH + "/me/adaccounts?fields=" + base + ",funding_source_details&limit=200", 10); }
+  catch (e) { list = await all(GRAPH + "/me/adaccounts?fields=" + base + "&limit=200", 10); }
+  if (ids && ids.length) { const want = {}; ids.forEach((i) => { want[String(i).replace(/^act_/, "")] = 1; }); list = list.filter((a) => want[String(a.id).replace(/^act_/, "")]); }
+  return Promise.all(list.map(async (a) => {
+    const fs = a.funding_source_details || {}, txt = String(fs.display_string || "");
+    const cap = n(a.spend_cap), spent = n(a.amount_spent);
+    let funds = null;
+    if (/balance/i.test(txt)) funds = parseMoney(txt);
+    let spend7 = null;
+    try { const r = await graph(GRAPH + "/" + a.id + "/insights?fields=spend&date_preset=last_7d"); spend7 = r.data && r.data[0] ? n(r.data[0].spend) : 0; } catch (e) { spend7 = null; }
+    return { id: a.id, name: a.name || a.id, currency: a.currency || "", active: a.account_status === 1, status: a.account_status,
+      prepay: a.is_prepay_account === true || /balance/i.test(txt), funds, fundingText: txt,
+      capLeft: cap > 0 ? Math.max(0, (cap - spent) / 100) : null, owed: a.balance !== undefined ? n(a.balance) / 100 : null, spend7 };
+  }));
+}
+module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, accountFunds, n };
