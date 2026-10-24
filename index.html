@@ -829,6 +829,11 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
 .help-gloss td{vertical-align:top}
 .faq{border-top:1px solid var(--line-soft);padding:10px 0}.faq summary{cursor:pointer;font-weight:500;color:var(--ink)}.faq p{margin:8px 0 0;font-size:13.5px;line-height:1.6;color:var(--fg)}
 header.top .period{max-width:760px;line-height:1.5}
+table.sticky-1 th:first-child,table.sticky-1 td:first-child{position:sticky;left:0;z-index:2;background:var(--panel);box-shadow:inset -1px 0 0 var(--line)}
+table.sticky-1 thead th:first-child{z-index:4}
+table.sticky-1 tr.total td:first-child{z-index:3}
+table.sticky-1 tbody tr:hover td:first-child{background:var(--row-hover)}
+.budget-note{margin:8px 0 4px;line-height:1.5}
 </style>
 
 <script>try{var _t=localStorage.getItem("ebg-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
@@ -1544,8 +1549,44 @@ function metricCols(level){
     .concat(mediaCols()).concat(tatCols())
     .concat([{k: "remarks", label: "Remarks", t: "text", cls: "remarks", get: function(r){ return remarks(r, level); }, nosort: true, totalText: ""}]);
 }
+/* ---------- budgets: current daily budget of active Meta campaigns (live), per brand ---------- */
+function budgetDays(){
+  var R = state.R, sel = state.range || {}, r = rangeOf(sel);
+  if (sel.preset === "this_month"){ var a = ymd(todayDay()); return {days: Math.round((dayFrom(a.y, a.m + 1, 1) - dayFrom(a.y, a.m, 1))), label: "Budget this month"}; }
+  if (sel.preset === "last_month" && r) return {days: r.to - r.from + 1, label: "Budget last month"};
+  if (!r && R && R.period.metaStart !== null) r = {from: R.period.metaStart, to: R.period.metaEnd};
+  return {days: r ? r.to - r.from + 1 : null, label: r && r.to - r.from === 0 ? "Budget for the day" : "Budget for these dates"};
+}
+function loadBudgets(force){
+  var S = state.settings, B = state.budgets;
+  if (!sb.cfg || sb.status !== "ready") return;
+  var accs = (S.metaAccounts || []).filter(function(a){ return a.on !== false; }); if (!accs.length) return;
+  if (B && (B.loading || (!force && Date.now() - B.t < 30 * 60000))) return;
+  state.budgets = {loading: true, t: Date.now(), camps: B ? B.camps : null};
+  provApi("meta", "budgets", {accounts: accs.map(function(a){ return a.id; }).join(",")}).then(function(d){
+    state.budgets = {t: Date.now(), at: d.at, camps: d.campaigns || [], errors: d.errors || []}; })
+    .catch(function(e){ state.budgets = {t: Date.now(), err: e.message || String(e), camps: null}; })
+    .then(function(){ if (state.tab === "overview") render(); });
+}
+function budgetByBrand(){
+  var B = state.budgets; if (!B || !B.camps || !state.R) return null;
+  if (B._for === state.R && B._by) return B._by;
+  var S = state.settings, accBrand = {}; (S.metaAccounts || []).forEach(function(a){ if (a.brand) accBrand[String(a.id).replace(/^act_/, "")] = a.brand; });
+  var brandOf = makeBrandOfWith(S, state.R.campBrand), by = {}, life = {};
+  B.camps.forEach(function(c){ var b = accBrand[String(c.account).replace(/^act_/, "")] || brandOf(c.campaign) || "Unmapped";
+    by[b] = (by[b] || 0) + (c.daily || 0); if (c.lifetime) life[b] = (life[b] || 0) + c.lifetime; });
+  B._for = state.R; B._by = {daily: by, life: life}; return B._by;
+}
+function budgetCols(){
+  var D = budgetDays(), bb = function(r){ var x = budgetByBrand(); if (!x) return null; if (r.brand === "TOTAL") return r._budDaily; return x.daily[r.brand] || 0; };
+  return [{k: "budDaily", label: "Daily budget", t: "inr", get: bb},
+    {k: "budPeriod", label: D.label, t: "inr", get: function(r){ var d = bb(r); return isNum(d) && D.days ? d * D.days : null; }},
+    {k: "budUsed", label: "Budget used", t: "pct", get: function(r){ var d = bb(r); return isNum(d) && d > 0 && D.days && isNum(r.spend) ? r.spend / (d * D.days) : null; },
+      flag: function(r){ var d = bb(r); if (!isNum(d) || !d || !D.days || !isNum(r.spend)) return null; var u = r.spend / (d * D.days); return u > 1.05 ? "bad" : null; }}];
+}
 function brandCols(){ var R = state.R;
-  return [{k: "brand", label: "Brand", t: "text", cls: "name", lock: true}].concat(mediaCols()).concat([
+  var mc = mediaCols(); mc.splice(1, 0, budgetCols()[0], budgetCols()[1], budgetCols()[2]);
+  return [{k: "brand", label: "Brand", t: "text", cls: "name", lock: true}].concat(mc).concat([
     {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
     {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
     {k: "cpl", label: "CPL", t: "inr"}, {k: "ql", label: "Qualified leads", t: "int"}, {k: "qlRate", label: "QL rate", t: "pct"}, {k: "cpql", label: "CPQL", t: "inr"},
@@ -1578,7 +1619,7 @@ function table(id, cols, rows, opts){
     return tr; }
   if (opts.total) tb.appendChild(rowEl(opts.total, true));
   shown.forEach(function(r, i){ tb.appendChild(rowEl(r, false, i ? shown[i - 1] : null)); });
-  var wrap = el("div", null, el("div", {cls: "tbl-wrap"}, el("table", null, thead, tb)));
+  var wrap = el("div", null, el("div", {cls: "tbl-wrap"}, el("table", {cls: opts.stickyFirst ? "sticky-1" : null}, thead, tb)));
   if (!data.length) wrap.appendChild(el("div", {cls: "empty", text: opts.empty || "Nothing to show for this filter."}));
   if (data.length > lim) wrap.appendChild(el("div", {cls: "more"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.limit[id] = lim + 500; render(); }},
     "Show " + Math.min(500, data.length - lim) + " more of " + (data.length - lim).toLocaleString("en-IN"))));
@@ -2204,6 +2245,11 @@ var GLOSS = [
   ["Lead difference", "Meta leads minus TeleCRM leads. A big gap means leads are being lost, duplicated, or saved without a campaign."],
   ["Difference", "Meta leads minus TeleCRM leads, as a % of Meta leads. Red when the gap is bigger than your alert level."],
   ["Amount spent", "Money spent on Meta ads in these dates."],
+  ["Daily budget", "Today's daily budgets of the brand's active Meta campaigns (campaign budget, or the ad set budgets added up), live from Meta."],
+  ["Budget this month", "Daily budget × days in this month: what the brand will spend this month at today's budgets."],
+  ["Budget last month", "Daily budget × days in last month (estimate: past budget changes aren't known)."],
+  ["Budget for", "Daily budget × number of days in the dates you picked."],
+  ["Budget used", "Amount spent ÷ the budget for these dates. Over 100% turns red."],
   ["CPL", "Cost per lead = amount spent ÷ Meta leads. Lower is better."],
   ["CPQL", "Cost per qualified lead = amount spent ÷ qualified leads. Lower is better; this is the real cost of a good lead."],
   ["Qualified leads", "Leads whose TeleCRM status shows real interest (interested, site visit, details shared…). Set on the QL statuses page."],
@@ -3030,8 +3076,13 @@ function viewOverview(){
   var br = R.brandRows.filter(function(b){ return brandOK(b.brand); });
   var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
   sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: state.brand === "All" ? "Brand summary" : state.brand + " summary"})));
+  loadBudgets(); var bbx = budgetByBrand(); if (bbx) bt._budDaily = br.reduce(function(s0, b){ return s0 + (bbx.daily[b.brand] || 0); }, 0);
+  var BS = state.budgets, bD = budgetDays();
   sec.appendChild(colTools("brands", brandCols()));
-  sec.appendChild(table("brands", visibleCols("brands", brandCols()), br, {total: state.brand === "All" ? bt : null}));
+  sec.appendChild(table("brands", visibleCols("brands", brandCols()), br, {total: state.brand === "All" ? bt : null, stickyFirst: true}));
+  if (sb.cfg) sec.appendChild(el("div", {cls: "small budget-note"}, el("span", {text: BS && BS.loading && !BS.camps ? "Loading budgets from Meta… " : BS && BS.err ? "Couldn't read budgets from Meta: " + BS.err + " " : BS && BS.camps ?
+    "Daily budget = today's budgets of active campaigns, live from Meta (" + new Date(BS.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + "). " + bD.label + " = daily budget × " + (bD.days || "?") + " day" + (bD.days === 1 ? "" : "s") + ". Budget used = amount spent ÷ that budget. Past budget changes aren't known, so for older dates it's an estimate. " : ""}),
+    BS && !BS.loading ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ loadBudgets(true); render(); }}, "Refresh budgets") : null));
   /* campaigns that receive mapped no-campaign leads (WhatsApp Cloud API…) */
   var mapNames = {}; Object.keys(state.settings.sourceMap || {}).forEach(function(k){ mapTargets(state.settings.sourceMap[k]).forEach(function(n){ mapNames[campKey(n)] = 1; }); });
   var mapIn = {}; R.ads.forEach(function(a){ if (a.mapped){ var ck = (a.brand + "|" + a.campaign).toLowerCase(); mapIn[ck] = (mapIn[ck] || 0) + a.crm; } });

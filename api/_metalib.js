@@ -75,4 +75,20 @@ async function accountFunds(ids) {
       capLeft: cap > 0 ? Math.max(0, (cap - spent) / 100) : null, owed: a.balance !== undefined ? n(a.balance) / 100 : null, spend7 };
   }));
 }
-module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, accountFunds, n };
+
+/* current daily budget of every active campaign (live from Meta, never stored).
+   Campaign budget (CBO) when set, otherwise the sum of its active ad sets' daily budgets.
+   Lifetime budgets are returned separately. Amounts are in the currency's minor unit (paise) → divided by 100. */
+async function accountBudgets(accountId) {
+  const id = String(accountId).indexOf("act_") === 0 ? accountId : "act_" + accountId;
+  const active = encodeURIComponent(JSON.stringify(["ACTIVE"]));
+  const camps = await all(GRAPH + "/" + id + "/campaigns?fields=id,name,daily_budget,lifetime_budget,effective_status&effective_status=" + active + "&limit=500", 20);
+  const sets = await all(GRAPH + "/" + id + "/adsets?fields=campaign_id,daily_budget,lifetime_budget,effective_status&effective_status=" + active + "&limit=500", 40);
+  const bySet = {};
+  sets.forEach((x) => { const o = bySet[x.campaign_id] || (bySet[x.campaign_id] = { daily: 0, lifetime: 0 }); o.daily += n(x.daily_budget) / 100; o.lifetime += n(x.lifetime_budget) / 100; });
+  return camps.map((c) => {
+    const cbo = n(c.daily_budget) > 0 || n(c.lifetime_budget) > 0, s = bySet[c.id] || { daily: 0, lifetime: 0 };
+    return { account: id, campaign: c.name || c.id, daily: cbo ? n(c.daily_budget) / 100 : s.daily, lifetime: cbo ? n(c.lifetime_budget) / 100 : s.lifetime, level: cbo ? "campaign" : "ad set" };
+  }).filter((c) => c.daily > 0 || c.lifetime > 0);
+}
+module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, accountFunds, accountBudgets, n };
