@@ -1244,6 +1244,16 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
   var fromD = S.from ? parseDT(S.from) : null, toD = S.to ? parseDT(S.to) : null;
   var effFrom = isNum(fromD) ? dayOf(fromD) : (metaStart !== null ? metaStart : -1e9);
   var effTo = isNum(toD) ? dayOf(toD) : (metaEnd !== null ? metaEnd : 1e9);
+  /* campaigns renamed in Meta: TeleCRM keeps the name the lead came in with (e.g. "EBG - In House | ABO | …"),
+     Meta reports the new name ("ABO | …"). Match when the TeleCRM name is the Meta name with a prefix in front. */
+  var metaCampNames = {}, renameCache = {};
+  Object.keys(metaAds).forEach(function(k0){ var c0 = metaAds[k0].campaign; if (c0) metaCampNames[c0.toLowerCase()] = c0; });
+  var metaCampList = Object.keys(metaCampNames).filter(function(x){ return x.length >= 20; });
+  function renamedCamp(name){ var l = name.toLowerCase(); if (metaCampNames[l]) return name; if (l in renameCache) return renameCache[l];
+    var st = l.replace(/^\s*ebg\s*-\s*in\s*house\s*\|\s*/, ""), hit = metaCampNames[st] || null;
+    if (!hit) for (var q = 0; q < metaCampList.length; q++){ var mcn = metaCampList[q]; if (l.length > mcn.length && l.slice(-mcn.length) === mcn && /\|\s*$/.test(l.slice(0, l.length - mcn.length))){ hit = metaCampNames[mcn]; break; } }
+    if (hit) cnt.renamedCamp = (cnt.renamedCamp || 0) + 1;
+    return (renameCache[l] = hit || name); }
   /* ---------- CRM ---------- */
   var cc = S.cols.crm, ch = findHeaderRow(crmAOA || [], cc.id), leads = [], statusFirst = [], statusSeen = {};
   var cnt = {excluded: 0, outsideSel: 0, pasted: 0, nonMeta: 0, outRange: 0, dupExtra: 0, noId: 0, badCreated: 0, noCampCounted: 0, unmatchedCounted: 0};
@@ -1290,6 +1300,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       if (isNum(created)) dataDays[dayOf(created)] = 1;
       if (range && !(isNum(created) && dayOf(created) >= range.from && dayOf(created) <= range.to)){ cnt.outsideSel++; continue; }
       var camp2 = clean(g(row, k.camp)), adset2 = clean(g(row, k.adset)), ad2 = clean(g(row, k.ad)), status = clean(g(row, k.status));
+      if (camp2) camp2 = renamedCamp(camp2);
       var crmBrand = clean(g(row, k.brand)), fc = k.fc >= 0 ? parseDT(row[k.fc]) : null, owner = clean(g(row, k.owner)) || "(unassigned)", manager = clean(g(row, k.manager)) || "(no manager)";
       var first = true;
       if (id){ if (id in idFirst){ first = false; cnt.dupExtra++; } else idFirst[id] = j; } else cnt.noId++;
@@ -1423,6 +1434,8 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     {k: "levels", label: "Campaigns · ad sets · ads in the report", n: camps.length + " · " + adsets.length + " · " + ads.length, kind: "info"},
     {k: "missing", label: "Required columns not found", n: missing.length, kind: missing.length ? "bad" : "ok", detail: missing.join(", ")}
   ];
+  if (cnt.renamedCamp) checks.push({k: "renamed", label: "TeleCRM campaign names matched to a renamed Meta campaign", n: cnt.renamedCamp, kind: "info",
+    detail: "These campaigns were renamed in Meta (for example the “EBG - In House |” prefix removed). Their TeleCRM leads are counted under the new name."});
   var statuses = statusFirst.map(function(s){ var c2 = classifyStatus(s, S); return {status: s, count: statusSeen[s], ql: c2.ql, reason: c2.reason, override: S.qlOverride[s.toLowerCase()] || ""}; });
   var needsCall = [], lite = [];
   leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla, L.wh, L.pendO, L.pendW, L.manager, L.isQL ? 1 : 0]);
