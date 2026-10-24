@@ -1,5 +1,5 @@
 // Auto-sync (every 30 minutes): pulls the chosen date range from the Meta Marketing API for the ad accounts ticked in Settings,
-// and replaces the stored Meta rows for those campaigns and days (nothing is counted twice).
+// and replaces the stored Meta rows for those ad accounts and days (nothing is counted twice, even after a campaign is renamed).
 // Called by the Supabase database scheduler (pg_cron, sends x-cron-key, checked against Supabase Vault),
 // or by any scheduler / GitHub Actions that sends x-cron-secret = CRON_SECRET (Vercel env).
 // Needs in Vercel: META_ACCESS_TOKEN and SUPABASE_SERVICE_ROLE_KEY.
@@ -105,6 +105,9 @@ module.exports = async function handler(req, res) {
       });
       const rows = Object.values(mm); if (!rows.length) return;
       rows.forEach((r) => files.add(r.source_file));
+      // replace this ad account's days first (by account + day, so renamed campaigns / ads don't stay twice)
+      for (const f of Array.from(new Set(rows.map((r) => r.source_file))))
+        await sbFetch("meta_ad_rows?source_file=eq." + encodeURIComponent(f) + "&day=gte." + job.from + "&day_end=lte." + job.to, { method: "DELETE" });
       const camps = Array.from(new Set(rows.map((r) => r.campaign)));
       for (let i = 0; i < camps.length; i += 40)
         await sbFetch("meta_ad_rows?campaign=in.(" + encodeURIComponent(camps.slice(i, i + 40).map(q).join(",")) + ")&day=gte." + job.from + "&day_end=lte." + job.to, { method: "DELETE" });

@@ -277,3 +277,19 @@ grant select on public.v_meta_daily, public.v_crm_leads, public.v_brand_daily to
 
 -- contact details and the full TeleCRM row for the CRM leads data tab (team members only, via the table's row-level security)
 alter table public.crm_leads add column if not exists phone text, add column if not exists email text, add column if not exists lead_name text, add column if not exists extra jsonb;
+
+-- Replace Meta API data by ad account + day (survives campaign / ad renames). items: [{"f": "Meta API · <account>", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}]
+create or replace function public.meta_replace_account_days(items jsonb)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare n integer := 0; k integer; it jsonb;
+begin
+  if coalesce((select auth.role()), '') <> 'service_role' and (select private.team_role()) not in ('admin', 'editor') then raise exception 'not allowed'; end if;
+  for it in select * from jsonb_array_elements(items) loop
+    if coalesce(it->>'f', '') not like 'Meta API · %' then continue; end if;
+    delete from public.meta_ad_rows where source_file = it->>'f' and day >= (it->>'from')::date and day_end <= (it->>'to')::date;
+    get diagnostics k = row_count; n := n + k;
+  end loop;
+  return n;
+end $$;
+revoke all on function public.meta_replace_account_days(jsonb) from public, anon;
+grant execute on function public.meta_replace_account_days(jsonb) to authenticated, service_role;

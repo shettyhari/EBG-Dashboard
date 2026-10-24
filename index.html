@@ -2380,10 +2380,10 @@ function wzRange(k){
 function provPull(pk, acc, rg, W){
   var jobs = [], CH = 7;
   acc.forEach(function(a){ for (var f = rg.from; f <= rg.to; f += CH) jobs.push({a: a, from: f, to: Math.min(rg.to, f + CH - 1)}); });
-  var rows = null, cols = null, failed = [], done = 0;
+  var rows = null, cols = null, failed = [], done = 0, okPieces = [];
   var wait = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
   var one = function(j, tries){
-    return provApi(pk, "data", {from: isoDay(j.from), to: isoDay(j.to), accounts: j.a.id}).then(function(d){ cols = cols || d.cols; rows = (rows || []).concat(d.rows); })
+    return provApi(pk, "data", {from: isoDay(j.from), to: isoDay(j.to), accounts: j.a.id}).then(function(d){ cols = cols || d.cols; rows = (rows || []).concat(d.rows); okPieces.push({id: j.a.id, from: j.from, to: j.to}); })
       .catch(function(e){ var m = String(e.message || e);
         if (tries < 3 && /retry|incomplete|rate|limit|429|50\d|timed? ?out|timeout|temporar|code (1|2|4|17|32|613|80000|80004)\b/i.test(m)) return wait(tries === 0 ? 4000 : 10000).then(function(){ return one(j, tries + 1); });
         failed.push({account: j.a.name || j.a.id, span: spanText({from: j.from, to: j.to}), err: m.replace(/^Meta answered \d+: /, "")}); });
@@ -2391,7 +2391,7 @@ function provPull(pk, acc, rg, W){
   var chain = Promise.resolve();
   jobs.forEach(function(j){ chain = chain.then(function(){ W.busy = "Pulling " + (j.a.name || j.a.id) + " · " + spanText({from: j.from, to: j.to}) + " (" + (++done) + " of " + jobs.length + ")…";
     ["-sync", "-sync-up"].forEach(function(sfx){ var b = document.getElementById(pk + sfx); if (b) b.textContent = W.busy; }); return one(j, 0); }); });
-  return chain.then(function(){ return {cols: cols, rows: rows || [], failed: failed, pieces: jobs.length}; });
+  return chain.then(function(){ return {cols: cols, rows: rows || [], failed: failed, pieces: jobs.length, ok: okPieces}; });
 }
 function provSync(pk, W){
   var P = PROV[pk], acc = provAccounts(pk).filter(function(a){ return a.on !== false; });
@@ -2400,8 +2400,9 @@ function provSync(pk, W){
   W.busy = "Pulling from " + P.label + "…"; W.msg = null; render();
   var brandFor = {}; acc.forEach(function(a){ brandFor[String(a.id).replace(/^act_/, "")] = a.brand || ""; });
   var kw = makeBrandOf(state.settings), uid, metaRows = [], files = [], failed = [], pieces = 0;
+  var okPieces = [];
   provPull(pk, acc, rg, W).then(function(d){
-    failed = d.failed; pieces = d.pieces;
+    failed = d.failed; pieces = d.pieces; okPieces = d.ok || [];
     if (!d.cols || !d.rows.length){ if (failed.length) throw new Error("nothing could be pulled. " + failed.slice(0, 3).map(function(f){ return f.account + " (" + f.span + "): " + f.err; }).join(" · "));
       throw new Error(P.label + " returned no ad rows for " + spanText(rg) + " in the ticked accounts."); }
     var C = {}; d.cols.forEach(function(c, i){ C[c] = i; });
@@ -2409,7 +2410,7 @@ function provSync(pk, W){
     d.rows.forEach(function(r){
       var camp = clean(r[C.campaign]), adset = clean(r[C.adset]), ad = clean(r[C.ad]), day = r[C.date]; if (!camp) return;
       var k = [camp, adset, ad, day].join("|~|"), x = mm[k];
-      var row = {source_file: P.prefix + (r[C.account_name] || r[C.account_id]), campaign: camp, adset: adset, ad: ad, day: day, day_end: day,
+      var row = {_acc: r[C.account_id], source_file: P.prefix + (r[C.account_name] || r[C.account_id]), campaign: camp, adset: adset, ad: ad, day: day, day_end: day,
         spend: Number(r[C.spend]) || 0, results: Number(r[C.results]) || 0, result_indicator: r[C.result_indicator] || "", currency: r[C.currency] || "INR",
         brand: brandFor[String(r[C.account_id]).replace(/^act_/, "")] || kw(camp), impressions: Number(r[C.impressions]) || 0, clicks: Number(r[C.clicks]) || 0,
         reach: r[C.reach] === null ? null : Number(r[C.reach])};
@@ -2421,7 +2422,13 @@ function provSync(pk, W){
     W.busy = "Saving " + fInt(metaRows.length) + " rows…"; render();
     var days = metaRows.reduce(function(o, r){ var dd = dayOf(Date.parse(r.day + "T00:00:00Z")); o.a = Math.min(o.a, dd); o.b = Math.max(o.b, dd); return o; }, {a: Infinity, b: -Infinity});
     return sb.client.from("uploads").insert({meta_files: files, crm_file: null, meta_rows: metaRows.length, crm_rows: 0, date_from: isoDay(days.a), date_to: isoDay(days.b)}).select("id").single();
-  }).then(function(r){ if (r.error) throw r.error; uid = r.data.id; return dbReplaceMetaDays(metaRows); })
+  }).then(function(r){ if (r.error) throw r.error; uid = r.data.id;
+    /* replace by ad account + day for every piece that came back (renamed campaigns / ads don't stay twice) */
+    var label = {}; metaRows.forEach(function(x){ var aid = String(x._acc || "").replace(/^act_/, ""); if (aid) label[aid] = x.source_file; });
+    var items = okPieces.map(function(q){ var f = label[String(q.id).replace(/^act_/, "")]; return f ? {f: f, from: isoDay(q.from), to: isoDay(q.to)} : null; }).filter(Boolean);
+    metaRows.forEach(function(x){ delete x._acc; });
+    var byAcc = items.length ? sb.client.rpc("meta_replace_account_days", {items: items}).then(function(){}, function(){}) : Promise.resolve();
+    return byAcc.then(function(){ return dbReplaceMetaDays(metaRows); }); })
   .then(function(){
     var now = new Date().toISOString(), B = 500, chain = Promise.resolve(), done = 0;
     for (var i = 0; i < metaRows.length; i += B) (function(batch){ chain = chain.then(function(){
