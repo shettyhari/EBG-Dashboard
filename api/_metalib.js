@@ -91,4 +91,15 @@ async function accountBudgets(accountId) {
     return { account: id, campaign: c.name || c.id, daily: cbo ? n(c.daily_budget) / 100 : s.daily, lifetime: cbo ? n(c.lifetime_budget) / 100 : s.lifetime, level: cbo ? "campaign" : "ad set" };
   }).filter((c) => c.daily > 0 || c.lifetime > 0);
 }
-module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, accountFunds, accountBudgets, n };
+
+/* account-level daily totals straight from Meta (what Ads Manager shows at account level), for reconciliation */
+async function accountDaily(accountId, from, to) {
+  const id = String(accountId).indexOf("act_") === 0 ? accountId : "act_" + accountId;
+  const q = new URLSearchParams({ level: "account", time_increment: "1", limit: "500", fields: "account_name,spend,impressions,date_start",
+    time_range: JSON.stringify({ since: from, until: to }) });
+  const rows = await all(GRAPH + "/" + id + "/insights?" + q.toString(), 10);
+  let name = rows[0] && rows[0].account_name;
+  if (!name) { try { name = (await graph(GRAPH + "/" + id + "?fields=name")).name; } catch (e) { name = id; } }
+  return { id, name, days: rows.map((r) => ({ date: String(r.date_start).slice(0, 10), spend: Math.round(n(r.spend) * 100) / 100, impressions: Math.round(n(r.impressions)) })) };
+}
+module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, accountFunds, accountBudgets, accountDaily, n };

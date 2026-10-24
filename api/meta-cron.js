@@ -51,6 +51,7 @@ async function keyOk(k) {
   if (!k || String(k).length < 32) return false;
   try { return (await sbFetch("rpc/meta_cron_key_ok", { method: "POST", body: JSON.stringify({ k: String(k) }) })) === true; } catch (e) { return false; }
 }
+const acctId = (x) => { const s = String(x || "").trim(); return s.indexOf("act_") === 0 ? s : "act_" + s; };
 const BUDGET_MS = +process.env.META_CRON_BUDGET_MS || 50000;   // stop starting new pieces in time to finish within Vercel's 60 s
 const q = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
 
@@ -98,16 +99,15 @@ module.exports = async function handler(req, res) {
       raw.forEach((r) => {
         const camp = clean(r[4]), adset = clean(r[5]), ad = clean(r[6]), day = r[0]; if (!camp) return;
         const k = [camp, adset, ad, day].join("|~|"), x = mm[k];
-        const row = { source_file: "Meta API · " + (r[2] || r[1]), campaign: camp, adset, ad, day, day_end: day, spend: r[7], results: r[8], result_indicator: r[9],
+        const row = { source_file: "Meta API · " + (r[2] || r[1]) + " · " + acctId(r[1] || job.a.id), campaign: camp, adset, ad, day, day_end: day, spend: r[7], results: r[8], result_indicator: r[9],
           currency: r[3] || "INR", brand: job.a.brand || kw(camp), impressions: r[10], clicks: r[11], reach: r[12] };
         if (x) { x.spend = Math.round((x.spend + row.spend) * 100) / 100; x.results += row.results; x.impressions += row.impressions; x.clicks += row.clicks; x.reach = null; if (!x.result_indicator) x.result_indicator = row.result_indicator; }
         else mm[k] = row;
       });
       const rows = Object.values(mm); if (!rows.length) return;
       rows.forEach((r) => files.add(r.source_file));
-      // replace this ad account's days first (by account + day, so renamed campaigns / ads don't stay twice)
-      for (const f of Array.from(new Set(rows.map((r) => r.source_file))))
-        await sbFetch("meta_ad_rows?source_file=eq." + encodeURIComponent(f) + "&day=gte." + job.from + "&day_end=lte." + job.to, { method: "DELETE" });
+      // replace this ad account's days first, by account id + day (renamed campaigns, ads or accounts don't stay twice)
+      await sbFetch("meta_ad_rows?source_file=like." + encodeURIComponent("Meta API*· " + acctId(job.a.id)) + "&day=gte." + job.from + "&day_end=lte." + job.to, { method: "DELETE" });
       const camps = Array.from(new Set(rows.map((r) => r.campaign)));
       for (let i = 0; i < camps.length; i += 40)
         await sbFetch("meta_ad_rows?campaign=in.(" + encodeURIComponent(camps.slice(i, i + 40).map(q).join(",")) + ")&day=gte." + job.from + "&day_end=lte." + job.to, { method: "DELETE" });

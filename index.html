@@ -2423,7 +2423,8 @@ function provSync(pk, W){
     d.rows.forEach(function(r){
       var camp = clean(r[C.campaign]), adset = clean(r[C.adset]), ad = clean(r[C.ad]), day = r[C.date]; if (!camp) return;
       var k = [camp, adset, ad, day].join("|~|"), x = mm[k];
-      var row = {_acc: r[C.account_id], source_file: P.prefix + (r[C.account_name] || r[C.account_id]), campaign: camp, adset: adset, ad: ad, day: day, day_end: day,
+      var aidS = String(r[C.account_id] || ""), aidL = aidS.indexOf("act_") === 0 ? aidS : "act_" + aidS;
+      var row = {_acc: r[C.account_id], source_file: P.prefix + (r[C.account_name] || r[C.account_id]) + " · " + aidL, campaign: camp, adset: adset, ad: ad, day: day, day_end: day,
         spend: Number(r[C.spend]) || 0, results: Number(r[C.results]) || 0, result_indicator: r[C.result_indicator] || "", currency: r[C.currency] || "INR",
         brand: brandFor[String(r[C.account_id]).replace(/^act_/, "")] || kw(camp), impressions: Number(r[C.impressions]) || 0, clicks: Number(r[C.clicks]) || 0,
         reach: r[C.reach] === null ? null : Number(r[C.reach])};
@@ -2438,7 +2439,7 @@ function provSync(pk, W){
   }).then(function(r){ if (r.error) throw r.error; uid = r.data.id;
     /* replace by ad account + day for every piece that came back (renamed campaigns / ads don't stay twice) */
     var label = {}; metaRows.forEach(function(x){ var aid = String(x._acc || "").replace(/^act_/, ""); if (aid) label[aid] = x.source_file; });
-    var items = okPieces.map(function(q){ var f = label[String(q.id).replace(/^act_/, "")]; return f ? {f: f, from: isoDay(q.from), to: isoDay(q.to)} : null; }).filter(Boolean);
+    var items = okPieces.map(function(q){ var aid = String(q.id).replace(/^act_/, ""); return label[aid] ? {id: "act_" + aid, f: label[aid], from: isoDay(q.from), to: isoDay(q.to)} : null; }).filter(Boolean);
     metaRows.forEach(function(x){ delete x._acc; });
     var byAcc = items.length ? sb.client.rpc("meta_replace_account_days", {items: items}).then(function(){}, function(){}) : Promise.resolve();
     return byAcc.then(function(){ return dbReplaceMetaDays(metaRows); }); })
