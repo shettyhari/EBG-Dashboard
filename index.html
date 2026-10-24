@@ -834,6 +834,9 @@ table.sticky-1 thead th:first-child{z-index:4}
 table.sticky-1 tr.total td:first-child{z-index:3}
 table.sticky-1 tbody tr:hover td:first-child{background:var(--row-hover)}
 .budget-note{margin:8px 0 4px;line-height:1.5}
+.recon-badge{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-size:13px;margin:0 0 12px;border:1px solid var(--line)}
+.recon-badge.ok{background:#e6f4ea;border-color:#a8dab5;color:#0d652d}.recon-badge.warn{background:#fef7e0;border-color:#f9d77e;color:#7a4f01}.recon-badge.mut{color:var(--muted)}
+.recon-badge .linkbtn{font-size:13px}
 </style>
 
 <script>try{var _t=localStorage.getItem("ebg-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
@@ -2330,6 +2333,72 @@ function viewHelp(){
   sec.appendChild(el("div", {cls: "group set-card"}, el("h3", {text: "Common questions"}), faq.map(function(q){ return el("details", {cls: "faq"}, el("summary", {text: q[0]}), el("p", {text: q[1]})); })));
   return sec;
 }
+
+/* ================= reconciliation: dashboard spend vs Meta Ads Manager, per ad account per day ================= */
+function reconRange(){
+  var R = state.R, r = rangeOf(state.range), t = todayDay();
+  if (!r && R && R.period.metaStart !== null) r = {from: R.period.metaStart, to: R.period.metaEnd};
+  if (!r) return null; var to = Math.min(r.to, t), from = Math.max(r.from, to - 30); return from > to ? null : {from: from, to: to, clipped: r.from < from};
+}
+function loadRecon(force){
+  if (!sb.cfg || sb.status !== "ready") return;
+  var accs = (state.settings.metaAccounts || []).filter(function(a){ return a.on !== false; }), rg = reconRange(); if (!accs.length || !rg) return;
+  var key = rg.from + "-" + rg.to + "|" + accs.map(function(a){ return a.id; }).join(","), C = state.recon;
+  if (C && C.key === key && (C.loading || (!force && Date.now() - C.t < 30 * 60000))) return;
+  state.recon = {key: key, loading: true, t: Date.now(), rg: rg};
+  provApi("meta", "reconcile", {from: isoDay(rg.from), to: isoDay(rg.to), accounts: accs.map(function(a){ return a.id; }).join(",")}).then(function(d){
+    state.recon = {key: key, t: Date.now(), rg: rg, at: d.at, accounts: d.accounts || [], errors: d.errors || []}; })
+    .catch(function(e){ state.recon = {key: key, t: Date.now(), rg: rg, err: e.message || String(e)}; })
+    .then(function(){ if (state.tab === "overview" || state.tab === "checks") render(); });
+}
+/* per account: totals and the days that don't match (today may lag the 30-minute sync, so it's never counted as a mismatch) */
+function reconSummary(){
+  var C = state.recon; if (!C || !C.accounts) return null;
+  var today = isoDay(todayDay()), rows = [], bad = 0, tot = {meta: 0, dash: 0};
+  C.accounts.forEach(function(a){ var o = {name: a.name, id: a.id, meta: 0, dash: 0, metaImp: 0, dashImp: 0, days: a.days.length, badDays: [], lag: false};
+    a.days.forEach(function(d){ o.meta += d.metaSpend; o.dash += d.spend; o.metaImp += d.metaImp; o.dashImp += d.imp;
+      var tol = Math.max(1, d.metaSpend * 0.005), off = Math.abs(d.spend - d.metaSpend) > tol || Math.abs(d.imp - d.metaImp) > Math.max(5, d.metaImp * 0.005);
+      if (off){ if (d.date === today) o.lag = true; else o.badDays.push(d); } });
+    o.ok = !o.badDays.length; if (!o.ok) bad++; tot.meta += o.meta; tot.dash += o.dash; rows.push(o); });
+  return {rows: rows, bad: bad, tot: tot, errors: C.errors || []};
+}
+function reconBadge(){
+  if (!sb.cfg || sb.status !== "ready") return null;
+  loadRecon(); var C = state.recon; if (!C) return null;
+  var go = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "checks"; render(); var e = document.getElementById("recon"); if (e) e.scrollIntoView({block: "start"}); }}, "Details");
+  if (C.loading && !C.accounts) return el("div", {cls: "recon-badge mut"}, el("span", {text: "Checking spend against Meta Ads Manager…"}));
+  if (C.err) return el("div", {cls: "recon-badge warn"}, el("span", {text: "Couldn't check against Meta Ads Manager: " + C.err + " "}), go);
+  var X = reconSummary(); if (!X) return null;
+  var when = new Date(C.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}), span = spanText(C.rg) + (C.rg.clipped ? " (last 31 days of your range)" : "");
+  if (!X.bad && !X.errors.length) return el("div", {cls: "recon-badge ok", title: "Every selected ad account's spend and impressions for " + span + " match Meta's own account totals, day by day."},
+    el("span", {text: "✓ Spend matches Meta Ads Manager · " + span + " · checked " + when + " "}), go);
+  return el("div", {cls: "recon-badge warn"}, el("span", {text: "⚠ " + (X.bad ? X.bad + " ad account" + (X.bad > 1 ? "s don't" : " doesn't") + " match Meta Ads Manager for " + span : "Some ad accounts couldn't be checked") + " · checked " + when + " "}), go);
+}
+function reconSection(){
+  if (!sb.cfg) return null;
+  loadRecon(); var C = state.recon, box = el("div", {id: "recon"});
+  box.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Spend vs Meta Ads Manager"}),
+    el("span", {cls: "note", text: "For every selected ad account and day, the dashboard's spend and impressions are compared with Meta's own account totals. If a row were missing or counted twice, it would show here."})));
+  if (!C){ box.appendChild(el("div", {cls: "small", text: "Select ad accounts in Settings › Data connections to run this check."})); return box; }
+  if (C.loading && !C.accounts){ box.appendChild(el("div", {cls: "small", text: "Checking against Meta…"})); return box; }
+  if (C.err){ box.appendChild(el("div", {cls: "msg err", text: "Couldn't check: " + C.err})); return box; }
+  var X = reconSummary(), today = isoDay(todayDay());
+  var cols = [{k: "name", label: "Ad account", t: "text", cls: "name"}, {k: "meta", label: "Spend in Meta", t: "inr"}, {k: "dash", label: "Spend in dashboard", t: "inr"},
+    {k: "diff", label: "Difference", t: "inr", get: function(r){ return r.dash - r.meta; }, flag: function(r){ return r.ok ? null : "bad"; }},
+    {k: "days", label: "Days checked", t: "int"},
+    {k: "st", label: "Result", t: "text", get: function(r){ return r.ok ? (r.lag ? "Matches (today still syncing)" : "Matches") : r.badDays.length + " day" + (r.badDays.length > 1 ? "s" : "") + " differ"; },
+      render: function(r){ return el("span", {cls: "pill " + (r.ok ? "good" : "bad"), text: r.ok ? (r.lag ? "✓ Matches · today syncing" : "✓ Matches") : r.badDays.length + " day" + (r.badDays.length > 1 ? "s" : "") + " differ"}); }}];
+  var T = {name: "TOTAL", meta: X.tot.meta, dash: X.tot.dash, days: X.rows.reduce(function(n0, r){ return n0 + r.days; }, 0), ok: !X.bad, lag: false, badDays: X.rows.reduce(function(a0, r){ return a0.concat(r.badDays); }, [])};
+  box.appendChild(el("div", {cls: "small", style: "margin:0 0 8px", text: spanText(C.rg) + (C.rg.clipped ? " (the last 31 days of your date range)" : "") + " · checked " + new Date(C.at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"})}));
+  box.appendChild(table("recon", cols, X.rows, {total: T}));
+  X.rows.filter(function(r){ return !r.ok; }).forEach(function(r){
+    box.appendChild(el("details", {cls: "faq"}, el("summary", {text: r.name + ": days that differ"}),
+      el("ul", {cls: "conn-lines"}, r.badDays.map(function(d){ return el("li", {text: d.date + " · Meta " + fINR(d.metaSpend) + " / " + fInt(d.metaImp) + " impressions · dashboard " + fINR(d.spend) + " / " + fInt(d.imp) + (d.spend > d.metaSpend ? " (counted extra)" : " (missing)")}); })),
+      el("p", {text: "Fix: Settings › Data connections › Sync now for these dates. Syncing replaces each account's days, so the numbers will match afterwards."}))); });
+  X.errors.forEach(function(e){ box.appendChild(el("div", {cls: "msg err", text: "Couldn't read from Meta: " + e})); });
+  box.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ loadRecon(true); render(); }}, "Check again"));
+  return box;
+}
 function viewChecks(){
   var R = state.R, box = el("div", {cls: "checks"}), infoBox = el("div", {cls: "checks"});
   var rank = {bad: 0, warn: 1, ok: 2, info: 3};
@@ -2347,7 +2416,7 @@ function viewChecks(){
   var un = R.unmatched.filter(function(u){ return brandOK(u.brand) && matchQ("unm", u, ["id", "campaign", "adset", "ad"]); });
   return el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: "Check results"})),
-    sum, box,
+    sum, box, reconSection(),
     el("details", {cls: "checks-more"}, el("summary", {text: "Show the " + infoBox.childNodes.length + " checks that need no action"}), infoBox),
     dupSection(),
     el("div", {cls: "sec-head"}, el("h2", {text: "CRM leads not matched to a Meta ad"}), el("span", {cls: "note", text: "Matched on Facebook Campaign + Ad Set + Ad name. These keep their own rows; nothing is guessed onto another ad."})),
@@ -3069,6 +3138,7 @@ function viewOverview(){
   if (unm.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: fInt(unm.reduce(function(s, a){ return s + a.crm; }, 0)) + " WhatsApp leads have no campaign in TeleCRM (" +
       unm.map(function(a){ return a.brand + ": " + fInt(a.crm); }).join(", ") + "), so they aren't matched to Meta's Leads in UI. Map them to their Meta campaign to compare correctly."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Map campaigns")));
+  var rb = reconBadge(); if (rb) sec.appendChild(rb);
   sec.appendChild(gaSnapshot(T, prevTotals()));
   var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
   sec.appendChild(grp("Media", [

@@ -293,3 +293,5 @@ begin
 end $$;
 revoke all on function public.meta_replace_account_days(jsonb) from public, anon;
 grant execute on function public.meta_replace_account_days(jsonb) to authenticated, service_role;
+
+-- refresh_lead_dupes_fast: window-function version (same results, ~200x faster); meta_replace_account_days accepts {"id": "act_…"}; Meta API rows are labelled "Meta API · <account> · act_<id>".
