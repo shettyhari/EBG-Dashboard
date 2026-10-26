@@ -38,10 +38,13 @@ Sidebar › **Reports**. Pick a report, brands (empty = all), dates, then **Gene
 
 | Report | Columns |
 |---|---|
-| Brand-wise · daily or range | Date, Brand Name, Spend, CPL, Leads Target, Leads Achieved, Lead Achievement %, Contacted LQ %, Overall LQ %, TAT (Hrs), New Lead %, Remarks |
-| Brand-wise · MTD | same columns, 1st of month → cutoff |
-| Master FTD + MTD (also the "expanded MTD" report — one template) | the 22 columns of the Master Report |
-| Leader-wise · MTD | Date, Leader Name, Total Spend, Leads Target, Leads Achieved, Lead Achievement %, Contacted LQ %, Overall LQ %, FC TAT (Hrs), New Lead % |
+| FTD Brand-wise | Date, Brand Name, Spend, CPL, Leads Target, Leads Achieved, Lead Achievement %, Contacted LQ %, Overall LQ %, TAT (Hrs), New Lead %, Remarks — a day (or From–To range) |
+| FTD Leader-wise | Date, Leader Name, Total Spend, Leads Target, Leads Achieved, Lead Achievement %, Contacted LQ %, Overall LQ %, FC TAT (Hrs), New Lead % — a day (or range) |
+| MTD Brand-wise | same as FTD Brand-wise, 1st of month → reporting date |
+| MTD Leader-wise | same as FTD Leader-wise, 1st of month → reporting date |
+| Master (FTD + MTD; also the "expanded MTD" report — one template) | the 22 columns of the Master Report |
+
+Spend of campaigns that match no brand ("Unmapped") is left out of every report (same as the Overview), and the report shows a note with the amount.
 
 Definitions (shown on the page under "How each number is calculated"):
 

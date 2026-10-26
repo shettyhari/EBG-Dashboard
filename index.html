@@ -2426,8 +2426,11 @@ function reconSection(){
 }
 
 /* ================= Reports: EBG daily / MTD templates ================= */
-var REPORT_TYPES = [["brand_day", "Brand-wise performance · daily or date range"], ["brand_mtd", "Brand-wise performance · MTD"],
-  ["master", "Master report · FTD + MTD (platform, CRM, budget)"], ["leader_mtd", "Leader-wise performance · MTD"]];
+var REPORT_TYPES = [["brand_day", "FTD Brand-wise report"], ["leader_day", "FTD Leader-wise report"], ["brand_mtd", "MTD Brand-wise report"],
+  ["leader_mtd", "MTD Leader-wise report"], ["master", "Master report · FTD + MTD (platform, CRM, budget)"]];
+/* FTD reports take a day (or a From–To range); MTD and master take a reporting date */
+function repIsRange(t){ return t === "brand_day" || t === "leader_day"; }
+function repIsLeader(t){ return t === "leader_day" || t === "leader_mtd"; }
 function repState(){ if (!state.rep){ var y = todayDay() - 1, t = null, av = state.R && state.R.avail;
   /* default = latest complete day that has data (never today, which is still running) */
   if (av && isNum(av.max) && av.max < y) y = av.max; try { t = localStorage.getItem("ebg-rep-type"); } catch (e) {}
@@ -2477,7 +2480,7 @@ function repLoad(from, to){
 }
 function repGenerate(){
   var P = repState(), S = state.settings, type = P.type;
-  var rg = type === "brand_day" ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff};
+  var rg = repIsRange(type) ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff};
   if (rg.to > todayDay()){ toast("Pick a date up to today"); return; }
   var params = JSON.parse(JSON.stringify(P));
   state.repOut = {status: "loading"}; render();
@@ -2550,7 +2553,8 @@ function repLeaderOf(camp, mgrN){
 }
 function repLeaderTable(o){
   var P = o.params, R = o.R, days = o.rg.to - o.rg.from + 1, label = repDateLabel(o.rg.from, o.rg.to), RP = repS(state.settings);
-  var brandOK2 = P.brands.length ? function(b){ return P.brands.indexOf(b) >= 0; } : function(){ return true; };
+  /* same rule as every other report and the Overview: only ads of listed brands (unmatched campaigns are shown in Data checks) */
+  var listed = state.settings.brands, brandOK2 = function(b){ return P.brands.length ? P.brands.indexOf(b) >= 0 : listed.indexOf(b) >= 0; };
   /* campaigns first (spend and leads of all their ads), then each campaign goes to one leader */
   var camps = {};
   (R.allAds || R.ads).forEach(function(a){ if (!brandOK2(a.brand)) return; var k = String(a.campaign || "").toLowerCase(), c = camps[k];
@@ -2575,7 +2579,11 @@ function repLeaderTable(o){
     repCol("tat", "FC TAT (Hrs)", "text", null, {get: function(r){ return fTatH(r.tat); }}), repCol("newp", "New Lead %", "rpct")];
   return {cols: cols, rows: rows, total: total, label: label, leaders: Object.keys(by)};
 }
-function repBuild(o){ return o.type === "master" ? repMasterTable(o) : o.type === "leader_mtd" ? repLeaderTable(o) : repBrandTable(o); }
+/* spend of Meta ads whose campaign matches no brand: left out of every report, so say so */
+function repUnmapped(o){ var R = o.R || o.mtd, listed = state.settings.brands, s0 = 0, n = 0;
+  (R.allAds || []).forEach(function(a){ if (a.src === "M" && !a.partial && listed.indexOf(a.brand) < 0 && (a.spend || 0) > 0){ s0 += a.spend; n++; } }); return n ? {spend: s0, ads: n} : null; }
+function repUnmappedText(u){ return fINR(u.spend) + " of Meta spend (" + u.ads + " ad" + (u.ads > 1 ? "s" : "") + ") is in campaigns that don't match any brand, so it isn't in this report. Add the brand word in Settings › Brands & campaigns to include it."; }
+function repBuild(o){ return o.type === "master" ? repMasterTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
 function repTypeLabel(t){ return (REPORT_TYPES.filter(function(x){ return x[0] === t; })[0] || ["", ""])[1]; }
 /* a multi-select dropdown (empty = all) */
 function repPicker(label, options, selected, onApply, key){
@@ -2601,11 +2609,11 @@ function viewReports(){
   var typeSel = el("select", {"aria-label": "Report type"}, REPORT_TYPES.map(function(t){ return el("option", {value: t[0], selected: P.type === t[0] ? true : null, text: t[1]}); }));
   typeSel.addEventListener("change", function(){ P.type = typeSel.value; try { localStorage.setItem("ebg-rep-type", P.type); } catch (e) {} render(); });
   var ctr = el("div", {cls: "rep-controls"}, el("label", {cls: "field rep-field rep-type"}, el("span", {cls: "small", text: "Report"}), typeSel));
-  if (P.type === "brand_day"){ ctr.appendChild(dateIn("From", P.from, function(d){ P.from = d; })); ctr.appendChild(dateIn("To", P.to, function(d){ P.to = d; })); }
+  if (repIsRange(P.type)){ ctr.appendChild(dateIn("From", P.from, function(d){ P.from = d; })); ctr.appendChild(dateIn("To", P.to, function(d){ P.to = d; })); }
   else { ctr.appendChild(dateIn("Reporting date (cutoff)", P.cutoff, function(d){ P.cutoff = d; }));
     ctr.appendChild(el("div", {cls: "small rep-mtd", text: "MTD = " + repDateLabel(monthStartOf(P.cutoff), P.cutoff) + (P.type === "master" ? " · FTD = " + repDateLabel(P.cutoff, P.cutoff) : "")})); }
   ctr.appendChild(repPicker("Brands", S.brands.slice(), P.brands, function(a){ P.brands = a; }, "b"));
-  if (P.type === "leader_mtd"){ var known = RP.leaders.map(function(L){ return L.name; }); if (O && O.out && O.out.type === "leader_mtd") repBuild(O.out).leaders.forEach(function(n){ if (known.indexOf(n) < 0) known.push(n); });
+  if (repIsLeader(P.type)){ var known = RP.leaders.map(function(L){ return L.name; }); if (O && O.out && repIsLeader(O.out.type)) repBuild(O.out).leaders.forEach(function(n){ if (known.indexOf(n) < 0) known.push(n); });
     ctr.appendChild(repPicker("Leaders", known, P.leaders, function(a){ P.leaders = a; }, "l")); }
   var built = O && O.status === "ready" ? O.out : null, stale = built && JSON.stringify(built.params) !== JSON.stringify(P);
   var exportBtn = el("button", {cls: "btn ghost", type: "button", disabled: built && !stale && state.caps.downloads ? null : true, onclick: function(){ repExport(built); }}, "Export Excel");
@@ -2613,10 +2621,10 @@ function viewReports(){
     el("button", {cls: "btn", type: "button", disabled: O && O.status === "loading" ? true : null, onclick: repGenerate}, O && O.status === "loading" ? "Generating…" : "Generate"),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.rep = null; state.repOut = null; render(); }}, "Reset"), exportBtn));
   sec.appendChild(ctr);
-  var bRg = P.type === "brand_day" ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff}, tMon = monKey(bRg.to);
+  var bRg = repIsRange(P.type) ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff}, tMon = monKey(bRg.to);
   var missing = repBrands(P).filter(function(b){ return !isNum(repBrandTgt(b, "leads", bRg.from, bRg.to)) || (P.type === "master" && (!isNum(repTargetCpl(b, bRg.to)) || !isNum(repBrandTgt(b, "budget", bRg.from, bRg.to)))); });
   var goTargets = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; setDraft().repMonth = tMon; render(); }}, "Set " + monLabel(tMon) + " targets");
-  if (P.type === "leader_mtd"){ var noL = !RP.leaders.some(function(L){ return isNum(repLeaderTgt(L.name, bRg.from, bRg.to)); });
+  if (repIsLeader(P.type)){ var noL = !RP.leaders.some(function(L){ return isNum(repLeaderTgt(L.name, bRg.from, bRg.to)); });
     if (noL) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No leader targets set for " + monLabel(tMon) + "; the target columns show “—”. "}), goTargets)); }
   else if (missing.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
   if (!O){ sec.appendChild(el("div", {cls: "empty", text: "Pick the report and dates, then click Generate."})); }
@@ -2627,6 +2635,8 @@ function viewReports(){
     if (stale) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: "You changed the options. Click Generate to update the report below. "})));
     sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: repTypeLabel(built.type) + " · " + (built.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(built.rg.from, built.rg.to) : T.label)}),
       el("span", {cls: "note", text: "Generated " + new Date(built.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". ✓ on or above target · ! close to target · ✗ off target."})));
+    var un = built.params.brands.length ? null : repUnmapped(built);
+    if (un) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: repUnmappedText(un) + " "}), el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); }}, "Open brand settings")));
     if (!T.rows.length) sec.appendChild(el("div", {cls: "empty", text: "No rows for these options."}));
     else sec.appendChild(el("div", {cls: "rep-table"}, table("rep-" + built.type, T.cols, T.rows, {total: T.total, presorted: true, totalBottom: true})));
     sec.appendChild(repHowCalc(built.type));
@@ -2655,9 +2665,10 @@ function repExport(o){
   var dl = state.caps.downloads; if (!dl || !o) return;
   var T = repBuild(o), cols = T.cols.map(function(c){ var x = Object.assign({}, c); delete x.render; if (c.k === "remarks") x.w = 30; if (c.k === "name") x.w = 24; return x; });
   var title = repTypeLabel(o.type), when = o.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(o.rg.from, o.rg.to) : T.label;
-  var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + " · ✓/!/✗ colours: green on or above target, amber close, red off target", cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
+  var un = o.params.brands.length ? null : repUnmapped(o);
+  var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + " · ✓/!/✗ colours: green on or above target, amber close, red off target" + (un ? " · Note: " + repUnmappedText(un) : ""), cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
   var sub = "EBG Group · " + when + " · Generated " + new Date().toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
-  var fname = "EBG " + title.replace(/[·\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + " " + (o.type === "brand_day" ? isoDay(o.rg.from) + (o.rg.to !== o.rg.from ? " to " + isoDay(o.rg.to) : "") : isoDay(o.rg.to)) + ".xlsx";
+  var fname = "EBG " + title.replace(/[·\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + " " + (repIsRange(o.type) ? isoDay(o.rg.from) + (o.rg.to !== o.rg.from ? " to " + isoDay(o.rg.to) : "") : isoDay(o.rg.to)) + ".xlsx";
   toast("Building the workbook…");
   loadExcelJS().then(function(ExcelJS){ return buildWorkbookExcelJS(ExcelJS, [spec], sub); }).catch(function(){ return buildWorkbookPlain([spec], sub); })
     .then(function(buf){ return dl.save({filename: fname, data: new Uint8Array(buf)}); }).then(function(){ toast("Excel saved"); })
