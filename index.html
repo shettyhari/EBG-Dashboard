@@ -484,7 +484,9 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .acc-nm{display:flex;flex-direction:column;min-width:0}
 .acc-nm span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rt-table input{width:100%;max-width:170px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 9px;font:inherit;font-size:13.5px;border-radius:4px}
-.rt-table td{vertical-align:middle}
+.rt-table td{vertical-align:top}
+#rt-month{padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);min-width:240px;max-width:100%}
+.rt-perday{margin-top:3px;color:var(--muted);font-size:12px}
 .rt-mode{display:grid;gap:6px}
 .row-item input[type=number]{width:90px;flex:0 0 90px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13.5px}
 .st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
@@ -2439,7 +2441,17 @@ function fTatH(min){ if (!isNum(min)) return ""; return min < 59.5 ? Math.round(
 function repNewSet(){ var o = {}; repS(state.settings).newStatuses.split(",").forEach(function(x){ x = x.trim().toLowerCase(); if (x) o[x] = 1; }); return o; }
 function repNewCount(acc){ var set = repNewSet(), n = 0; if (acc && acc.statusN) for (var k in acc.statusN) if (set[String(k).trim().toLowerCase()]) n += acc.statusN[k]; return n; }
 function repTat(acc){ return repS(state.settings).tatBasis === "all" ? acc.tat : acc.whAvg; }
-function repTarget(brand){ return repS(state.settings).brands[brand] || {}; }
+/* targets are stored per month (monthly totals); a day gets monthly ÷ days in its month */
+function monKey(d){ var x = ymd(d); return x.y + "-" + String(x.m + 1).padStart(2, "0"); }
+function monDays(d){ var x = ymd(d); return new Date(Date.UTC(x.y, x.m + 1, 0)).getUTCDate(); }
+function monKeyDay(k){ var p = String(k).split("-"); return dayFrom(+p[0], +p[1] - 1, 1); }
+function monLabel(k){ var p = String(k).split("-"); return MONTHS[+p[1] - 1] + " " + p[0]; }
+function monShift(k, n){ var p = String(k).split("-"); return monKey(dayFrom(+p[0], +p[1] - 1 + n, 1)); }
+/* sum of the daily share of a monthly value over from..to; null when any month in the period has no value (shown as “—”, never a wrong 0) */
+function repPeriodTgt(monthly, from, to){ var sum = 0; for (var d = from; d <= to; d++){ var v = monthly(monKey(d)); if (!isNum(v)) return null; sum += v / monDays(d); } return sum; }
+function repBrandTgt(b, key, from, to){ var RP = repS(state.settings); return repPeriodTgt(function(k){ var M = RP.months[k], t = M && M.brands && M.brands[b]; return t ? t[key] : null; }, from, to); }
+function repLeaderTgt(name, from, to){ var RP = repS(state.settings), n = String(name).toLowerCase(); return repPeriodTgt(function(k){ var M = RP.months[k]; return M && M.leaders ? M.leaders[n] : null; }, from, to); }
+function repTargetCpl(b, day){ var M = repS(state.settings).months[monKey(day)], t = M && M.brands && M.brands[b]; return t && isNum(t.cpl) ? t.cpl : null; }
 /* quality, TAT and new-lead figures from TeleCRM leads (shared by every template) */
 function repLeadMetrics(acc){ return {lqC: acc.called ? (acc.qlC || 0) / acc.called : null, lq: acc.crm ? acc.ql / acc.crm : null, tat: repTat(acc), newp: acc.crm ? repNewCount(acc) / acc.crm : null}; }
 function repFlag3(v, good, warn){ return !isNum(v) ? null : v >= good ? "good" : v >= warn ? "warn" : "bad"; }
@@ -2482,7 +2494,7 @@ function repBrandRow(R){ var m = {}; R.brandRows.forEach(function(b){ m[b.brand]
 /* ---------- template 1 + 3: brand-wise performance ---------- */
 function repBrandTable(o){
   var P = o.params, R = o.R, days = o.rg.to - o.rg.from + 1, label = repDateLabel(o.rg.from, o.rg.to), br = repBrandRow(R), rows = [], picked = [];
-  repBrands(P).forEach(function(b){ var a = br[b]; if (!a) return; var has = repHasMeta(R, b), t = repTarget(b), tg = isNum(t.leads) ? t.leads * days : null, ach = has ? a.ui : null;
+  repBrands(P).forEach(function(b){ var a = br[b]; if (!a) return; var has = repHasMeta(R, b), tg = repBrandTgt(b, "leads", o.rg.from, o.rg.to), ach = has ? a.ui : null;
     picked.push({a: a, has: has, tg: tg});
     rows.push(Object.assign({date: label, name: b, _rk: o.type + "|" + label + "|" + b, spend: has ? a.spend : null, cpl: has ? a.cpl : null, target: tg, achieved: ach,
       achp: isNum(tg) && tg > 0 && isNum(ach) ? ach / tg : null}, repLeadMetrics(a))); });
@@ -2499,12 +2511,12 @@ function repBrandTable(o){
 /* ---------- template 2 (+5): master report, FTD + MTD ---------- */
 function repMasterTable(o){
   var P = o.params, F = repBrandRow(o.ftd), M = repBrandRow(o.mtd), days = o.rg.to - o.rg.from + 1, label = repDateLabel(P.cutoff, P.cutoff), rows = [], acc = [];
-  repBrands(P).forEach(function(b){ var f = F[b], m = M[b]; if (!f || !m) return; var hf = repHasMeta(o.ftd, b), hm = repHasMeta(o.mtd, b), t = repTarget(b);
+  repBrands(P).forEach(function(b){ var f = F[b], m = M[b]; if (!f || !m) return; var hf = repHasMeta(o.ftd, b), hm = repHasMeta(o.mtd, b), c0 = P.cutoff, m0 = o.rg.from;
     var r = {date: label, name: b, _rk: "master|" + label + "|" + b,
-      ftdT: isNum(t.leads) ? t.leads : null, ftdA: hf ? f.ui : null, tCpl: isNum(t.cpl) ? t.cpl : null, aCpl: hm ? m.cpl : null,
+      ftdT: repBrandTgt(b, "leads", c0, c0), ftdA: hf ? f.ui : null, tCpl: repTargetCpl(b, c0), aCpl: hm ? m.cpl : null,
       ftdP: hf ? f.ui : null, ftdC: f.crm, mtdP: hm ? m.ui : null, mtdC: m.crm,
-      mtdT: isNum(t.leads) ? t.leads * days : null, mtdA: hm ? m.ui : null,
-      ftdB: isNum(t.budget) ? t.budget : null, ftdS: hf ? f.spend : null, mtdB: isNum(t.budget) ? t.budget * days : null, mtdS: hm ? m.spend : null};
+      mtdT: repBrandTgt(b, "leads", m0, c0), mtdA: hm ? m.ui : null,
+      ftdB: repBrandTgt(b, "budget", c0, c0), ftdS: hf ? f.spend : null, mtdB: repBrandTgt(b, "budget", m0, c0), mtdS: hm ? m.spend : null};
     acc.push(r); rows.push(r); });
   var ratio = function(a, b){ return isNum(a) && isNum(b) && b > 0 ? a / b : null; };
   rows.forEach(function(r){ r.ftdAch = ratio(r.ftdA, r.ftdT); r.cplAch = isNum(r.tCpl) && isNum(r.aCpl) && r.aCpl > 0 ? r.tCpl / r.aCpl : null; r.ftdSync = ratio(r.ftdC, r.ftdP); r.mtdSync = ratio(r.mtdC, r.mtdP);
@@ -2551,7 +2563,7 @@ function repLeaderTable(o){
   var names = Object.keys(by).sort(function(a, b){ return (a === "(no leader)") - (b === "(no leader)") || a.localeCompare(b); });
   if (P.leaders.length) names = names.filter(function(n){ return P.leaders.indexOf(n) >= 0; });
   var rows = [], picked = [];
-  names.forEach(function(n){ var g = derive(by[n]), L = tgOf[n.toLowerCase()], tg = L && isNum(L.leads) ? L.leads * days : null, ach = g.hasMeta ? g.ui : null;
+  names.forEach(function(n){ var g = derive(by[n]), tg = repLeaderTgt(n, o.rg.from, o.rg.to), ach = g.hasMeta ? g.ui : null;
     picked.push({g: g, tg: tg});
     rows.push(Object.assign({date: label, name: n, spend: g.hasMeta ? g.spend : null, target: tg, achieved: ach, achp: isNum(tg) && tg > 0 && isNum(ach) ? ach / tg : null}, repLeadMetrics(g))); });
   var T = sumRows(picked.map(function(x){ return x.g; })), anyMeta = picked.some(function(x){ return x.g.hasMeta; });
@@ -2601,9 +2613,12 @@ function viewReports(){
     el("button", {cls: "btn", type: "button", disabled: O && O.status === "loading" ? true : null, onclick: repGenerate}, O && O.status === "loading" ? "Generating…" : "Generate"),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.rep = null; state.repOut = null; render(); }}, "Reset"), exportBtn));
   sec.appendChild(ctr);
-  var missing = S.brands.filter(function(b){ var t = RP.brands[b] || {}; return !isNum(t.leads) || (P.type === "master" && (!isNum(t.cpl) || !isNum(t.budget))); });
-  if (missing.length && P.type !== "leader_mtd") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + (P.type === "master" ? "lead target, target CPL or daily budget" : "lead target") + " set for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}),
-    el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; render(); }}, "Set targets")));
+  var bRg = P.type === "brand_day" ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff}, tMon = monKey(bRg.to);
+  var missing = repBrands(P).filter(function(b){ return !isNum(repBrandTgt(b, "leads", bRg.from, bRg.to)) || (P.type === "master" && (!isNum(repTargetCpl(b, bRg.to)) || !isNum(repBrandTgt(b, "budget", bRg.from, bRg.to)))); });
+  var goTargets = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; setDraft().repMonth = tMon; render(); }}, "Set " + monLabel(tMon) + " targets");
+  if (P.type === "leader_mtd"){ var noL = !RP.leaders.some(function(L){ return isNum(repLeaderTgt(L.name, bRg.from, bRg.to)); });
+    if (noL) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No leader targets set for " + monLabel(tMon) + "; the target columns show “—”. "}), goTargets)); }
+  else if (missing.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
   if (!O){ sec.appendChild(el("div", {cls: "empty", text: "Pick the report and dates, then click Generate."})); }
   else if (O.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Loading the data and calculating… (a month of data can take a few seconds)"})); }
   else if (O.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't build the report: " + O.err})); }
@@ -2623,14 +2638,14 @@ function repHowCalc(type){
     ["Leads Achieved / Platform Lead Count", "Meta leads (form leads and WhatsApp chats started), the same as Leads in UI. Campaigns whose results aren't leads are left out."],
     ["CRM Lead Count", "TeleCRM leads created in the period (repeat leads left out if that setting is on)."],
     ["CPL", "Spend ÷ Meta leads. Actual MTD CPL = MTD spend ÷ MTD Meta leads. CPL Target Achievement % = Target CPL ÷ Actual CPL (above 100% means cheaper than target)."],
-    ["Leads Target", "Daily target (Settings › Report targets) × days in the period. MTD = 1st of the month to the reporting date; FTD = the reporting day."],
+    ["Leads Target", "Monthly target (Settings › Report targets, set for each month) ÷ days in that month = target per day; × days in the period. FTD = the reporting day; MTD = 1st of the month to the reporting date. E.g. 3,100 a month in a 31-day month = 100 a day, MTD on the 5th = 500."],
     ["Lead Achievement %", "Leads achieved ÷ leads target. The total row uses only brands that have a target."],
     ["Lead Sync %", "TeleCRM leads ÷ Meta leads for the same brand and period."],
     ["Contacted Lead Quality %", "Qualified leads ÷ leads that got a first call attempt."],
     ["Overall Lead Quality %", "Qualified leads ÷ all TeleCRM leads."],
     ["New Lead %", "Leads still in status " + RP.newStatuses + " ÷ all TeleCRM leads."],
     ["TAT (Hrs)", "Average time from lead created to first call attempt, " + (RP.tatBasis === "all" ? "counting all hours" : "counting working hours only (Mon–Sat 10 AM–9 PM, Sundays and holidays skipped)") + "."],
-    ["Allocated Budget / Spend %", "Daily allocated budget (Settings › Report targets) × days; Spend % = actual spend ÷ allocated budget."],
+    ["Allocated Budget / Spend %", "Monthly budget (Settings › Report targets) ÷ days in the month × days in the period; Spend % = actual spend ÷ allocated budget."],
     ["Leader", RP.leaderMode === "rules" ? "From your rules: campaign name contains the leader's words." : "From TeleCRM: each campaign belongs to the Assignee Manager of most of its leads."],
     ["Totals", "Recalculated from the summed numbers, never by averaging percentages. “—” means no data or no target; 0 means a real zero."]];
   return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}),
@@ -3007,7 +3022,7 @@ var SET_TABS = [["connections", "Data connections", "Where the dashboard gets Me
   ["brands", "Brands & campaigns", "Which brands appear in reports, how each campaign is assigned to a brand, and campaigns to leave out."],
   ["rules", "Lead rules", "Speed-to-lead targets, what counts as a qualified lead, and how repeat leads are handled."],
   ["hours", "Working hours & holidays", "Days that don't count towards working-hours TAT."],
-  ["targets", "Report targets", "Daily lead targets, target CPL and allocated budgets per brand, and leaders, used by the Reports page."],
+  ["targets", "Report targets", "Monthly lead targets, target CPL and budgets per brand (set for each month), and leaders, used by the Reports page."],
   ["advanced", "Advanced", "Rarely needed: report date overrides, lead-source filter and export column names."]];
 function setDraft(){ var S = state.settings;
   if (state.setDraft && state.setDraft.base !== S && !state.setDraft.dirty) state.setDraft = null;   /* settings reloaded (e.g. from the team database) */
@@ -3101,29 +3116,51 @@ function viewSettings(){
     needsSave = true;
     var RP = D.rep, numIn = function(obj, key, label, ph){ var i = el("input", {type: "number", min: "0", step: "1", value: isNum(obj[key]) ? obj[key] : "", placeholder: ph || "—", "aria-label": label});
       i.addEventListener("input", function(){ var v = i.value === "" ? null : Number(i.value); if (v === null || isFinite(v)) { if (v === null) delete obj[key]; else obj[key] = v; setDirty(); } }); return i; };
+    /* month being edited */
+    var curK = monKey(todayDay()); if (!D.repMonth) D.repMonth = curK;
+    var mk = D.repMonth, mDays = monDays(monKeyDay(mk)), MM = RP.months[mk] || (RP.months[mk] = {brands: {}, leaders: {}}); MM.brands = MM.brands || {}; MM.leaders = MM.leaders || {};
+    var monthOpts = {}; for (var mi = -12; mi <= 3; mi++) monthOpts[monShift(curK, mi)] = 1; Object.keys(RP.months).forEach(function(k){ monthOpts[k] = 1; });
+    var hasT = function(k){ var M = RP.months[k]; return !!M && (Object.keys(M.brands || {}).some(function(b){ var t = M.brands[b]; return t && (isNum(t.leads) || isNum(t.cpl) || isNum(t.budget)); }) || Object.keys(M.leaders || {}).some(function(n){ return isNum(M.leaders[n]); })); };
+    var msel = el("select", {id: "rt-month", "aria-label": "Month"}, Object.keys(monthOpts).sort().reverse().map(function(k){ return el("option", {value: k, selected: k === mk ? true : null, text: monLabel(k) + (k === curK ? " (this month)" : "") + (hasT(k) ? " ✓ set" : "")}); }));
+    msel.addEventListener("change", function(){ D.repMonth = msel.value; render(); });
+    var prevK = monShift(mk, -1);
+    var copyBtn = el("button", {cls: "btn ghost", type: "button", disabled: hasT(prevK) ? null : true, title: hasT(prevK) ? null : "No targets saved for " + monLabel(prevK), onclick: function(){
+      RP.months[mk] = JSON.parse(JSON.stringify(RP.months[prevK])); setDirty(); render(); toast("Copied " + monLabel(prevK) + " targets. Change what's different, then Save changes."); }}, "Copy from " + monLabel(prevK));
+    body.appendChild(card("Which month", "Targets are set month by month. Pick the month, enter its targets, then Save changes. Reports use the targets of the month they cover.",
+      el("div", {cls: "row-add"}, msel, copyBtn)));
+    var perDay = function(v, money){ return isNum(v) && v > 0 ? "≈ " + (money ? fINR(v / mDays) : (v / mDays).toFixed(1).replace(/\.0$/, "")) + "/day" : ""; };
+    var numIn = function(obj, key, label, ph, hint){ var i = el("input", {type: "number", min: "0", step: "1", value: isNum(obj[key]) ? obj[key] : "", placeholder: ph || "—", "aria-label": label});
+      var h = hint ? el("div", {cls: "small rt-perday", text: perDay(obj[key], hint === "inr")}) : null;
+      i.addEventListener("input", function(){ var v = i.value === "" ? null : Number(i.value); if (v === null || isFinite(v)) { if (v === null) delete obj[key]; else obj[key] = v; if (h) h.textContent = perDay(v, hint === "inr"); setDirty(); } });
+      return h ? el("div", null, i, h) : i; };
     var tbB = el("tbody");
-    S.brands.forEach(function(b){ var o = RP.brands[b] || (RP.brands[b] = {});
-      tbB.appendChild(el("tr", null, el("td", {cls: "name", text: b}), el("td", null, numIn(o, "leads", "Daily lead target for " + b)), el("td", null, numIn(o, "cpl", "Target CPL for " + b, "₹")), el("td", null, numIn(o, "budget", "Daily allocated budget for " + b, "₹")))); });
+    S.brands.forEach(function(b){ var o = MM.brands[b] || (MM.brands[b] = {});
+      tbB.appendChild(el("tr", null, el("td", {cls: "name", text: b}), el("td", null, numIn(o, "leads", monLabel(mk) + " lead target for " + b, null, "n")), el("td", null, numIn(o, "cpl", "Target CPL for " + b, "₹")), el("td", null, numIn(o, "budget", monLabel(mk) + " budget for " + b, "₹", "inr")))); });
     var fillBtn = el("button", {cls: "btn ghost", type: "button", onclick: function(){
       var x = budgetByBrand(); if (!x){ loadBudgets(true); toast("Reading today's budgets from Meta… click again in a few seconds"); return; }
-      S.brands.forEach(function(b){ if (isNum(x.daily[b]) && x.daily[b] > 0){ (RP.brands[b] = RP.brands[b] || {}).budget = Math.round(x.daily[b]); } }); setDirty(); render(); toast("Daily budgets filled from Meta. Check them, then Save changes."); }}, "Fill daily budgets from Meta");
-    body.appendChild(card("Brand targets", "Per brand, per day. Reports multiply them by the number of days (MTD target = daily target × days so far this month). Leave blank if a brand has no target: the report then shows “—” instead of a wrong 0%.",
-      el("div", {cls: "tbl-wrap"}, el("table", {cls: "rt-table"}, el("thead", null, el("tr", null, ["Brand", "Daily lead target", "Target CPL (₹)", "Daily allocated budget (₹)"].map(function(h){ return el("th", {text: h}); }))), tbB)),
-      sb.cfg ? el("div", {cls: "row-add"}, fillBtn, el("span", {cls: "small", text: "Uses today's daily budgets of each brand's active Meta campaigns."})) : null));
+      S.brands.forEach(function(b){ if (isNum(x.daily[b]) && x.daily[b] > 0){ (MM.brands[b] = MM.brands[b] || {}).budget = Math.round(x.daily[b] * mDays); } }); setDirty(); render(); toast(monLabel(mk) + " budgets filled from Meta (today's daily budget × " + mDays + " days). Check them, then Save changes."); }}, "Fill " + monLabel(mk) + " budgets from Meta");
+    body.appendChild(card(monLabel(mk) + " · brand targets", "Enter the whole month's numbers. Reports split them evenly over the " + mDays + " days of " + monLabel(mk) + " (FTD target = monthly ÷ " + mDays + "; MTD target = that × days so far). Leave blank if a brand has no target: the report then shows “—” instead of a wrong 0%.",
+      el("div", {cls: "tbl-wrap"}, el("table", {cls: "rt-table"}, el("thead", null, el("tr", null, ["Brand", "Monthly lead target", "Target CPL (₹)", "Monthly allocated budget (₹)"].map(function(h){ return el("th", {text: h}); }))), tbB)),
+      sb.cfg ? el("div", {cls: "row-add"}, fillBtn, el("span", {cls: "small", text: "Today's daily budgets of each brand's active Meta campaigns × " + mDays + " days."})) : null));
     /* leaders */
     var mode = el("div", {cls: "rt-mode"}, [["crm", "From TeleCRM: each campaign belongs to the manager (Assignee Manager) of most of its leads"], ["rules", "From my rules below: campaign name contains a word → leader"]].map(function(m){
       var r = el("input", {type: "radio", name: "rt-mode", value: m[0], checked: RP.leaderMode === m[0] ? true : null}); r.addEventListener("change", function(){ RP.leaderMode = m[0]; setDirty(); render(); });
       return el("label", {cls: "toggle"}, r, el("span", {text: m[1]})); }));
     var ll = el("div", {cls: "row-list"});
     RP.leaders.forEach(function(L, i){
-      var nm = el("input", {type: "text", value: L.name || "", placeholder: "Leader name (as in TeleCRM)", "aria-label": "Leader " + (i + 1)}); nm.addEventListener("input", function(){ L.name = nm.value; setDirty(); });
+      var nm = el("input", {type: "text", value: L.name || "", placeholder: "Leader name (as in TeleCRM)", "aria-label": "Leader " + (i + 1)});
+      nm.addEventListener("input", function(){ var o0 = String(L.name || "").trim().toLowerCase(), n0 = nm.value.trim().toLowerCase(); L.name = nm.value;
+        if (!o0 && n0 && isNum(proxy.v)) MM.leaders[n0] = proxy.v;
+        if (o0 && o0 !== n0) Object.keys(RP.months).forEach(function(k){ var Lm = RP.months[k].leaders || {}; if (o0 in Lm){ if (n0) Lm[n0] = Lm[o0]; delete Lm[o0]; } }); setDirty(); });
       var wd = el("input", {type: "text", value: (L.words || []).join(", "), placeholder: "campaign words, e.g. Karan, E_Karan", "aria-label": "Campaign words for leader " + (i + 1), disabled: RP.leaderMode === "rules" ? null : true});
       wd.addEventListener("input", function(){ L.words = wd.value.split(",").map(function(x){ return x.trim(); }).filter(Boolean); setDirty(); });
-      var tg = numIn(L, "leads", "Daily lead target for leader " + (i + 1));
-      ll.appendChild(el("div", {cls: "row-item"}, el("span", {cls: "row-n", text: String(i + 1)}), nm, el("span", {cls: "small", text: "daily target"}), tg, wd,
+      var proxy = {}, lk = function(){ return String(L.name || "").trim().toLowerCase(); }; if (isNum(MM.leaders[lk()])) proxy.v = MM.leaders[lk()];
+      var tg = numIn(proxy, "v", monLabel(mk) + " lead target for leader " + (i + 1), null, "n");
+      tg.querySelector("input").addEventListener("input", function(){ var k = lk(); if (!k) return; if (isNum(proxy.v)) MM.leaders[k] = proxy.v; else delete MM.leaders[k]; });
+      ll.appendChild(el("div", {cls: "row-item"}, el("span", {cls: "row-n", text: String(i + 1)}), nm, el("span", {cls: "small", text: monLabel(mk) + " target"}), tg, wd,
         el("button", {cls: "icon-mini", type: "button", "aria-label": "Remove leader", title: "Remove leader", onclick: function(){ RP.leaders.splice(i, 1); setDirty(); render(); }}, "✕"))); });
     body.appendChild(card("Leaders", "Used by the Leader-wise report. A leader's spend and leads are those of the campaigns that belong to them. With TeleCRM, names must match the Assignee Manager name exactly; leaders found in TeleCRM but not listed here still appear in the report, without a target.",
-      mode, ll, el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ RP.leaders.push({name: "", leads: null, words: []}); setDirty(); render(); }}, "+ Add leader"))));
+      mode, ll, el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ RP.leaders.push({name: "", words: []}); setDirty(); render(); }}, "+ Add leader"))));
     var ns = el("input", {type: "text", value: RP.newStatuses, "aria-label": "New lead statuses"}); ns.addEventListener("input", function(){ RP.newStatuses = ns.value; setDirty(); });
     var tb = el("select", {"aria-label": "TAT basis"}, [["wh", "Working hours (Mon–Sat 10 AM–9 PM, holidays skipped)"], ["all", "All hours (clock time)"]].map(function(x){ return el("option", {value: x[0], selected: RP.tatBasis === x[0] ? true : null, text: x[1]}); }));
     tb.addEventListener("change", function(){ RP.tatBasis = tb.value; setDirty(); });
@@ -3158,7 +3195,14 @@ function viewSettings(){
 }
 function confirmReset(){}
 /* report settings with defaults filled in */
-function repS(S){ var r = S.report || (S.report = {}); r.brands = r.brands || {}; r.leaders = Array.isArray(r.leaders) ? r.leaders : []; r.leaderMode = r.leaderMode === "rules" ? "rules" : "crm";
+function repS(S){ var r = S.report || (S.report = {}); r.leaders = Array.isArray(r.leaders) ? r.leaders : [];
+  r.months = r.months && typeof r.months === "object" ? r.months : {};
+  /* older versions kept one set of DAILY targets: move them into the current month as monthly totals (once) */
+  var old = r.brands || {}, oldB = Object.keys(old).filter(function(b){ var t = old[b] || {}; return isNum(t.leads) || isNum(t.cpl) || isNum(t.budget); }), oldL = r.leaders.filter(function(L){ return isNum(L.leads); });
+  if ((oldB.length || oldL.length) && !Object.keys(r.months).length){ var t0 = todayDay(), dim = monDays(t0), M = r.months[monKey(t0)] = {brands: {}, leaders: {}};
+    oldB.forEach(function(b){ var t = old[b], o = M.brands[b] = {}; if (isNum(t.leads)) o.leads = Math.round(t.leads * dim); if (isNum(t.cpl)) o.cpl = t.cpl; if (isNum(t.budget)) o.budget = Math.round(t.budget * dim); });
+    oldL.forEach(function(L){ M.leaders[String(L.name).toLowerCase()] = Math.round(L.leads * dim); }); }
+  delete r.brands; r.leaders.forEach(function(L){ delete L.leads; }); r.leaderMode = r.leaderMode === "rules" ? "rules" : "crm";
   if (typeof r.newStatuses !== "string") r.newStatuses = "New Lead, New, Fresh"; r.tatBasis = r.tatBasis === "all" ? "all" : "wh"; r.remarks = r.remarks || {}; return r; }
 function applySettings(){
   var S = state.settings, D = setDraft();
@@ -3186,7 +3230,7 @@ function applySettings(){
   if (has("s-pos")) S.qlPos = lines("s-pos").map(function(x){ return x.toLowerCase(); });
   ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ var id = "col-" + src + "-" + k; if (has(id)){ var x = String(get(id)).trim(); if (x) S.cols[src][k] = x; } }); });
   if (D.rep){ var keepRemarks = repS(S).remarks; S.report = JSON.parse(JSON.stringify(D.rep)); S.report.remarks = keepRemarks;
-    S.report.leaders = (S.report.leaders || []).filter(function(L){ return L && String(L.name || "").trim(); }).map(function(L){ return {name: String(L.name).trim(), leads: isNum(L.leads) ? L.leads : null, words: L.words || []}; }); }
+    S.report.leaders = (S.report.leaders || []).filter(function(L){ return L && String(L.name || "").trim(); }).map(function(L){ return {name: String(L.name).trim(), words: L.words || []}; }); }
   state.setDraft = null; state.repOut = null; storeSettings(); recompute();
   toast(state.raw ? "Saved. The report now uses the new settings." : "Settings saved");
 }

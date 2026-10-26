@@ -48,8 +48,8 @@ Definitions (shown on the page under "How each number is calculated"):
 - **FTD** = the reporting day (cutoff). **MTD** = 1st of the cutoff's month → cutoff. Default cutoff = latest complete day with data.
 - **Leads Achieved / Platform leads** = Meta leads (Ads Manager "Results"). **CRM leads** = TeleCRM leads matched to those ads.
 - **CPL** = spend ÷ platform leads. **Lead Sync %** = CRM leads ÷ platform leads (same as the Overview).
-- **Lead Achievement %** = achieved ÷ target. Target = daily lead target × days in period.
-- **Allocated budget** = daily budget × days. **Spend %** = actual ÷ allocated.
+- **Lead Achievement %** = achieved ÷ target. Targets are entered **per month** (monthly totals); per-day target = monthly ÷ days in that month, period target = per-day × days. A period touching a month with no target shows "—".
+- **Allocated budget** = monthly budget ÷ days in month × days. **Spend %** = actual ÷ allocated.
 - **CPL Target Achievement %** (Master) = target CPL ÷ actual CPL (over 100% = cheaper than target).
 - **Contacted LQ %** = qualified ÷ leads that were called. **Overall LQ %** = qualified ÷ all CRM leads. Qualified = the statuses ticked in Settings › Rules.
 - **New Lead %** = leads still in a "new" status ÷ CRM leads (statuses listed in Settings › Report targets).
@@ -58,7 +58,7 @@ Definitions (shown on the page under "How each number is calculated"):
 - **Totals** are recomputed from summed numbers, never averaged percentages. "—" means no data/target (different from 0).
 - Markers: ✓ on/above target, ! close, ✗ off (achievement ≥100/≥80%, sync ≥95/≥85%, FTD spend 80–110%/50–130%, MTD spend ≤100/≤110%).
 
-Targets, target CPL, daily budgets and leaders are entered in **Settings › Report targets** ("Fill daily budgets from Meta" copies today's Meta budgets).
+Targets are entered month by month in **Settings › Report targets**: pick the month, enter monthly lead targets, target CPL and monthly budgets (and leader targets), Save. "Copy from <last month>" starts a new month from the previous one; "Fill budgets from Meta" = today's daily Meta budget × days in the month.
 
 ## Rules
 - **Leads in UI** = sum of the Meta Results column. **Leads in CRM** = TeleCRM rows (optional rules in Settings: Meta sources only, report dates only, unique Lead id).
