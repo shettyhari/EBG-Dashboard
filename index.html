@@ -707,7 +707,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
 .kpi-group > .eyebrow{text-transform:none;letter-spacing:0;font:500 14px var(--font-body);color:var(--ink)}
 /* GA snapshot card */
 .ga-snap{background:var(--panel);overflow:hidden}
-.ga-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-bottom:1px solid var(--line)}
+.ga-tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--line)}
 .ga-tab{display:grid;gap:2px;align-content:start;text-align:left;padding:14px 18px 12px;background:transparent;border:0;border-right:1px solid var(--line-soft);border-top:3px solid transparent;cursor:pointer;color:var(--fg);font:inherit;min-width:0}
 .ga-tab:last-child{border-right:0}
 .ga-tab:hover{background:var(--row-hover)}
@@ -737,7 +737,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
 .login{margin-top:8vh}
 .login h2{font:400 24px/1.3 var(--font-display)}
 .login .eyebrow{letter-spacing:.02em;text-transform:none;font-size:13px}
-@media (max-width:1100px){ .ga-tabs{grid-template-columns:repeat(3,minmax(0,1fr))} .ga-tab:nth-child(3){border-right:0} .ga-tab{border-bottom:1px solid var(--line-soft)} }
+@media (max-width:1100px){ .ga-tabs{grid-template-columns:repeat(4,minmax(0,1fr))} .ga-tab:nth-child(4n){border-right:0} .ga-tab{border-bottom:1px solid var(--line-soft)} }
 @media (max-width:980px){
   .sidebar{top:0;height:100vh;height:100dvh;padding-top:calc(16px + env(safe-area-inset-top,0px));z-index:50;overflow-y:auto}
   .scrim{z-index:45}
@@ -746,7 +746,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
 @media (max-width:640px){
   .gbar{gap:8px;padding:0 8px;height:56px} .g-name{display:none} .g-prop{border-left:0;padding-left:0}
   .gbar #brand-select{min-width:0;max-width:44vw;font-size:14px}
-  .ga-tabs{grid-template-columns:repeat(2,minmax(0,1fr))} .ga-tab:nth-child(3){border-right:1px solid var(--line-soft)} .ga-tab:nth-child(even){border-right:0}
+  .ga-tabs{grid-template-columns:repeat(2,minmax(0,1fr))} .ga-tab:nth-child(odd){border-right:1px solid var(--line-soft)} .ga-tab:nth-child(even){border-right:0}
   .ga-tv{font-size:22px} .prof-name{display:none}
 }
 .brand-logo{display:block;height:46px;width:auto}
@@ -3251,6 +3251,7 @@ function gaSnapshot(T, P){
     {k: "spend", label: "Amount spent", v: T.spend, p: P && P.spend, fmt: fShortINR, dir: 0, full: fINR},
     {k: "cpl", label: "CPL", v: T.cpl, p: P && P.cpl, fmt: fINR, dir: -1},
     {k: "ql", label: "Qualified leads", v: T.ql, p: P && P.ql, fmt: fInt, dir: 1},
+    {k: "cpql", label: "CPQL", v: T.cpql, p: P && P.cpql, fmt: fINR, dir: -1},
     {k: "sla", label: "SLA ≤ " + R.slaMin + " min", v: T.sla, p: P && P.sla, fmt: fPct, dir: 1}];
   var cur = state.gaMetric || "crm", m = M.filter(function(x){ return x.k === cur; })[0] || M[0];
   var card = el("div", {cls: "ga-card ga-snap"});
@@ -3280,7 +3281,7 @@ function gaSnapshot(T, P){
     mx = m.k === "sla" ? Math.max(1, nice(mx)) : nice(mx);
     var x = function(i){ return pl + (n <= 1 ? iw / 2 : iw * i / (n - 1)); }, y = function(v){ return pt + ih - v / mx * ih; };
     var s = sv("svg", {viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": m.label + " by day"});
-    var axf = m.k === "spend" || m.k === "cpl" ? fShortINRaxis : m.k === "sla" ? function(v){ return Math.round(v * 100) + "%"; } : fCompact;
+    var axf = m.k === "spend" || m.k === "cpl" || m.k === "cpql" ? fShortINRaxis : m.k === "sla" ? function(v){ return Math.round(v * 100) + "%"; } : fCompact;
     for (var g = 0; g <= 4; g++){ var gy = pt + ih - ih * g / 4; s.appendChild(sv("line", {"class": "grid", x1: pl, x2: W - pr, y1: gy, y2: gy}));
       var t = sv("text", {"class": "ax", x: W - pr + 8, y: gy + 4}); t.textContent = axf(mx * g / 4); s.appendChild(t); }
     var every = Math.max(1, Math.ceil(n / Math.floor(iw / 70)));
