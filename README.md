@@ -65,6 +65,25 @@ Definitions (shown on the page under "How each number is calculated"):
 
 Targets are entered month by month in **Settings › Report targets**: pick the month, enter monthly lead targets, target CPL and monthly budgets (and leader targets), Save. "Copy from <last month>" starts a new month from the previous one; "Fill budgets from Meta" = today's daily Meta budget × days in the month.
 
+## Google Ads
+
+Header › **Platform: Meta Ads / Google Ads**. The Google view uses the same pages, reports and Excel exports, with:
+- **Leads in UI** = Google's *Conversions* column (primary conversions), per campaign per day, all campaign types incl. Performance Max
+- **Leads in CRM** = TeleCRM leads whose **UTM Campaign** is that Google campaign's name *or ID* (also picks up leads with Lead Source "Google…", a gclid, or utm_source=google)
+- matched at campaign level (Ad sets / Ads pages are hidden); Meta-only parts (budgets, spend check vs Ads Manager, WhatsApp links, Lead leaks) are off
+- Google data lives in its own table (`google_ad_rows`), so Meta numbers can never change because of it
+
+### Google Ads setup (one time, ~20 minutes)
+
+1. **Google Cloud project** — console.cloud.google.com › New project (e.g. "EBG Dashboard") › APIs & Services › Library › **Google Ads API** › Enable. On the Google Ads API overview page in the Cloud Console, request access: *Explorer* access works on real accounts straight away (2,880 operations/day — the sync uses about 1 per account per run); *Basic* needs brand verification. (Since Sept 2026 access follows the Cloud project; a developer token is no longer needed.)
+2. **OAuth consent screen** — APIs & Services › OAuth consent screen. If EBG uses Google Workspace choose **Internal** (tokens don't expire). Otherwise External, add your email as a user and set Publishing status to **In production** (in *Testing* the token expires after 7 days).
+3. **OAuth client** — Credentials › Create credentials › OAuth client ID › *Web application* › Authorised redirect URI `https://developers.google.com/oauthplayground` › Create. Copy the Client ID and Client secret.
+4. **Refresh token** — developers.google.com/oauthplayground › ⚙ › tick *Use your own OAuth credentials* › paste Client ID + secret › in Step 1 type the scope `https://www.googleapis.com/auth/adwords` › Authorize APIs › sign in with the Google account that can see the Google Ads accounts (your MCC login) › Step 2 › *Exchange authorization code for tokens* › copy the **Refresh token**.
+5. **Vercel** › Project › Settings › Environment Variables (Production, Preview, Development) › add `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`, and `GOOGLE_ADS_LOGIN_CUSTOMER_ID` = your manager (MCC) account number, digits only (optional — agency MCCs you can access are found automatically) › Deployments › ⋯ › Redeploy.
+6. **Supabase** › SQL Editor › run `supabase/google-ads.sql` once (table, Google-leads view, sync every 30 min at :15/:45).
+7. **Dashboard** › Settings › Data connections › *Google Ads* › Load Google Ads accounts › tick accounts, pick brands › turn on Auto-sync › **Sync now**.
+8. **UTM tags** — so TeleCRM leads match their campaign, each Google campaign's *Final URL suffix* should carry `utm_source=google&utm_medium=cpc&utm_campaign={campaignid}` (works for every campaign type incl. PMax; the dashboard turns the ID into the campaign name). Campaign names in utm_campaign work too, if typed exactly.
+
 ## History (change log)
 
 Sidebar › **History**: who changed what and when, with old → new values, like Meta / Google Ads change history. Filter by person or type, search by brand, campaign or setting.

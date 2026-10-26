@@ -486,6 +486,14 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .rt-table input{width:100%;max-width:170px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 9px;font:inherit;font-size:13.5px;border-radius:4px}
 .rt-table td{vertical-align:top}
 #rt-month{padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);min-width:240px;max-width:100%}
+body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{display:none}
+.plat-pick .bp-dot{box-shadow:none}
+#plat-select{border:0;background:transparent;color:var(--ink);font:500 15px var(--font-body);padding:7px 6px;cursor:pointer;border-radius:8px}
+#plat-select:focus-visible{outline:2px solid var(--accent)}
+#plat-select option{background:var(--panel);color:var(--ink)}
+.gbar .plat-pick{margin-right:8px}
+@media (max-width:760px){#plat-select{font-size:14px;max-width:30vw}}
+.gads-tbl td{vertical-align:middle}#gads-panel .auto-box select{max-width:320px}.gads-tbl select{max-width:180px}
 .hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
 .hist-list{margin-top:8px}.hist-day{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px;font-weight:600}
 .hist-item{border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:8px;background:var(--panel)}
@@ -1498,7 +1506,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
 /* ================= state ================= */
 var LS_KEY = "ebg-lead-dash-settings-v1";
 var state = {settings: null, raw: null, files: {meta: null, crm: null}, pending: {meta: null, crm: null}, metaFiles: [], source: "none", R: null, team: null,
-             tab: "overview", brand: "All", range: {preset: "max"}, treeOpen: {}, colPick: null, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false};
+             tab: "overview", brand: "All", range: {preset: "max"}, treeOpen: {}, colPick: null, dp: null, q: {}, sort: {}, limit: {}, callFilter: "All", caps: {db: null, user: null, downloads: null}, canSave: false, platform: (function(){ try { return localStorage.getItem("ebg-platform") === "google" ? "google" : "meta"; } catch (e) { return "meta"; } })()};
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 /* saved settings + any defaults added since (keeps new column names) */
 function mergeSettings(saved){
@@ -1617,7 +1625,7 @@ function budgetDays(){
 }
 function loadBudgets(force){
   var S = state.settings, B = state.budgets;
-  if (!sb.cfg || sb.status !== "ready") return;
+  if (!sb.cfg || sb.status !== "ready" || isGoogle()) return;
   var accs = (S.metaAccounts || []).filter(function(a){ return a.on !== false; }); if (!accs.length) return;
   if (B && (B.loading || (!force && Date.now() - B.t < 30 * 60000))) return;
   state.budgets = {loading: true, t: Date.now(), camps: B ? B.camps : null};
@@ -1627,7 +1635,7 @@ function loadBudgets(force){
     .then(function(){ if (state.tab === "overview") render(); });
 }
 function budgetByBrand(){
-  var B = state.budgets; if (!B || !B.camps || !state.R) return null;
+  var B = state.budgets; if (!B || !B.camps || !state.R || isGoogle()) return null;
   if (B._for === state.R && B._by) return B._by;
   var S = state.settings, accBrand = {}; (S.metaAccounts || []).forEach(function(a){ if (a.brand) accBrand[String(a.id).replace(/^act_/, "")] = a.brand; });
   var brandOf = makeBrandOfWith(S, state.R.campBrand), by = {}, life = {};
@@ -1643,7 +1651,7 @@ function budgetCols(){
       flag: function(r){ var d = bb(r); if (!isNum(d) || !d || !D.days || !isNum(r.spend)) return null; var u = r.spend / (d * D.days); return u > 1.05 ? "bad" : null; }}];
 }
 function brandCols(){ var R = state.R;
-  var mc = mediaCols(); mc.splice(1, 0, budgetCols()[0], budgetCols()[1], budgetCols()[2]);
+  var mc = mediaCols(); if (!isGoogle()) mc.splice(1, 0, budgetCols()[0], budgetCols()[1], budgetCols()[2]);
   return [{k: "brand", label: "Brand", t: "text", cls: "name", lock: true}].concat(mc).concat([
     {k: "ui", label: "Leads in UI", t: "int"}, {k: "crm", label: "Leads in CRM", t: "int"},
     {k: "diff", label: "Difference (UI − CRM)", t: "int"}, {k: "pct", label: "Difference %", t: "pct", flag: function(r){ return isNum(r.pct) && Math.abs(r.pct) > R.diffAlert ? "bad" : null; }},
@@ -2298,7 +2306,8 @@ function pageTitle(){
   var info = PAGE_INFO[state.tab] || PAGE_INFO.overview, h = document.querySelector("header.top h1"), p = document.getElementById("period");
   if (h) h.textContent = info[0];
   if (p && state.R){ var pr = state.R.period;
-    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" || state.tab === "history" ? "" : "  ·  Dates: " + rangeText(false));
+    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" || state.tab === "history" ? "" : "  ·  Dates: " + rangeText(false)) +
+      (isGoogle() && state.tab !== "settings" && state.tab !== "help" && state.tab !== "history" ? "  ·  Google Ads view: Leads in UI = Google conversions; Leads in CRM = TeleCRM leads whose UTM campaign is that Google campaign." : "");
     p.title = pr.metaStart !== null ? "Meta data available " + fDay(pr.metaStart) + " – " + fDay(pr.metaEnd) : "No Meta data in these dates yet"; }
 }
 var GLOSS = [
@@ -2387,7 +2396,7 @@ function reconRange(){
   if (!r) return null; var to = Math.min(r.to, t), from = Math.max(r.from, to - 30); return from > to ? null : {from: from, to: to, clipped: r.from < from};
 }
 function loadRecon(force){
-  if (!sb.cfg || sb.status !== "ready") return;
+  if (!sb.cfg || sb.status !== "ready" || isGoogle()) return;
   var accs = (state.settings.metaAccounts || []).filter(function(a){ return a.on !== false; }), rg = reconRange(); if (!accs.length || !rg) return;
   var key = rg.from + "-" + rg.to + "|" + accs.map(function(a){ return a.id; }).join(","), C = state.recon;
   if (C && C.key === key && (C.loading || (!force && Date.now() - C.t < 30 * 60000))) return;
@@ -2409,7 +2418,7 @@ function reconSummary(){
   return {rows: rows, bad: bad, tot: tot, errors: C.errors || []};
 }
 function reconBadge(){
-  if (!sb.cfg || sb.status !== "ready") return null;
+  if (!sb.cfg || sb.status !== "ready" || isGoogle()) return null;
   loadRecon(); var C = state.recon; if (!C) return null;
   var go = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "checks"; render(); var e = document.getElementById("recon"); if (e) e.scrollIntoView({block: "start"}); }}, "Details");
   if (C.loading && !C.accounts) return el("div", {cls: "recon-badge mut"}, el("span", {text: "Checking spend against Meta Ads Manager…"}));
@@ -2421,7 +2430,7 @@ function reconBadge(){
   return el("div", {cls: "recon-badge warn"}, el("span", {text: "⚠ " + (X.bad ? X.bad + " ad account" + (X.bad > 1 ? "s don't" : " doesn't") + " match Meta Ads Manager for " + span : "Some ad accounts couldn't be checked") + " · checked " + when + " "}), go);
 }
 function reconSection(){
-  if (!sb.cfg) return null;
+  if (!sb.cfg || isGoogle()) return null;
   loadRecon(); var C = state.recon, box = el("div", {id: "recon"});
   box.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Spend vs Meta Ads Manager"}),
     el("span", {cls: "note", text: "For every selected ad account and day, the dashboard's spend and impressions are compared with Meta's own account totals. If a row were missing or counted twice, it would show here."})));
@@ -2507,8 +2516,9 @@ function repGenerate(){
   state.repOut = {status: "loading"}; render();
   repLoad(rg.from, rg.to).then(function(d){
     var o = {type: type, params: params, rg: rg, at: Date.now()};
-    if (type === "master"){ o.ftd = processData(d.meta, d.crm, state.settings, {from: P.cutoff, to: P.cutoff}); o.mtd = processData(d.meta, d.crm, state.settings, rg); }
-    else o.R = processData(d.meta, d.crm, state.settings, rg);
+    if (type === "master"){ o.ftd = processData(d.meta, d.crm, platS(state.settings), {from: P.cutoff, to: P.cutoff}); o.mtd = processData(d.meta, d.crm, platS(state.settings), rg); }
+    else o.R = processData(d.meta, d.crm, platS(state.settings), rg);
+    o.platform = platName();
     state.repOut = {status: "ready", out: o};
   }).catch(function(e){ state.repOut = {status: "error", err: e.message || String(e)}; }).then(function(){ if (state.tab === "reports") render(); });
 }
@@ -2659,7 +2669,7 @@ function viewReports(){
   else {
     var T = repBuild(built);
     if (stale) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: "You changed the options. Click Generate to update the report below. "})));
-    sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: repTypeLabel(built.type) + " · " + (built.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(built.rg.from, built.rg.to) : T.label)}),
+    sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (built.platform === "Google Ads" ? "Google Ads · " : "") + repTypeLabel(built.type) + " · " + (built.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(built.rg.from, built.rg.to) : T.label)}),
       el("span", {cls: "note", text: "Generated " + new Date(built.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". ✓ on or above target · ! close to target · ✗ off target."})));
     var un = built.params.brands.length ? null : repUnmapped(built);
     if (un) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: repUnmappedText(un) + " "}), el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); }}, "Open brand settings")));
@@ -2690,7 +2700,7 @@ function repHowCalc(type){
 function repExport(o){
   var dl = state.caps.downloads; if (!dl || !o) return;
   var T = repBuild(o), cols = T.cols.map(function(c){ var x = Object.assign({}, c); delete x.render; if (c.k === "remarks") x.w = 30; if (c.k === "name") x.w = 24; return x; });
-  var title = repTypeLabel(o.type), when = o.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(o.rg.from, o.rg.to) : T.label;
+  var title = (o.platform === "Google Ads" ? "Google Ads · " : "") + repTypeLabel(o.type), when = o.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(o.rg.from, o.rg.to) : T.label;
   var un = o.params.brands.length ? null : repUnmapped(o);
   var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + " · ✓/!/✗ colours: green on or above target, amber close, red off target" + (un ? " · Note: " + repUnmappedText(un) : ""), cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
   var sub = "EBG Group · " + when + " · Generated " + new Date().toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
@@ -2709,7 +2719,7 @@ function leakPreset(L, p){ var t = todayDay(), y = t - 1; L.preset = p;
 function leakRun(){
   var L = leakState(), rg = {from: Math.min(L.from, L.to), to: Math.max(L.from, L.to)};
   L.status = "loading"; L.err = null; L.cov = null; render();
-  repLoad(rg.from, rg.to).then(function(d){ L.out = {R: processData(d.meta, d.crm, state.settings, rg), rg: rg, at: Date.now()}; L.status = "ready"; })
+  repLoad(rg.from, rg.to).then(function(d){ L.out = {R: processData(d.meta, d.crm, platS(state.settings), rg), rg: rg, at: Date.now()}; L.status = "ready"; })
     .catch(function(e){ L.status = "error"; L.err = e.message || String(e); }).then(function(){ if (state.tab === "leaks") render(); });
 }
 /* one row per lead-form campaign: Meta leads vs TeleCRM leads, and when each last got a lead */
@@ -2826,7 +2836,7 @@ function leakGoMap(){ state.tab = "settings"; state.setTab = "brands"; render();
 var HIST_KEYS = {brands: "Brands", keywords: "Brand rules (campaign word → brand)", slaMin: "Speed-to-lead target (minutes)", diffAlert: "UI vs CRM difference alert", slaTarget: "Within-SLA target",
   platform: "Platform", report: "Reports", qlPos: "Qualified-lead statuses", qlNeg: "Not-qualified statuses", qlOverride: "Lead status overrides", excludedCampaigns: "Campaigns left out of Leads in UI",
   includedCampaigns: "Campaigns kept in Leads in UI", autoExcludeNonLead: "Leave out non-lead campaigns automatically", sourceMap: "Leads without a campaign", holidays: "Holidays",
-  cols: "Export column names", metaAccounts: "Meta ad accounts", metaAutoSync: "Meta auto-sync", metaAutoRange: "Meta auto-sync range", metaSources: "Lead sources counted as Meta",
+  cols: "Export column names", metaAccounts: "Meta ad accounts", metaAutoSync: "Meta auto-sync", metaAutoRange: "Meta auto-sync range", metaSources: "Lead sources counted as Meta", googleAccounts: "Google Ads accounts", googleAutoSync: "Google auto-sync", googleAutoRange: "Google auto-sync range",
   dupExclude: "Leave out repeat leads", dupDays: "Repeat-lead window (days)", showOther: "Show brands not in the list", optSource: "Lead-source filter", optDates: "Report date override",
   optDedupe: "Remove duplicate rows", from: "Report date override · from", to: "Report date override · to"};
 var HIST_REP = {leaderMode: "Leader comes from", newStatuses: "New Lead % statuses", tatBasis: "TAT in reports uses", leaders: "Leaders", months: "Report targets", remarks: "Report remarks"};
@@ -2858,6 +2868,7 @@ function histLines(key, o, n){
   if (key === "holidays"){ var dh = histListDiff(o, n, function(x){ return x.id || x.date; }, function(x){ return x.name + " (" + x.date + ")"; }); listLine(lab, dh);
     Object.keys(dh.N).forEach(function(k){ var a = dh.O[k], b = dh.N[k]; if (!a) return; if (a.active !== b.active) line(lab + " › " + b.name + " (" + b.date + ")", a.active !== false ? "Counted as holiday" : "Not a holiday", b.active !== false ? "Counted as holiday" : "Not a holiday");
       if (a.name !== b.name) line(lab + " › " + b.date + " › name", a.name, b.name); if (a.date !== b.date) line(lab + " › " + b.name + " › date", a.date, b.date); }); return L; }
+  if (key === "googleAccounts") key = "metaAccounts", lab = HIST_KEYS.googleAccounts;
   if (key === "metaAccounts"){ var da = histListDiff(o, n, function(x){ return String(x.id).replace(/^act_/, ""); }, function(x){ return x.name; });
     Object.keys(da.N).forEach(function(k){ var a = da.O[k], b = da.N[k]; if (!a){ if (b.on !== false) note(lab + ": " + b.name + " added to sync"); return; }
       if ((a.on !== false) !== (b.on !== false)) note(lab + ": " + b.name + (b.on !== false ? " sync turned ON" : " sync turned OFF"));
@@ -2985,7 +2996,8 @@ function dupSection(){
 /* ================= live Meta Ads data: Meta API direct (token lives in Vercel, never in the page) ================= */
 var PROV = {
   meta: {api: "meta", label: "Meta API (direct)", key: "metaAccounts", prefix: "Meta API · ", env: "META_ACCESS_TOKEN", what: "System User access token",
-    help: "Meta Business Settings › Users › System users › your system user › Generate new token (tick ads_read; give the system user access to the ad accounts under Assigned assets)"}
+    help: "Meta Business Settings › Users › System users › your system user › Generate new token (tick ads_read; give the system user access to the ad accounts under Assigned assets)"},
+  google: {api: "google", label: "Google Ads API", key: "googleAccounts", prefix: "Google Ads API · "}
 };
 function provApi(pk, op, params){
   return sb.client.auth.getSession().then(function(r){
@@ -3073,6 +3085,68 @@ function provSync(pk, W){
   .catch(function(e){ W.busy = null; W.msg = {kind: "err", text: "Sync failed: " + (e.message || e)}; render(); });
 }
 /* the connection box; compact = inside Lead data upload */
+/* ================= Google Ads connection (Settings › Data connections) ================= */
+var GADS_RANGES = [["2m", "This month + last month"], ["mtd", "This month"], ["30", "Last 30 days"], ["90", "Last 90 days"]];
+function gadsPanel(){
+  var S = state.settings, G = state.gads || (state.gads = {}), box = el("div", {cls: "panel", id: "gads-panel"});
+  box.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Google Ads · automatic sync"}),
+    el("span", {cls: "note", text: "Pulls spend, conversions, impressions and clicks per campaign per day from the Google Ads API every 30 minutes. Switch the dashboard to Google Ads with the Platform box at the top. Leads in CRM = TeleCRM leads whose UTM Campaign is the Google campaign name."})));
+  if (!sb.cfg || sb.status !== "ready"){ box.appendChild(el("div", {cls: "small", text: "Sign in to the team database to connect Google Ads."})); return box; }
+  var canRun = sbCanWrite();
+  if (!G.status && !G.loading){ G.loading = true;
+    provApi("google", "status").then(function(d){ G.status = d; }).catch(function(e){ G.status = {err: e.message === "NOAPI" ? "This works on the live dashboard (ebg-dashboard.vercel.app)." : e.message}; })
+      .then(function(){ G.loading = false; if (state.tab === "settings") render(); }); }
+  if (!G.status){ box.appendChild(el("div", {cls: "small", text: "Checking the Google Ads connection…"})); return box; }
+  if (G.status.err){ box.appendChild(el("div", {cls: "msg err", text: G.status.err})); return box; }
+  if (!G.status.configured){
+    box.appendChild(el("div", {cls: "banner warn"}, el("div", null, el("b", {text: "Not connected yet. "}),
+      "An admin adds GOOGLE_ADS_CLIENT_ID, GOOGLE_ADS_CLIENT_SECRET and GOOGLE_ADS_REFRESH_TOKEN (and, if your accounts sit under a manager / MCC, GOOGLE_ADS_LOGIN_CUSTOMER_ID) in Vercel › Settings › Environment Variables, then Redeploy. See the README, “Google Ads setup”.")));
+    box.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ G.status = null; render(); }}, "Check again")); return box; }
+  box.appendChild(el("div", {cls: "wz-status"}, el("span", {cls: "pill good", text: "Connected"}), el("span", {cls: "small", text: "Google Ads API " + G.status.version + (G.status.mcc ? " · manager account " + G.status.mcc : "") + " · keys stored in Vercel"})));
+  /* accounts */
+  var saved = Array.isArray(S.googleAccounts) ? S.googleAccounts : [], byId = {}; saved.forEach(function(a){ byId[a.id] = a; });
+  var acc = el("div", {cls: "group"}, el("h3", {text: "Google Ads accounts"}),
+    el("div", {cls: "small", text: saved.length ? "Tick the accounts to sync. Pick a brand per account, or let the brand come from campaign names (Settings › Brands & campaigns)." : "Load the accounts this Google login can reach, directly or through a manager (MCC) account, then tick the ones to sync."}));
+  if (canRun) acc.appendChild(el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", disabled: G.loadingAcc ? true : null, onclick: function(){
+    G.loadingAcc = true; G.msg = null; render();
+    provApi("google", "accounts").then(function(d){
+      S.googleAccounts = (d.accounts || []).map(function(a){ var o = byId[a.id] || {}; return {id: a.id, name: a.name, via: a.via || "", manager: a.manager || "", brand: o.brand || "", on: o.id ? o.on !== false : false, currency: a.currency, active: a.active}; });
+      provSave(); G.msg = {kind: (d.errors || []).length ? "warn" : "ok", text: S.googleAccounts.length + " account" + (S.googleAccounts.length === 1 ? "" : "s") + " found" + ((d.errors || []).length ? ". Couldn't read: " + d.errors.join("; ") : ".")}; })
+      .catch(function(e){ G.msg = {kind: "err", text: "Couldn't load accounts: " + e.message}; }).then(function(){ G.loadingAcc = false; render(); }); }}, G.loadingAcc ? "Loading…" : saved.length ? "Reload accounts" : "Load Google Ads accounts")));
+  if (G.msg) acc.appendChild(el("div", {cls: "msg " + (G.msg.kind === "err" ? "err" : G.msg.kind === "warn" ? "warn" : "ok"), text: G.msg.text}));
+  if (saved.length){
+    var tb = el("tbody");
+    saved.forEach(function(a){
+      var cb = el("input", {type: "checkbox", checked: a.on !== false ? true : null, disabled: canRun ? null : true, "aria-label": "Sync " + a.name});
+      cb.addEventListener("change", function(){ a.on = cb.checked; provSave(); render(); });
+      var bs = el("select", {disabled: canRun ? null : true, "aria-label": "Brand for " + a.name}, [el("option", {value: "", text: "From campaign names"})].concat(S.brands.map(function(b){ return el("option", {value: b, selected: a.brand === b ? true : null, text: b}); })));
+      bs.addEventListener("change", function(){ a.brand = bs.value; provSave(); });
+      tb.appendChild(el("tr", null, el("td", null, cb), el("td", {cls: "name"}, a.name, el("div", {cls: "small", text: String(a.id).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3") + (a.active === false ? " · not active" : "")})),
+        el("td", {cls: "small", text: a.via ? "through " + (a.manager || "manager " + a.via) : "direct access"}), el("td", null, bs))); });
+    acc.appendChild(el("div", {cls: "tbl-wrap"}, el("table", {cls: "rt-table gads-tbl"}, el("thead", null, el("tr", null, ["Sync", "Account", "Access", "Brand"].map(function(h){ return el("th", {text: h}); }))), tb)));
+  }
+  box.appendChild(acc);
+  /* auto-sync */
+  var on = !!S.googleAutoSync, auto = (sb.uploads || []).filter(function(u){ return (u.meta_files || []).indexOf("Google Ads API · auto-sync") >= 0; })[0];
+  var as = el("div", {cls: "group auto-box"}, el("h3", {text: "Auto-sync every 30 minutes"}));
+  var tg = el("input", {type: "checkbox", id: "gads-auto", checked: on ? true : null, disabled: canRun ? null : true});
+  tg.addEventListener("change", function(){ S.googleAutoSync = tg.checked; provSave(); toast(tg.checked ? "Google auto-sync on" : "Google auto-sync off"); render(); });
+  as.appendChild(el("label", {cls: "toggle", "for": "gads-auto"}, tg, el("span", {text: "Pull Google Ads data for the ticked accounts every 30 minutes (at :15 and :45). Each run refreshes the whole range, so late conversions Google adds to past days are picked up."})));
+  var rs = el("select", {"aria-label": "Google sync range", disabled: canRun ? null : true}, GADS_RANGES.map(function(r){ return el("option", {value: r[0], selected: String(S.googleAutoRange || "2m") === r[0] ? true : null, text: r[1]}); }));
+  rs.addEventListener("change", function(){ S.googleAutoRange = rs.value; provSave(); });
+  as.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Days to keep refreshed"}), rs));
+  if (auto){ var age = (Date.now() - Date.parse(auto.uploaded_at)) / 60000;
+    as.appendChild(el("div", {cls: "small", text: "Last sync: " + new Date(auto.uploaded_at).toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"}) + " (" + (age < 60 ? Math.round(age) + " min ago" : (age / 60).toFixed(1) + " h ago") + ") · " + fInt(auto.meta_rows) + " campaign-days"}));
+    if (/^Last run errors/.test(auto.crm_file || "")) as.appendChild(el("div", {cls: "msg err", text: auto.crm_file})); }
+  if (canRun) as.appendChild(el("div", {cls: "row-add"}, el("button", {cls: "btn", type: "button", disabled: G.syncing || !saved.some(function(a){ return a.on !== false; }) ? true : null, onclick: function(){
+    G.syncing = true; G.syncMsg = null; render();
+    provApi("google", "sync").then(function(d){ G.syncMsg = d.skipped ? {kind: "warn", text: d.skipped} : {kind: d.errors && d.errors.length ? "warn" : "ok", text: "Synced " + d.done + " of " + d.accounts + " account(s), " + fInt(d.rows) + " campaign-days (" + d.from + " → " + d.to + ")." + (d.errors && d.errors.length ? " Errors: " + d.errors.join("; ") : "")}; })
+      .catch(function(e){ G.syncMsg = {kind: "err", text: "Sync failed: " + e.message}; })
+      .then(function(){ G.syncing = false; return dbRefreshLists().catch(function(){}); }).then(function(){ if (isGoogle() && state.source === "db") dbOpen(true).catch(function(){}); render(); }); }}, G.syncing ? "Syncing…" : "Sync now")));
+  if (G.syncMsg) as.appendChild(el("div", {cls: "msg " + (G.syncMsg.kind === "err" ? "err" : G.syncMsg.kind === "warn" ? "warn" : "ok"), text: G.syncMsg.text}));
+  box.appendChild(as);
+  return box;
+}
 function provPanel(pk, compact){
   var P = PROV[pk], SW = state.prov || (state.prov = {}), W = SW[pk] || (SW[pk] = {range: "last3"}), S = state.settings;
   var box = el("div", {cls: compact ? "prov-box" : "panel", id: pk + (compact ? "-up" : "-panel")});
@@ -3337,7 +3411,7 @@ function viewSettings(){
   var needsSave = false;
 
   if (tab === "connections"){
-    body.appendChild(connStatusCard()); body.appendChild(provPanel("meta", false)); body.appendChild(crmPushPanel());
+    body.appendChild(connStatusCard()); body.appendChild(provPanel("meta", false)); body.appendChild(gadsPanel()); body.appendChild(crmPushPanel());
   }
   if (tab === "brands"){
     needsSave = true;
@@ -3788,7 +3862,7 @@ function viewOverview(){
   var BS = state.budgets, bD = budgetDays();
   sec.appendChild(colTools("brands", brandCols()));
   sec.appendChild(table("brands", visibleCols("brands", brandCols()), br, {total: state.brand === "All" ? bt : null, stickyFirst: true}));
-  if (sb.cfg) sec.appendChild(el("div", {cls: "small budget-note"}, el("span", {text: BS && BS.loading && !BS.camps ? "Loading budgets from Meta… " : BS && BS.err ? "Couldn't read budgets from Meta: " + BS.err + " " : BS && BS.camps ?
+  if (sb.cfg && !isGoogle()) sec.appendChild(el("div", {cls: "small budget-note"}, el("span", {text: BS && BS.loading && !BS.camps ? "Loading budgets from Meta… " : BS && BS.err ? "Couldn't read budgets from Meta: " + BS.err + " " : BS && BS.camps ?
     "Daily budget = today's budgets of active campaigns, live from Meta (" + new Date(BS.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + "). " + bD.label + " = daily budget × " + (bD.days || "?") + " day" + (bD.days === 1 ? "" : "s") + ". Budget used = amount spent ÷ that budget. Past budget changes aren't known, so for older dates it's an estimate. " : ""}),
     BS && !BS.loading ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ loadBudgets(true); render(); }}, "Refresh budgets") : null));
   /* campaigns that receive mapped no-campaign leads (WhatsApp Cloud API…) */
@@ -3963,8 +4037,13 @@ function renderHeader(){
     var n = b === "All" ? tot : (per[b] || 0);
     return el("option", {value: b, selected: state.brand === b ? true : null, text: (b === "All" ? "All brands" : b) + " · " + n.toLocaleString("en-IN") + " leads"}); }));
   bsel.addEventListener("change", function(){ state.brand = bsel.value; state.limit = {}; render(); });
+  if (sb.cfg && sb.status === "ready" && state.source === "db"){
+    var psel = el("select", {id: "plat-select", "aria-label": "Ad platform"}, [["meta", "Meta Ads"], ["google", "Google Ads"]].map(function(x){ return el("option", {value: x[0], selected: (state.platform || "meta") === x[0] ? true : null, text: x[1]}); }));
+    psel.addEventListener("change", function(){ setPlatform(psel.value); });
+    chips.appendChild(el("label", {cls: "brand-pick plat-pick"}, el("span", {cls: "bp-dot", style: "background:" + (isGoogle() ? "#1a73e8" : "#0866ff"), "aria-hidden": "true"}), el("span", {cls: "bp-lbl", text: "Platform"}), psel)); }
   chips.appendChild(el("label", {cls: "brand-pick"}, el("span", {cls: "bp-dot", style: "background:" + (state.brand === "All" ? "linear-gradient(135deg,#1e3a8a,#7c3aed)" : brandColor(state.brand)), "aria-hidden": "true"}),
     el("span", {cls: "bp-lbl", text: "Brand"}), bsel));
+  document.body.classList.toggle("plat-google", isGoogle());
   document.getElementById("btn-xlsx").hidden = !state.caps.downloads;
   document.getElementById("save-wrap").hidden = sb.cfg ? !(state.raw && state.source !== "db" && (sbCanWrite() || sb.status === "signedout")) : !(state.raw && (teamCanWrite() || team.status === "locked"));
   document.getElementById("btn-saved").hidden = !(saved.ok || team.kind || sb.cfg);
@@ -4132,10 +4211,11 @@ function render(){
   setChrome(true); applyAccess();
   if (!state.R){ renderEmpty(); if (state.tab === "help"){ var hv = document.getElementById("view"); hv.textContent = ""; hv.appendChild(viewHelp()); var h1 = document.querySelector("header.top h1"); if (h1) h1.textContent = "Help & terms"; } return; }
   CUR = state.R.currency || "₹";
+  if (isGoogle() && (state.tab === "adsets" || state.tab === "ads")) state.tab = "campaigns";   /* Google data is campaign-level */
   renderHeader();
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"), y = window.scrollY; v.textContent = ""; DRAWS = [];
-  var akey = [state.tab, state.brand, JSON.stringify(state.range), state.source, state.R && state.R.now, state.ovLevel, state.trendGran].join("|");
+  var akey = [state.tab, state.brand, JSON.stringify(state.range), state.source, state.R && state.R.now, state.ovLevel, state.trendGran, state.platform].join("|");
   v.classList.toggle("enter", akey !== render._k); render._k = akey;
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
@@ -4186,9 +4266,9 @@ function rangeText(short){
   if (!r){ var av = state.R && state.R.avail; return name + (av && av.min !== null ? ": " + spanText({from: av.min, to: av.max}) : ""); }
   return (short && sel.preset === "custom" ? "" : name + ": ") + spanText(r);
 }
-function rebuild(){ state.R = processData(state.raw.meta, state.raw.crm, state.settings, rangeOf(state.range));
+function rebuild(){ state.R = processData(state.raw.meta, state.raw.crm, platS(state.settings), rangeOf(state.range));
   var pr = prevRangeOf(rangeOf(state.range)); state.Rprev = null;
-  if (pr){ try { var RP = processData(state.raw.meta, state.raw.crm, state.settings, pr); if (RP.ads.some(function(a){ return a.crm || a.spend; })) state.Rprev = RP; } catch (e) { console.error(e); } }
+  if (pr){ try { var RP = processData(state.raw.meta, state.raw.crm, platS(state.settings), pr); if (RP.ads.some(function(a){ return a.crm || a.spend; })) state.Rprev = RP; } catch (e) { console.error(e); } }
   if (state.source === "db" && sb.days && sb.days.length) state.R.avail = {min: sb.days[0], max: sb.days[sb.days.length - 1], days: sb.days}; }
 function setRange(sel){ state.range = sel; try { localStorage.setItem("ebg-lead-dash-range", JSON.stringify(sel)); } catch (e) {}
   state.dp = null; state.limit = {};
@@ -5411,7 +5491,13 @@ function dbUpload(onStep){
     .then(function(){ return {replaced: rows.replaced, id: uid, meta: rows.meta.length, crm: rows.crm.length, noDate: rows.noDate, level: rows.level, from: rows.from, to: rows.to}; });
 }
 /* load the rows for the selected dates (or everything) into the same shape as an upload */
+/* ---------- platform: Meta Ads (default) or Google Ads ---------- */
+function isGoogle(){ return state.platform === "google" && state.source === "db"; }   /* uploaded files are always Meta */
+function platName(){ return isGoogle() ? "Google Ads" : "Meta Ads"; }
+/* settings the engine uses for the current platform: Meta-only rules (WhatsApp links, Facebook/Instagram source filter) don't apply to Google */
+function platS(S){ return isGoogle() ? Object.assign({}, S, {sourceMap: {}, optSource: false, platform: "Google Ads"}) : S; }
 function dbLoad(range, onProgress){
+  if (isGoogle()) return dbLoadGoogle(range, onProgress);
   var S = state.settings, cc = S.cols.crm, p = {meta: 0, crm: 0};
   var tell = function(){ if (onProgress) onProgress(p); };
   var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach,brand").order("id");
@@ -5432,6 +5518,39 @@ function dbLoad(range, onProgress){
     if (res[3] && res[3].settings){ state.settings = mergeSettings(res[3].settings); sb.settingsAt = res[3].updated_at; }
     return {meta: meta, crm: crm, metaRows: res[0].length, crmRows: res[1].length};
   });
+}
+/* Google Ads: campaign × day rows from google_ad_rows, and TeleCRM leads that came from Google (UTM Campaign / gclid / source) from v_crm_google.
+   Same columns as the Meta load, so the engine and every page work unchanged; matching is by campaign (Google has no ad set / ad level here). */
+function dbLoadGoogle(range, onProgress){
+  var S = state.settings, cc = S.cols.crm, p = {meta: 0, crm: 0};
+  var tell = function(){ if (onProgress) onProgress(p); };
+  var gq = function(){ var q = sb.client.from("google_ad_rows").select("campaign,campaign_id,day,spend,conversions,impressions,clicks,currency,brand").order("id");
+    return range ? q.gte("day", isoDay(range.from)).lte("day", isoDay(range.to)) : q; };
+  var cq = function(){ var q = sb.client.from("v_crm_google").select("lead_id,created_on,lead_source,utm_campaign,utm_content,status,crm_brand,first_call,owner,manager,prev_lead,prev_created,dup_match,lead_name,phone,email").order("lead_id");
+    return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
+  return Promise.all([sbAll(gq, function(n){ p.meta = n; tell(); }), sbAll(cq, function(n){ p.crm = n; tell(); }),
+    sb.client.from("data_days").select("d").then(function(r){ if (r.error) throw r.error; return r.data; }),
+    sb.client.from("team_settings").select("settings,updated_at,updated_by").eq("id", 1).maybeSingle().then(function(r){ return r.error ? null : r.data; })])
+  .then(function(res){
+    var cur = res[0].length ? res[0][0].currency : "INR", byId = {}; res[0].forEach(function(m){ if (m.campaign_id) byId[String(m.campaign_id)] = m.campaign; });
+    var meta = [["Campaign name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Impressions", "Link clicks", "Brand"]]
+      .concat(res[0].map(function(m){ return [m.campaign, Number(m.spend), Number(m.conversions), m.day, m.day, Number(m.impressions || 0), Number(m.clicks || 0), m.brand || ""]; }));
+    var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager, "Previous lead", "Previous lead created", "Duplicate match", "Name", cc.phone, cc.email]]
+      .concat(res[1].map(function(l){ var uc = String(l.utm_campaign || "").trim(); if (byId[uc]) uc = byId[uc];   /* UTM may carry the campaign ID ({campaignid}) instead of its name */
+        return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, uc, "", "", l.status, l.crm_brand,
+        l.first_call ? l.first_call.replace("T", " ") : "", l.owner, l.manager, l.prev_lead || "", l.prev_created ? l.prev_created.replace("T", " ") : "", l.dup_match || "", l.lead_name || "", l.phone || "", l.email || ""]; }));
+    sb.days = (res[2] || []).map(function(r){ return dayOf(Date.parse(r.d + "T00:00:00Z")); }).sort(function(a, b){ return a - b; });
+    if (res[3] && res[3].settings){ state.settings = mergeSettings(res[3].settings); sb.settingsAt = res[3].updated_at; }
+    return {meta: meta, crm: crm, metaRows: res[0].length, crmRows: res[1].length};
+  }).catch(function(e){ if (/google_ad_rows|v_crm_google|schema cache|does not exist|PGRST205/i.test((e && (e.message + " " + e.code)) || "")) throw new Error("Google Ads isn't set up in the database yet: an admin runs supabase/google-ads.sql once in Supabase › SQL Editor."); throw e; });
+}
+function setPlatform(v){
+  v = v === "google" ? "google" : "meta"; if (state.platform === v) return;
+  state.platform = v; try { localStorage.setItem("ebg-platform", v); } catch (e) {}
+  state.repOut = null; state.leak = null; state.limit = {}; state.recon = null;
+  document.body.classList.toggle("plat-google", v === "google");
+  if (state.source === "db" && sb.status === "ready"){ render(); dbOpen(true).then(function(){ toast(platName() + " · " + rangeText(false)); }).catch(function(e){ toast(e.message); setPlatform("meta"); }); }
+  else render();
 }
 function dbOpen(quiet){
   if (sb.status !== "ready") return Promise.reject(new Error("Sign in first"));
