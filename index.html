@@ -483,6 +483,10 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .acc-find{width:100%;margin:2px 0 6px;box-sizing:border-box}
 .acc-nm{display:flex;flex-direction:column;min-width:0}
 .acc-nm span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rt-table input{width:100%;max-width:170px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 9px;font:inherit;font-size:13.5px;border-radius:4px}
+.rt-table td{vertical-align:middle}
+.rt-mode{display:grid;gap:6px}
+.row-item input[type=number]{width:90px;flex:0 0 90px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13.5px}
 .st-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 10px}
 .seg{display:inline-flex;background:var(--band);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 14px;border-radius:8px;font-size:12.5px;color:var(--muted);cursor:pointer;font-weight:500;transition:background-color .2s,color .2s}
@@ -837,6 +841,19 @@ table.sticky-1 tbody tr:hover td:first-child{background:var(--row-hover)}
 .recon-badge{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-size:13px;margin:0 0 12px;border:1px solid var(--line)}
 .recon-badge.ok{background:#e6f4ea;border-color:#a8dab5;color:#0d652d}.recon-badge.warn{background:#fef7e0;border-color:#f9d77e;color:#7a4f01}.recon-badge.mut{color:var(--muted)}
 .recon-badge .linkbtn{font-size:13px}
+/* ---------- reports ---------- */
+.rep-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:4px 0 14px}
+.rep-field{display:grid;gap:4px}.rep-field select,.rep-field input{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13.5px;border-radius:4px}
+.rep-type select{min-width:min(360px,80vw)}
+.rep-mtd{align-self:center}
+.rep-actions{display:flex;gap:8px;margin-left:auto}
+.rep-table th{white-space:normal;min-width:84px;vertical-align:bottom;background:#1f3864;color:#fff}
+.rep-table td.flag-good{background:#e6f4ea}
+.rep-mark{font-size:11px;font-weight:700}
+.rep-remark input{width:100%;min-width:140px;border:1px solid var(--line-soft);background:transparent;color:var(--ink);padding:4px 6px;font:inherit;font-size:12.5px}
+.rep-how{margin-top:16px}
+tr.total-bottom td{position:static!important;background:#dce3f0!important;color:#111}
+@media (max-width:640px){ .rep-actions{margin-left:0} }
 </style>
 
 <script>try{var _t=localStorage.getItem("ebg-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
@@ -855,6 +872,7 @@ table.sticky-1 tbody tr:hover td:first-child{background:var(--row-hover)}
   <nav class="side-nav" role="tablist" id="tablist" aria-label="Report sections">
       <button class="tab" role="tab" data-tab="overview" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="8" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg><span>Overview</span></button>
       <button class="tab" role="tab" data-tab="trends" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span>Trends</span></button>
+      <button class="tab" role="tab" data-tab="reports" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg><span>Reports</span></button>
       <button class="tab" role="tab" data-tab="campaigns" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l15-6v14L3 13z"/><path d="M7 13v5a2 2 0 0 0 4 0v-4"/></svg><span>Campaigns</span></button>
       <button class="tab sub" role="tab" data-tab="adsets" aria-selected="false"><svg class="sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>Ad sets</span></button>
       <button class="tab sub" role="tab" data-tab="ads" aria-selected="false"><svg class="sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg><span>Ads</span></button>
@@ -962,6 +980,7 @@ var DEFAULT_SETTINGS = {
   brands: ["Adhira & Appa","Acer","Carlton","Natuf","Tarzan","Shayreen by Natuf","Bonumcha","Chhota Bheem","EBG Rental"],
   keywords: [["Shayreen","Shayreen by Natuf"],["AAC","Adhira & Appa"],["Adhira","Adhira & Appa"],["ACER","Acer"],["Carlton","Carlton"],["Natuf","Natuf"],["Tarzan","Tarzan"],["Bonumcha","Bonumcha"],["Chhota Bheem","Chhota Bheem"],["Chhotabheem","Chhota Bheem"],["EBG Rental","EBG Rental"],["Rental","EBG Rental"]],
   slaMin: 30, diffAlert: 0.10, slaTarget: 0.8, platform: "Meta Ads",
+  report: {brands: {}, leaders: [], leaderMode: "crm", newStatuses: "New Lead, New, Fresh", tatBasis: "wh", remarks: {}},
   optSource: false, optDates: false, optDedupe: false, dupExclude: true, dupDays: 0, showOther: false, from: "", to: "",
   metaSources: ["Facebook","Instagram"],
   qlPos: QL_POS_DEF.slice(), qlNeg: QL_NEG_DEF.slice(), qlOverride: {},
@@ -1145,15 +1164,17 @@ function median(a){ if (!a || !a.length) return null; var x = a.slice().sort(fun
 /* display labels for the SLA states (stored values stay the same) */
 var SLA_LABEL = {"Within SLA": "Within SLA", "Delayed": "Call delayed", "Pending": "Not Contacted", "Invalid timestamp": "Unreadable call time"};
 function slaLabel(v){ return SLA_LABEL[v] || v || ""; }
-function newAcc(o){ o.crm = 0; o.ql = 0; o.ts = 0; o.called = 0; o.win = 0; o.elig = 0; o.pend = 0; o.tats = []; o.whs = []; o.wsum = 0; o.pendO = 0; o.pendW = 0; o.statusN = {}; return o; }
+function newAcc(o){ o.crm = 0; o.ql = 0; o.ts = 0; o.called = 0; o.win = 0; o.elig = 0; o.pend = 0; o.tats = []; o.whs = []; o.wsum = 0; o.pendO = 0; o.pendW = 0; o.statusN = {}; o.qlC = 0; o.mgrN = {}; return o; }
 /* add one group's lead counts into another (never adds a parent into its own child) */
 function mergeLeads(o, a){
   o.crm += a.crm || 0; o.ql += a.ql || 0; o.ts += a.ts || 0; o.called += a.called || 0; o.win += a.win || 0; o.elig += a.elig || 0; o.pend += a.pend || 0;
   o.wsum += a.wsum || 0; o.pendO += a.pendO || 0; o.pendW += a.pendW || 0;
   if (a.tats && a.tats.length) o.tats = o.tats.concat(a.tats); if (a.whs && a.whs.length) o.whs = o.whs.concat(a.whs);
   if (a.statusN) for (var k in a.statusN) o.statusN[k] = (o.statusN[k] || 0) + a.statusN[k];
+  o.qlC = (o.qlC || 0) + (a.qlC || 0); if (a.mgrN){ o.mgrN = o.mgrN || {}; for (var m in a.mgrN) o.mgrN[m] = (o.mgrN[m] || 0) + a.mgrN[m]; }
 }
-function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null && L.tat !== undefined){ o.ts += L.tat; o.called++; o.tats.push(L.tat); }
+function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null && L.tat !== undefined){ o.ts += L.tat; o.called++; o.tats.push(L.tat); if (L.isQL) o.qlC = (o.qlC || 0) + 1; }
+  if (L.manager !== undefined){ o.mgrN = o.mgrN || {}; o.mgrN[L.manager] = (o.mgrN[L.manager] || 0) + 1; }
   if (isNum(L.wh)){ o.wsum += L.wh; o.whs.push(L.wh); } if (L.sla === "Pending"){ o.pendO += L.pendO || 0; o.pendW += L.pendW || 0; }
   if (L.status !== undefined){ var st = L.status || "(no status)"; o.statusN[st] = (o.statusN[st] || 0) + 1; } if (L.sla === "Within SLA") o.win++; if (L.sla !== "Invalid timestamp") o.elig++; if (L.sla === "Pending") o.pend++; }
 function derive(o){
@@ -1448,7 +1469,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
           partialRows: partialRows, metaRowsIn: metaRowsIn,
           period: {metaStart: metaStart, metaEnd: metaEnd, effFrom: isNum(fromD) ? dayOf(fromD) : metaStart, effTo: isNum(toD) ? dayOf(toD) : metaEnd},
           resultsCol: resultsCol, metaLevel: metaLevel, metaCols: usedCols, currency: currency, missing: missing, counts: cnt, metaRows: metaRows, ads: ads, camps: camps, adsets: adsets, brandRows: brandRows,
-          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, campBrand: campBrand, needsCall: needsCall, lite: lite, crmData: ch >= 0 ? {head: ch, info: rowInfo, metaAds: metaAds} : null, dupList: dupList || [], dupIds: dupIds || {}, dupKeys: !!dupKeysFound, dupExcluded: !!S.dupExclude, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
+          hasManager: hasManager, hasCtr: hasCtr, clicksCol: clicksCol, checks: checks, excluded: exclList, campFlags: campFlags, statuses: statuses, campBrand: campBrand, needsCall: needsCall, lite: lite, allAds: all, crmData: ch >= 0 ? {head: ch, info: rowInfo, metaAds: metaAds} : null, dupList: dupList || [], dupIds: dupIds || {}, dupKeys: !!dupKeysFound, dupExcluded: !!S.dupExclude, unmatched: unmatched, brands: S.brands.slice(), showOther: S.showOther,
           slaMin: S.slaMin, diffAlert: S.diffAlert, slaTarget: S.slaTarget, platform: S.platform, now: nowT, holidaysActive: Object.keys(hol).length};
 }
 // ENGINE END
@@ -1486,7 +1507,7 @@ function fDur(v){ if (!isNum(v)) return "N/A"; if (v < 59.95) return v.toFixed(1
 function fMin(v){ return fDur(v); }
 function fShortINR(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v); if (CUR !== "₹") return fINR(v); if (a >= 1e7) return "₹" + (v / 1e7).toFixed(2) + " Cr"; if (a >= 1e5) return "₹" + (v / 1e5).toFixed(2) + " L"; return fINR(v); }
 function fINR2(v){ return isNum(v) ? (v < 0 ? "-" : "") + CUR + Math.abs(v).toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "N/A"; }
-var FMT = {dt: function(v){ return isNum(v) ? fTime(v) : "—"; }, inr2: fINR2, int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
+var FMT = {rint: function(v){ return isNum(v) ? fInt(v) : "—"; }, rinr: function(v){ return isNum(v) ? fINR(v) : "—"; }, rpct: function(v){ return isNum(v) ? Math.round(v * 100) + "%" : "—"; }, dt: function(v){ return isNum(v) ? fTime(v) : "—"; }, inr2: fINR2, int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
 
 /* ================= DOM helpers ================= */
 function el(tag, attrs){ var e = document.createElement(tag); if (attrs) for (var k in attrs){ var v = attrs[k];
@@ -1633,8 +1654,9 @@ function table(id, cols, rows, opts){
       var cls = [c.t !== "text" ? "r num nowrap" : "", c.cls || "", (v === null || v === undefined || txt === "N/A") && c.t !== "text" ? "na" : "", fl ? "flag-" + fl : ""].join(" ").trim();
       var td = el("td", {cls: cls}); if (c.render && !isTotal) td.appendChild(c.render(r)); else td.textContent = txt; tr.appendChild(td); });
     return tr; }
-  if (opts.total) tb.appendChild(rowEl(opts.total, true));
+  if (opts.total && !opts.totalBottom) tb.appendChild(rowEl(opts.total, true));
   shown.forEach(function(r, i){ tb.appendChild(rowEl(r, false, i ? shown[i - 1] : null)); });
+  if (opts.total && opts.totalBottom){ var trB = rowEl(opts.total, true); trB.classList.add("total-bottom"); tb.appendChild(trB); }
   var wrap = el("div", null, el("div", {cls: "tbl-wrap"}, el("table", {cls: opts.stickyFirst ? "sticky-1" : null}, thead, tb)));
   if (!data.length) wrap.appendChild(el("div", {cls: "empty", text: opts.empty || "Nothing to show for this filter."}));
   if (data.length > lim) wrap.appendChild(el("div", {cls: "more"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.limit[id] = lim + 500; render(); }},
@@ -2237,6 +2259,7 @@ function viewTAT(){
 var PAGE_INFO = {
   overview: ["Overview", "Your results at a glance: money spent, leads received, lead quality and how fast leads were called."],
   trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
+  reports: ["Reports", "The EBG daily and MTD reports (brand-wise, master, leader-wise), ready to check and download as Excel."],
   campaigns: ["Campaigns", "Every campaign with its spend, leads and cost. Click ▸ to see its ad sets and ads."],
   adsets: ["Ad sets", "The same numbers for each ad set, so you can see which audiences work."],
   ads: ["Ads", "The same numbers for each ad, so you can see which creatives work."],
@@ -2252,7 +2275,7 @@ function pageTitle(){
   var info = PAGE_INFO[state.tab] || PAGE_INFO.overview, h = document.querySelector("header.top h1"), p = document.getElementById("period");
   if (h) h.textContent = info[0];
   if (p && state.R){ var pr = state.R.period;
-    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" ? "" : "  ·  Dates: " + rangeText(false));
+    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" ? "" : "  ·  Dates: " + rangeText(false));
     p.title = pr.metaStart !== null ? "Meta data available " + fDay(pr.metaStart) + " – " + fDay(pr.metaEnd) : "No Meta data in these dates yet"; }
 }
 var GLOSS = [
@@ -2398,6 +2421,232 @@ function reconSection(){
   X.errors.forEach(function(e){ box.appendChild(el("div", {cls: "msg err", text: "Couldn't read from Meta: " + e})); });
   box.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ loadRecon(true); render(); }}, "Check again"));
   return box;
+}
+
+/* ================= Reports: EBG daily / MTD templates ================= */
+var REPORT_TYPES = [["brand_day", "Brand-wise performance · daily or date range"], ["brand_mtd", "Brand-wise performance · MTD"],
+  ["master", "Master report · FTD + MTD (platform, CRM, budget)"], ["leader_mtd", "Leader-wise performance · MTD"]];
+function repState(){ if (!state.rep){ var y = todayDay() - 1, t = null, av = state.R && state.R.avail;
+  /* default = latest complete day that has data (never today, which is still running) */
+  if (av && isNum(av.max) && av.max < y) y = av.max; try { t = localStorage.getItem("ebg-rep-type"); } catch (e) {}
+  state.rep = {type: REPORT_TYPES.some(function(x){ return x[0] === t; }) ? t : "brand_day", brands: [], leaders: [], from: y, to: y, cutoff: y}; } return state.rep; }
+function ordinalN(n){ var s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+function repDateLabel(from, to){ var a = ymd(from), b = ymd(to);
+  if (from === to) return String(a.d).padStart(2, "0") + "-" + String(a.m + 1).padStart(2, "0") + "-" + a.y;
+  return ordinalN(a.d) + " " + MON[a.m] + " to " + ordinalN(b.d) + " " + MON[b.m] + (a.y !== b.y ? " " + b.y : ""); }
+function monthStartOf(d){ var x = ymd(d); return dayFrom(x.y, x.m, 1); }
+function fTatH(min){ if (!isNum(min)) return ""; return min < 59.5 ? Math.round(min) + " min" : (min / 60).toFixed(1) + " hrs"; }
+function repNewSet(){ var o = {}; repS(state.settings).newStatuses.split(",").forEach(function(x){ x = x.trim().toLowerCase(); if (x) o[x] = 1; }); return o; }
+function repNewCount(acc){ var set = repNewSet(), n = 0; if (acc && acc.statusN) for (var k in acc.statusN) if (set[String(k).trim().toLowerCase()]) n += acc.statusN[k]; return n; }
+function repTat(acc){ return repS(state.settings).tatBasis === "all" ? acc.tat : acc.whAvg; }
+function repTarget(brand){ return repS(state.settings).brands[brand] || {}; }
+/* quality, TAT and new-lead figures from TeleCRM leads (shared by every template) */
+function repLeadMetrics(acc){ return {lqC: acc.called ? (acc.qlC || 0) / acc.called : null, lq: acc.crm ? acc.ql / acc.crm : null, tat: repTat(acc), newp: acc.crm ? repNewCount(acc) / acc.crm : null}; }
+function repFlag3(v, good, warn){ return !isNum(v) ? null : v >= good ? "good" : v >= warn ? "warn" : "bad"; }
+function repFtdSpendFlag(v){ return !isNum(v) ? null : v >= 0.8 && v <= 1.1 ? "good" : (v >= 0.5 && v <= 1.3) ? "warn" : "bad"; }
+function repMtdSpendFlag(v){ return !isNum(v) ? null : v <= 1 ? "good" : v <= 1.1 ? "warn" : "bad"; }
+var REP_MARK = {good: "✓", warn: "!", bad: "✗"};
+function repCol(k, label, t, flag, extra){ var c = Object.assign({k: k, label: label, t: t, nosort: true, goodFill: true}, extra || {});
+  if (flag){ c.flag = function(r){ return r._total && !c.flagTotal ? flag(r[k]) : flag(r[k]); };
+    c.render = function(r){ var f = flag(r[k]), txt = (FMT[t] || FMT.text)(r[k]); return el("span", {title: f ? {good: "On or above target", warn: "Close to target", bad: "Off target"}[f] : null}, txt, f ? el("span", {cls: "rep-mark", "aria-hidden": "true", text: " " + REP_MARK[f]}) : null); }; }
+  return c; }
+function repRemarkCol(type){
+  var canEdit = !sb.cfg || sbCanWrite();
+  return {k: "remarks", label: "Remarks", t: "text", nosort: true, cls: "rep-remark", get: function(r){ return r._total ? "" : (repS(state.settings).remarks[r._rk] || ""); },
+    render: function(r){ var v = repS(state.settings).remarks[r._rk] || ""; if (!canEdit) return document.createTextNode(v);
+      var i = el("input", {type: "text", value: v, placeholder: "Add remark", "aria-label": "Remark for " + (r.name || "")});
+      i.addEventListener("change", function(){ var R0 = repS(state.settings).remarks; if (i.value.trim()) R0[r._rk] = i.value.trim().slice(0, 200); else delete R0[r._rk]; storeSettings(); toast("Remark saved"); });
+      return i; }}; }
+/* the data each template needs: loads the month (or the range) from the team database, or uses the uploaded files */
+function repLoad(from, to){
+  if (state.source === "db" && sb.status === "ready") return dbLoad({from: from, to: to}).then(function(d){ return {meta: d.meta, crm: d.crm}; });
+  if (state.raw) return Promise.resolve({meta: state.raw.meta, crm: state.raw.crm});
+  return Promise.reject(new Error("No data loaded yet."));
+}
+function repGenerate(){
+  var P = repState(), S = state.settings, type = P.type;
+  var rg = type === "brand_day" ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff};
+  if (rg.to > todayDay()){ toast("Pick a date up to today"); return; }
+  var params = JSON.parse(JSON.stringify(P));
+  state.repOut = {status: "loading"}; render();
+  repLoad(rg.from, rg.to).then(function(d){
+    var o = {type: type, params: params, rg: rg, at: Date.now()};
+    if (type === "master"){ o.ftd = processData(d.meta, d.crm, state.settings, {from: P.cutoff, to: P.cutoff}); o.mtd = processData(d.meta, d.crm, state.settings, rg); }
+    else o.R = processData(d.meta, d.crm, state.settings, rg);
+    state.repOut = {status: "ready", out: o};
+  }).catch(function(e){ state.repOut = {status: "error", err: e.message || String(e)}; }).then(function(){ if (state.tab === "reports") render(); });
+}
+function repBrands(P){ var all = state.settings.brands.slice(); return P.brands.length ? all.filter(function(b){ return P.brands.indexOf(b) >= 0; }) : all; }
+function repHasMeta(R, brand){ return R.ads.some(function(a){ return a.brand === brand && a.src === "M"; }); }
+function repBrandRow(R){ var m = {}; R.brandRows.forEach(function(b){ m[b.brand] = b; }); return m; }
+/* ---------- template 1 + 3: brand-wise performance ---------- */
+function repBrandTable(o){
+  var P = o.params, R = o.R, days = o.rg.to - o.rg.from + 1, label = repDateLabel(o.rg.from, o.rg.to), br = repBrandRow(R), rows = [], picked = [];
+  repBrands(P).forEach(function(b){ var a = br[b]; if (!a) return; var has = repHasMeta(R, b), t = repTarget(b), tg = isNum(t.leads) ? t.leads * days : null, ach = has ? a.ui : null;
+    picked.push({a: a, has: has, tg: tg});
+    rows.push(Object.assign({date: label, name: b, _rk: o.type + "|" + label + "|" + b, spend: has ? a.spend : null, cpl: has ? a.cpl : null, target: tg, achieved: ach,
+      achp: isNum(tg) && tg > 0 && isNum(ach) ? ach / tg : null}, repLeadMetrics(a))); });
+  var T = sumRows(picked.map(function(x){ return x.a; })), anyMeta = picked.some(function(x){ return x.has; });
+  var tgSum = picked.reduce(function(s0, x){ return s0 + (isNum(x.tg) ? x.tg : 0); }, 0), achWithTg = picked.reduce(function(s0, x){ return s0 + (isNum(x.tg) && x.has ? x.a.ui : 0); }, 0);
+  var total = Object.assign({_total: true, date: "", name: "Total", spend: anyMeta ? T.spend : null, cpl: anyMeta ? T.cpl : null, target: tgSum || null, achieved: anyMeta ? T.ui : null,
+    achp: tgSum ? achWithTg / tgSum : null}, repLeadMetrics(T));
+  var cols = [repCol("date", "Date", "text"), repCol("name", "Brand Name", "text", null, {cls: "name"}), repCol("spend", "Spend", "rinr"), repCol("cpl", "CPL", "rinr"), repCol("target", "Leads Target", "rint"),
+    repCol("achieved", "Leads Achieved", "rint"), repCol("achp", "Lead Achievement %", "rpct", function(v){ return repFlag3(v, 1, 0.8); }),
+    repCol("lqC", "Contacted Lead Quality %", "rpct"), repCol("lq", "Overall Lead Quality %", "rpct"),
+    repCol("tat", "TAT (Hrs)", "text", null, {get: function(r){ return fTatH(r.tat); }}), repCol("newp", "New Lead %", "rpct"), repRemarkCol(o.type)];
+  return {cols: cols, rows: rows, total: total, label: label};
+}
+/* ---------- template 2 (+5): master report, FTD + MTD ---------- */
+function repMasterTable(o){
+  var P = o.params, F = repBrandRow(o.ftd), M = repBrandRow(o.mtd), days = o.rg.to - o.rg.from + 1, label = repDateLabel(P.cutoff, P.cutoff), rows = [], acc = [];
+  repBrands(P).forEach(function(b){ var f = F[b], m = M[b]; if (!f || !m) return; var hf = repHasMeta(o.ftd, b), hm = repHasMeta(o.mtd, b), t = repTarget(b);
+    var r = {date: label, name: b, _rk: "master|" + label + "|" + b,
+      ftdT: isNum(t.leads) ? t.leads : null, ftdA: hf ? f.ui : null, tCpl: isNum(t.cpl) ? t.cpl : null, aCpl: hm ? m.cpl : null,
+      ftdP: hf ? f.ui : null, ftdC: f.crm, mtdP: hm ? m.ui : null, mtdC: m.crm,
+      mtdT: isNum(t.leads) ? t.leads * days : null, mtdA: hm ? m.ui : null,
+      ftdB: isNum(t.budget) ? t.budget : null, ftdS: hf ? f.spend : null, mtdB: isNum(t.budget) ? t.budget * days : null, mtdS: hm ? m.spend : null};
+    acc.push(r); rows.push(r); });
+  var ratio = function(a, b){ return isNum(a) && isNum(b) && b > 0 ? a / b : null; };
+  rows.forEach(function(r){ r.ftdAch = ratio(r.ftdA, r.ftdT); r.cplAch = isNum(r.tCpl) && isNum(r.aCpl) && r.aCpl > 0 ? r.tCpl / r.aCpl : null; r.ftdSync = ratio(r.ftdC, r.ftdP); r.mtdSync = ratio(r.mtdC, r.mtdP);
+    r.mtdAch = ratio(r.mtdA, r.mtdT); r.ftdSp = ratio(r.ftdS, r.ftdB); r.mtdSp = ratio(r.mtdS, r.mtdB); });
+  /* totals from summed numerators and denominators (only brands that have the denominator) */
+  var sum = function(k, f){ var n = 0, any = false; acc.forEach(function(r){ if ((!f || f(r)) && isNum(r[k])){ n += r[k]; any = true; } }); return any ? n : null; };
+  var T = {_total: true, date: "", name: "Total", ftdT: sum("ftdT"), ftdA: sum("ftdA"), ftdP: sum("ftdP"), ftdC: sum("ftdC"), mtdP: sum("mtdP"), mtdC: sum("mtdC"), mtdT: sum("mtdT"), mtdA: sum("mtdA"),
+    ftdB: sum("ftdB"), ftdS: sum("ftdS"), mtdB: sum("mtdB"), mtdS: sum("mtdS")};
+  var tc = acc.map(function(r){ return r.tCpl; }).filter(isNum); T.tCpl = tc.length && tc.every(function(x){ return x === tc[0]; }) ? tc[0] : null;
+  T.aCpl = ratio(T.mtdS, T.mtdA); T.cplAch = isNum(T.tCpl) && isNum(T.aCpl) && T.aCpl > 0 ? T.tCpl / T.aCpl : null;
+  T.ftdAch = ratio(sum("ftdA", function(r){ return isNum(r.ftdT); }), T.ftdT); T.mtdAch = ratio(sum("mtdA", function(r){ return isNum(r.mtdT); }), T.mtdT);
+  T.ftdSync = ratio(sum("ftdC", function(r){ return isNum(r.ftdP); }), T.ftdP); T.mtdSync = ratio(sum("mtdC", function(r){ return isNum(r.mtdP); }), T.mtdP);
+  T.ftdSp = ratio(sum("ftdS", function(r){ return isNum(r.ftdB); }), T.ftdB); T.mtdSp = ratio(sum("mtdS", function(r){ return isNum(r.mtdB); }), T.mtdB);
+  var ach = function(v){ return repFlag3(v, 1, 0.8); }, sync = function(v){ return repFlag3(v, 0.95, 0.85); };
+  var cols = [repCol("date", "Date", "text"), repCol("name", "Brand Name", "text", null, {cls: "name"}),
+    repCol("ftdT", "FTD Lead Target", "rint"), repCol("ftdA", "FTD Lead Achieved", "rint"), repCol("ftdAch", "FTD Lead Achievement %", "rpct", ach),
+    repCol("tCpl", "Target MTD CPL", "rinr"), repCol("aCpl", "Actual MTD CPL", "rinr"), repCol("cplAch", "CPL Target Achievement %", "rpct", ach),
+    repCol("ftdP", "FTD Platform Lead Count", "rint"), repCol("ftdC", "FTD CRM Lead Count", "rint"), repCol("ftdSync", "FTD Lead Sync %", "rpct", sync),
+    repCol("mtdP", "MTD Platform Lead Count", "rint"), repCol("mtdC", "MTD CRM Lead Count", "rint"), repCol("mtdSync", "MTD Lead Sync %", "rpct", sync),
+    repCol("mtdT", "MTD Lead Target", "rint"), repCol("mtdA", "MTD Lead Achieved", "rint"), repCol("mtdAch", "MTD Lead Achievement %", "rpct", ach),
+    repCol("ftdB", "FTD Allocated Budget", "rinr"), repCol("ftdS", "FTD Actual Spend", "rinr"), repCol("ftdSp", "Actual Spend %", "rpct", repFtdSpendFlag),
+    repCol("mtdB", "MTD Allocated Budget", "rinr"), repCol("mtdS", "MTD Actual Spend", "rinr"), repCol("mtdSp", "MTD Actual Spend %", "rpct", repMtdSpendFlag)];
+  return {cols: cols, rows: rows, total: T, label: label};
+}
+/* ---------- template 4: leader-wise MTD ---------- */
+function repLeaderOf(camp, mgrN){
+  var RP = repS(state.settings);
+  if (RP.leaderMode === "rules"){ var l = String(camp || "").toLowerCase();
+    for (var i = 0; i < RP.leaders.length; i++){ var L = RP.leaders[i]; if ((L.words || []).some(function(w){ return w && l.indexOf(String(w).toLowerCase()) >= 0; })) return L.name; } return "(no leader)"; }
+  var best = null, bn = 0; for (var m in (mgrN || {})){ if (!m || m === "(no manager)") continue; if (mgrN[m] > bn){ bn = mgrN[m]; best = m; } } return best || "(no leader)";
+}
+function repLeaderTable(o){
+  var P = o.params, R = o.R, days = o.rg.to - o.rg.from + 1, label = repDateLabel(o.rg.from, o.rg.to), RP = repS(state.settings);
+  var brandOK2 = P.brands.length ? function(b){ return P.brands.indexOf(b) >= 0; } : function(){ return true; };
+  /* campaigns first (spend and leads of all their ads), then each campaign goes to one leader */
+  var camps = {};
+  (R.allAds || R.ads).forEach(function(a){ if (!brandOK2(a.brand)) return; var k = String(a.campaign || "").toLowerCase(), c = camps[k];
+    if (!c) c = camps[k] = newAcc({campaign: a.campaign, spend: 0, ui: 0, hasMeta: false});
+    if (a.src === "M" && !a.partial){ c.spend += a.spend || 0; c.ui += a.ui || 0; c.hasMeta = true; } mergeLeads(c, a); });
+  var by = {}, tgOf = {}; RP.leaders.forEach(function(L){ tgOf[String(L.name).toLowerCase()] = L; });
+  Object.keys(camps).forEach(function(k){ var c = camps[k], ld = repLeaderOf(c.campaign, c.mgrN), g = by[ld];
+    if (!g) g = by[ld] = newAcc({leader: ld, spend: 0, ui: 0, hasMeta: false}); g.spend += c.spend; g.ui += c.ui; if (c.hasMeta) g.hasMeta = true; mergeLeads(g, c); });
+  RP.leaders.forEach(function(L){ if (!by[L.name]) by[L.name] = newAcc({leader: L.name, spend: 0, ui: 0, hasMeta: false}); });
+  var names = Object.keys(by).sort(function(a, b){ return (a === "(no leader)") - (b === "(no leader)") || a.localeCompare(b); });
+  if (P.leaders.length) names = names.filter(function(n){ return P.leaders.indexOf(n) >= 0; });
+  var rows = [], picked = [];
+  names.forEach(function(n){ var g = derive(by[n]), L = tgOf[n.toLowerCase()], tg = L && isNum(L.leads) ? L.leads * days : null, ach = g.hasMeta ? g.ui : null;
+    picked.push({g: g, tg: tg});
+    rows.push(Object.assign({date: label, name: n, spend: g.hasMeta ? g.spend : null, target: tg, achieved: ach, achp: isNum(tg) && tg > 0 && isNum(ach) ? ach / tg : null}, repLeadMetrics(g))); });
+  var T = sumRows(picked.map(function(x){ return x.g; })), anyMeta = picked.some(function(x){ return x.g.hasMeta; });
+  var tgSum = picked.reduce(function(s0, x){ return s0 + (isNum(x.tg) ? x.tg : 0); }, 0), achWithTg = picked.reduce(function(s0, x){ return s0 + (isNum(x.tg) && x.g.hasMeta ? x.g.ui : 0); }, 0);
+  var total = Object.assign({_total: true, date: "", name: "All leaders", spend: anyMeta ? T.spend : null, target: tgSum || null, achieved: anyMeta ? T.ui : null, achp: tgSum ? achWithTg / tgSum : null}, repLeadMetrics(T));
+  var cols = [repCol("date", "Date", "text"), repCol("name", "Leader Name", "text", null, {cls: "name"}), repCol("spend", "Total Spend", "rinr"), repCol("target", "Leads Target", "rint"),
+    repCol("achieved", "Leads Achieved", "rint"), repCol("achp", "Lead Achievement %", "rpct", function(v){ return repFlag3(v, 1, 0.8); }),
+    repCol("lqC", "Contacted Lead Quality %", "rpct"), repCol("lq", "Overall Lead Quality %", "rpct"),
+    repCol("tat", "FC TAT (Hrs)", "text", null, {get: function(r){ return fTatH(r.tat); }}), repCol("newp", "New Lead %", "rpct")];
+  return {cols: cols, rows: rows, total: total, label: label, leaders: Object.keys(by)};
+}
+function repBuild(o){ return o.type === "master" ? repMasterTable(o) : o.type === "leader_mtd" ? repLeaderTable(o) : repBrandTable(o); }
+function repTypeLabel(t){ return (REPORT_TYPES.filter(function(x){ return x[0] === t; })[0] || ["", ""])[1]; }
+/* a multi-select dropdown (empty = all) */
+function repPicker(label, options, selected, onApply, key){
+  var on = {}; selected.forEach(function(x){ on[x] = 1; });
+  var d = el("details", {cls: "st-pick"}); if (state.repOpen === key) d.setAttribute("open", "");
+  d.addEventListener("toggle", function(){ state.repOpen = d.open ? key : null; });
+  d.appendChild(el("summary", null, el("span", {cls: "st-pick-k", text: label}), el("span", {cls: "st-pick-v", text: !selected.length ? "All" : selected.length === 1 ? selected[0] : selected.length + " selected"}), el("span", {cls: "st-pick-c", "aria-hidden": "true", text: "▾"})));
+  var set = function(a){ state.repOpen = key; onApply(a); render(); };
+  var menu = el("div", {cls: "st-menu", role: "group", "aria-label": label},
+    el("div", {cls: "st-menu-acts"}, el("button", {cls: "linkbtn", type: "button", onclick: function(){ set([]); }}, "Select all"),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.repOpen = null; render(); }}, "Done")));
+  options.forEach(function(x){ var cb = el("input", {type: "checkbox", checked: !selected.length || on[x] ? true : null});
+    cb.addEventListener("change", function(){ var cur = selected.length ? selected.slice() : options.slice(); cur = cur.filter(function(y){ return y !== x; }); if (cb.checked) cur.push(x);
+      if (cur.length === options.length) cur = []; if (!cur.length && !cb.checked) cur = options.filter(function(y){ return y !== x; }); set(cur); });
+    menu.appendChild(el("label", {cls: "st-opt"}, cb, el("span", {text: x}), el("span"))); });
+  d.appendChild(menu); return d;
+}
+function viewReports(){
+  var P = repState(), O = state.repOut, S = state.settings, RP = repS(S);
+  var sec = el("section", {cls: "panel rep-page"});
+  var iso = function(d){ return isoDay(d); }, fromIso = function(v){ return v ? dayOf(Date.parse(v + "T00:00:00Z")) : null; };
+  var dateIn = function(label, val, set){ var i = el("input", {type: "date", value: iso(val), max: iso(todayDay())}); i.addEventListener("change", function(){ var d = fromIso(i.value); if (isNum(d)){ set(d); render(); } }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), i); };
+  var typeSel = el("select", {"aria-label": "Report type"}, REPORT_TYPES.map(function(t){ return el("option", {value: t[0], selected: P.type === t[0] ? true : null, text: t[1]}); }));
+  typeSel.addEventListener("change", function(){ P.type = typeSel.value; try { localStorage.setItem("ebg-rep-type", P.type); } catch (e) {} render(); });
+  var ctr = el("div", {cls: "rep-controls"}, el("label", {cls: "field rep-field rep-type"}, el("span", {cls: "small", text: "Report"}), typeSel));
+  if (P.type === "brand_day"){ ctr.appendChild(dateIn("From", P.from, function(d){ P.from = d; })); ctr.appendChild(dateIn("To", P.to, function(d){ P.to = d; })); }
+  else { ctr.appendChild(dateIn("Reporting date (cutoff)", P.cutoff, function(d){ P.cutoff = d; }));
+    ctr.appendChild(el("div", {cls: "small rep-mtd", text: "MTD = " + repDateLabel(monthStartOf(P.cutoff), P.cutoff) + (P.type === "master" ? " · FTD = " + repDateLabel(P.cutoff, P.cutoff) : "")})); }
+  ctr.appendChild(repPicker("Brands", S.brands.slice(), P.brands, function(a){ P.brands = a; }, "b"));
+  if (P.type === "leader_mtd"){ var known = RP.leaders.map(function(L){ return L.name; }); if (O && O.out && O.out.type === "leader_mtd") repBuild(O.out).leaders.forEach(function(n){ if (known.indexOf(n) < 0) known.push(n); });
+    ctr.appendChild(repPicker("Leaders", known, P.leaders, function(a){ P.leaders = a; }, "l")); }
+  var built = O && O.status === "ready" ? O.out : null, stale = built && JSON.stringify(built.params) !== JSON.stringify(P);
+  var exportBtn = el("button", {cls: "btn ghost", type: "button", disabled: built && !stale && state.caps.downloads ? null : true, onclick: function(){ repExport(built); }}, "Export Excel");
+  ctr.appendChild(el("div", {cls: "rep-actions"},
+    el("button", {cls: "btn", type: "button", disabled: O && O.status === "loading" ? true : null, onclick: repGenerate}, O && O.status === "loading" ? "Generating…" : "Generate"),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.rep = null; state.repOut = null; render(); }}, "Reset"), exportBtn));
+  sec.appendChild(ctr);
+  var missing = S.brands.filter(function(b){ var t = RP.brands[b] || {}; return !isNum(t.leads) || (P.type === "master" && (!isNum(t.cpl) || !isNum(t.budget))); });
+  if (missing.length && P.type !== "leader_mtd") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + (P.type === "master" ? "lead target, target CPL or daily budget" : "lead target") + " set for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}),
+    el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; render(); }}, "Set targets")));
+  if (!O){ sec.appendChild(el("div", {cls: "empty", text: "Pick the report and dates, then click Generate."})); }
+  else if (O.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Loading the data and calculating… (a month of data can take a few seconds)"})); }
+  else if (O.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't build the report: " + O.err})); }
+  else {
+    var T = repBuild(built);
+    if (stale) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: "You changed the options. Click Generate to update the report below. "})));
+    sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: repTypeLabel(built.type) + " · " + (built.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(built.rg.from, built.rg.to) : T.label)}),
+      el("span", {cls: "note", text: "Generated " + new Date(built.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". ✓ on or above target · ! close to target · ✗ off target."})));
+    if (!T.rows.length) sec.appendChild(el("div", {cls: "empty", text: "No rows for these options."}));
+    else sec.appendChild(el("div", {cls: "rep-table"}, table("rep-" + built.type, T.cols, T.rows, {total: T.total, presorted: true, totalBottom: true})));
+    sec.appendChild(repHowCalc(built.type));
+  }
+  return sec;
+}
+function repHowCalc(type){
+  var RP = repS(state.settings), L = [
+    ["Leads Achieved / Platform Lead Count", "Meta leads (form leads and WhatsApp chats started), the same as Leads in UI. Campaigns whose results aren't leads are left out."],
+    ["CRM Lead Count", "TeleCRM leads created in the period (repeat leads left out if that setting is on)."],
+    ["CPL", "Spend ÷ Meta leads. Actual MTD CPL = MTD spend ÷ MTD Meta leads. CPL Target Achievement % = Target CPL ÷ Actual CPL (above 100% means cheaper than target)."],
+    ["Leads Target", "Daily target (Settings › Report targets) × days in the period. MTD = 1st of the month to the reporting date; FTD = the reporting day."],
+    ["Lead Achievement %", "Leads achieved ÷ leads target. The total row uses only brands that have a target."],
+    ["Lead Sync %", "TeleCRM leads ÷ Meta leads for the same brand and period."],
+    ["Contacted Lead Quality %", "Qualified leads ÷ leads that got a first call attempt."],
+    ["Overall Lead Quality %", "Qualified leads ÷ all TeleCRM leads."],
+    ["New Lead %", "Leads still in status " + RP.newStatuses + " ÷ all TeleCRM leads."],
+    ["TAT (Hrs)", "Average time from lead created to first call attempt, " + (RP.tatBasis === "all" ? "counting all hours" : "counting working hours only (Mon–Sat 10 AM–9 PM, Sundays and holidays skipped)") + "."],
+    ["Allocated Budget / Spend %", "Daily allocated budget (Settings › Report targets) × days; Spend % = actual spend ÷ allocated budget."],
+    ["Leader", RP.leaderMode === "rules" ? "From your rules: campaign name contains the leader's words." : "From TeleCRM: each campaign belongs to the Assignee Manager of most of its leads."],
+    ["Totals", "Recalculated from the summed numbers, never by averaging percentages. “—” means no data or no target; 0 means a real zero."]];
+  return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}),
+    el("table", {cls: "help-gloss"}, el("tbody", null, L.map(function(x){ return el("tr", null, el("td", {cls: "nowrap"}, el("b", {text: x[0]})), el("td", {text: x[1]})); }))));
+}
+function repExport(o){
+  var dl = state.caps.downloads; if (!dl || !o) return;
+  var T = repBuild(o), cols = T.cols.map(function(c){ var x = Object.assign({}, c); delete x.render; if (c.k === "remarks") x.w = 30; if (c.k === "name") x.w = 24; return x; });
+  var title = repTypeLabel(o.type), when = o.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(o.rg.from, o.rg.to) : T.label;
+  var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + " · ✓/!/✗ colours: green on or above target, amber close, red off target", cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
+  var sub = "EBG Group · " + when + " · Generated " + new Date().toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
+  var fname = "EBG " + title.replace(/[·\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + " " + (o.type === "brand_day" ? isoDay(o.rg.from) + (o.rg.to !== o.rg.from ? " to " + isoDay(o.rg.to) : "") : isoDay(o.rg.to)) + ".xlsx";
+  toast("Building the workbook…");
+  loadExcelJS().then(function(ExcelJS){ return buildWorkbookExcelJS(ExcelJS, [spec], sub); }).catch(function(){ return buildWorkbookPlain([spec], sub); })
+    .then(function(buf){ return dl.save({filename: fname, data: new Uint8Array(buf)}); }).then(function(){ toast("Excel saved"); })
+    .catch(function(e){ if (e && e.code === "declined") return; toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
 }
 function viewChecks(){
   var R = state.R, box = el("div", {cls: "checks"}), infoBox = el("div", {cls: "checks"});
@@ -2758,10 +3007,11 @@ var SET_TABS = [["connections", "Data connections", "Where the dashboard gets Me
   ["brands", "Brands & campaigns", "Which brands appear in reports, how each campaign is assigned to a brand, and campaigns to leave out."],
   ["rules", "Lead rules", "Speed-to-lead targets, what counts as a qualified lead, and how repeat leads are handled."],
   ["hours", "Working hours & holidays", "Days that don't count towards working-hours TAT."],
+  ["targets", "Report targets", "Daily lead targets, target CPL and allocated budgets per brand, and leaders, used by the Reports page."],
   ["advanced", "Advanced", "Rarely needed: report date overrides, lead-source filter and export column names."]];
 function setDraft(){ var S = state.settings;
   if (state.setDraft && state.setDraft.base !== S && !state.setDraft.dirty) state.setDraft = null;   /* settings reloaded (e.g. from the team database) */
-  if (!state.setDraft) state.setDraft = {base: S, brands: S.brands.slice(), keywords: S.keywords.map(function(k){ return [k[0], k[1]]; }), inputs: {}, dirty: false};
+  if (!state.setDraft) state.setDraft = {base: S, brands: S.brands.slice(), keywords: S.keywords.map(function(k){ return [k[0], k[1]]; }), inputs: {}, dirty: false, rep: JSON.parse(JSON.stringify(repS(S)))};
   return state.setDraft; }
 function setDirty(){ var D = setDraft(); if (!D.dirty){ D.dirty = true; var bar = document.getElementById("set-bar"); if (bar) bar.classList.add("dirty"); var m = document.getElementById("set-bar-msg"); if (m) m.textContent = "You have unsaved changes"; } }
 function viewSettings(){
@@ -2847,6 +3097,40 @@ function viewSettings(){
     body.appendChild(card("Working hours", "Working-hours TAT counts Monday to Saturday, 10 AM – 9 PM (IST). Sundays and the holidays below are skipped."));
     body.appendChild(holidayPanel());
   }
+  if (tab === "targets"){
+    needsSave = true;
+    var RP = D.rep, numIn = function(obj, key, label, ph){ var i = el("input", {type: "number", min: "0", step: "1", value: isNum(obj[key]) ? obj[key] : "", placeholder: ph || "—", "aria-label": label});
+      i.addEventListener("input", function(){ var v = i.value === "" ? null : Number(i.value); if (v === null || isFinite(v)) { if (v === null) delete obj[key]; else obj[key] = v; setDirty(); } }); return i; };
+    var tbB = el("tbody");
+    S.brands.forEach(function(b){ var o = RP.brands[b] || (RP.brands[b] = {});
+      tbB.appendChild(el("tr", null, el("td", {cls: "name", text: b}), el("td", null, numIn(o, "leads", "Daily lead target for " + b)), el("td", null, numIn(o, "cpl", "Target CPL for " + b, "₹")), el("td", null, numIn(o, "budget", "Daily allocated budget for " + b, "₹")))); });
+    var fillBtn = el("button", {cls: "btn ghost", type: "button", onclick: function(){
+      var x = budgetByBrand(); if (!x){ loadBudgets(true); toast("Reading today's budgets from Meta… click again in a few seconds"); return; }
+      S.brands.forEach(function(b){ if (isNum(x.daily[b]) && x.daily[b] > 0){ (RP.brands[b] = RP.brands[b] || {}).budget = Math.round(x.daily[b]); } }); setDirty(); render(); toast("Daily budgets filled from Meta. Check them, then Save changes."); }}, "Fill daily budgets from Meta");
+    body.appendChild(card("Brand targets", "Per brand, per day. Reports multiply them by the number of days (MTD target = daily target × days so far this month). Leave blank if a brand has no target: the report then shows “—” instead of a wrong 0%.",
+      el("div", {cls: "tbl-wrap"}, el("table", {cls: "rt-table"}, el("thead", null, el("tr", null, ["Brand", "Daily lead target", "Target CPL (₹)", "Daily allocated budget (₹)"].map(function(h){ return el("th", {text: h}); }))), tbB)),
+      sb.cfg ? el("div", {cls: "row-add"}, fillBtn, el("span", {cls: "small", text: "Uses today's daily budgets of each brand's active Meta campaigns."})) : null));
+    /* leaders */
+    var mode = el("div", {cls: "rt-mode"}, [["crm", "From TeleCRM: each campaign belongs to the manager (Assignee Manager) of most of its leads"], ["rules", "From my rules below: campaign name contains a word → leader"]].map(function(m){
+      var r = el("input", {type: "radio", name: "rt-mode", value: m[0], checked: RP.leaderMode === m[0] ? true : null}); r.addEventListener("change", function(){ RP.leaderMode = m[0]; setDirty(); render(); });
+      return el("label", {cls: "toggle"}, r, el("span", {text: m[1]})); }));
+    var ll = el("div", {cls: "row-list"});
+    RP.leaders.forEach(function(L, i){
+      var nm = el("input", {type: "text", value: L.name || "", placeholder: "Leader name (as in TeleCRM)", "aria-label": "Leader " + (i + 1)}); nm.addEventListener("input", function(){ L.name = nm.value; setDirty(); });
+      var wd = el("input", {type: "text", value: (L.words || []).join(", "), placeholder: "campaign words, e.g. Karan, E_Karan", "aria-label": "Campaign words for leader " + (i + 1), disabled: RP.leaderMode === "rules" ? null : true});
+      wd.addEventListener("input", function(){ L.words = wd.value.split(",").map(function(x){ return x.trim(); }).filter(Boolean); setDirty(); });
+      var tg = numIn(L, "leads", "Daily lead target for leader " + (i + 1));
+      ll.appendChild(el("div", {cls: "row-item"}, el("span", {cls: "row-n", text: String(i + 1)}), nm, el("span", {cls: "small", text: "daily target"}), tg, wd,
+        el("button", {cls: "icon-mini", type: "button", "aria-label": "Remove leader", title: "Remove leader", onclick: function(){ RP.leaders.splice(i, 1); setDirty(); render(); }}, "✕"))); });
+    body.appendChild(card("Leaders", "Used by the Leader-wise report. A leader's spend and leads are those of the campaigns that belong to them. With TeleCRM, names must match the Assignee Manager name exactly; leaders found in TeleCRM but not listed here still appear in the report, without a target.",
+      mode, ll, el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ RP.leaders.push({name: "", leads: null, words: []}); setDirty(); render(); }}, "+ Add leader"))));
+    var ns = el("input", {type: "text", value: RP.newStatuses, "aria-label": "New lead statuses"}); ns.addEventListener("input", function(){ RP.newStatuses = ns.value; setDirty(); });
+    var tb = el("select", {"aria-label": "TAT basis"}, [["wh", "Working hours (Mon–Sat 10 AM–9 PM, holidays skipped)"], ["all", "All hours (clock time)"]].map(function(x){ return el("option", {value: x[0], selected: RP.tatBasis === x[0] ? true : null, text: x[1]}); }));
+    tb.addEventListener("change", function(){ RP.tatBasis = tb.value; setDirty(); });
+    body.appendChild(card("How reports count", null,
+      el("div", {cls: "field"}, el("label", {text: "TeleCRM statuses that mean “not worked yet” (for New Lead %), comma-separated"}), ns),
+      el("div", {cls: "field"}, el("label", {text: "TAT (Hrs) in reports uses"}), tb)));
+  }
   if (tab === "advanced"){
     needsSave = true;
     body.appendChild(card("Lead source filter", null,
@@ -2873,6 +3157,9 @@ function viewSettings(){
   return page;
 }
 function confirmReset(){}
+/* report settings with defaults filled in */
+function repS(S){ var r = S.report || (S.report = {}); r.brands = r.brands || {}; r.leaders = Array.isArray(r.leaders) ? r.leaders : []; r.leaderMode = r.leaderMode === "rules" ? "rules" : "crm";
+  if (typeof r.newStatuses !== "string") r.newStatuses = "New Lead, New, Fresh"; r.tatBasis = r.tatBasis === "all" ? "all" : "wh"; r.remarks = r.remarks || {}; return r; }
 function applySettings(){
   var S = state.settings, D = setDraft();
   /* read each field from the page, or from the unsaved draft of another section; untouched fields keep their value */
@@ -2898,7 +3185,9 @@ function applySettings(){
   if (has("s-neg")) S.qlNeg = lines("s-neg").map(function(x){ return x.toLowerCase(); });
   if (has("s-pos")) S.qlPos = lines("s-pos").map(function(x){ return x.toLowerCase(); });
   ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ var id = "col-" + src + "-" + k; if (has(id)){ var x = String(get(id)).trim(); if (x) S.cols[src][k] = x; } }); });
-  state.setDraft = null; storeSettings(); recompute();
+  if (D.rep){ var keepRemarks = repS(S).remarks; S.report = JSON.parse(JSON.stringify(D.rep)); S.report.remarks = keepRemarks;
+    S.report.leaders = (S.report.leaders || []).filter(function(L){ return L && String(L.name || "").trim(); }).map(function(L){ return {name: String(L.name).trim(), leads: isNum(L.leads) ? L.leads : null, words: L.words || []}; }); }
+  state.setDraft = null; state.repOut = null; storeSettings(); recompute();
   toast(state.raw ? "Saved. The report now uses the new settings." : "Settings saved");
 }
 
@@ -3523,7 +3812,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData,
+  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports,
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   pageTitle();
@@ -3975,10 +4264,11 @@ function xlCols(cols){
 function xlVal(c, r){ return c.get ? c.get(r) : r[c.k]; }
 var XL = {ink: "FF111111", headFg: "FFFFFFFF", sub: "FF686868", faint: "FF9A9A9A", line: "FFDDDDDD", zebra: "FFF7F7F5", total: "FFECECE8",
   bad: "FFB42318", badBg: "FFFBE7E5", warn: "FF8A5D0B", warnBg: "FFFBF1DD", good: "FF1F7A4A", goodBg: "FFE6F2EB"};
-function xlNumFmt(t){ var c = (CUR || "₹").trim(); return t === "inr2" ? '"' + c + '"#,##0.00' : t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
+function xlNumFmt(t){ var c = (CUR || "₹").trim(); if (t === "rint") return "#,##0"; if (t === "rinr") return "#,##0"; if (t === "rpct") return "0%"; return t === "inr2" ? '"' + c + '"#,##0.00' : t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
 function xlSolid(argb){ return {type: "pattern", pattern: "solid", fgColor: {argb: argb}}; }
 function xlCellVal(c, v){
   if (c.t === "text") return v == null ? "" : String(v);
+  if (c.t === "rint" || c.t === "rinr" || c.t === "rpct") return isNum(v) ? (c.t === "rpct" ? Math.round(v * 10000) / 10000 : Math.round(v)) : "—";
   if (c.t === "dt") return isNum(v) ? new Date(v) : "";
   if (!isNum(v)) return "N/A";
   return c.t === "pct" ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100;
@@ -4004,7 +4294,7 @@ function xlTable(ws, r0, cols, rows, o, widths){
       if (c.k === "tree" && r._lvl) cell.value = (r._pfx !== undefined ? r._pfx : ["", "", "Ad set: ", "Ad: "][r._lvl]) + (val || (r._lvl === 2 ? "(no ad set name)" : r._lvl === 3 ? "(no ad name)" : ""));
       if (fl === "bad"){ cell.font = {size: 10, bold: true, color: {argb: XL.bad}}; cell.fill = xlSolid(XL.badBg); }
       else if (fl === "warn"){ cell.font = {size: 10, bold: true, color: {argb: XL.warn}}; cell.fill = xlSolid(XL.warnBg); }
-      else if (fl === "good"){ cell.font = {size: 10, color: {argb: XL.good}}; }
+      else if (fl === "good"){ cell.font = {size: 10, color: {argb: XL.good}}; if (c.goodFill) cell.fill = xlSolid(XL.goodBg); }
       if (!fl && rowFill === "warn") cell.fill = xlSolid(XL.warnBg); else if (!fl && r._lvl === 2) cell.fill = xlSolid(XL.zebra); else if (!fl && r._lvl === 3) cell.fill = xlSolid("FFEEEEEA"); else if (!fl && !r._lvl && ri % 2) cell.fill = xlSolid(XL.zebra);
       if (r._lvl === 1 && !fl) cell.font = Object.assign({}, cell.font, {bold: true});
       cell.border = {bottom: {style: "hair", color: {argb: XL.line}}}; if (brandTop) cell.border.top = {style: "medium", color: {argb: XL.ink}};
@@ -4019,7 +4309,7 @@ function xlTable(ws, r0, cols, rows, o, widths){
   if (o.total){
     var tr = ws.getRow(end);
     cols.forEach(function(c, i){ var cell = tr.getCell(i + 1), v = c.k === "remarks" ? "" : xlVal(c, o.total);
-      if (i === 0) v = v || "TOTAL";
+      if (i === 0 && !o.keepBlank) v = v || "TOTAL";
       var val = c.t === "text" ? (v == null ? "" : String(v)) : xlCellVal(c, v); cell.value = val;
       var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "") cell.numFmt = fmt;
       cell.font = {bold: true, size: 10, color: {argb: XL.ink}}; cell.fill = xlSolid(XL.total);
@@ -4065,7 +4355,7 @@ function buildWorkbookExcelJS(ExcelJS, specs, sub){
       xlTitle(ws, sp.title, sub, sp.note);
       var cols = xlCols(sp.cols);
       if (sp.tree) ws.properties.outlineProperties = {summaryBelow: false, summaryRight: false};
-      xlTable(ws, 4, cols, sp.rows, {total: sp.total, brandRule: sp.brandRule, rowFill: sp.rowFill, autoFilter: !sp.tree}, widths);
+      xlTable(ws, 4, cols, sp.rows, {total: sp.total, brandRule: sp.brandRule, rowFill: sp.rowFill, autoFilter: !sp.tree, keepBlank: sp.keepBlank}, widths);
       ws.pageSetup.printTitlesRow = "4:4";
     }
     widths.forEach(function(w, i){ ws.getColumn(i + 1).width = Math.max(8, w || 10); });

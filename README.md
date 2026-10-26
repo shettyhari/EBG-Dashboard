@@ -32,6 +32,34 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 - **Customize columns** on each report (saved in the browser); Excel uses the same columns unless *Export all columns* is ticked.
 - **Campaigns tab**: Campaign → Ad set → Ad tree with expand / collapse, search that opens matching branches, and sorting within each level. Totals add campaigns only; CTR, CPC and CPL are recalculated from totals. Excel gets a *Campaign hierarchy* sheet with outline groups.
 
+## Reports tab (EBG templates)
+
+Sidebar › **Reports**. Pick a report, brands (empty = all), dates, then **Generate**. **Export Excel** downloads exactly what is on screen (same columns, same order, numbers kept as numbers).
+
+| Report | Columns |
+|---|---|
+| Brand-wise · daily or range | Date, Brand Name, Spend, CPL, Leads Target, Leads Achieved, Lead Achievement %, Contacted LQ %, Overall LQ %, TAT (Hrs), New Lead %, Remarks |
+| Brand-wise · MTD | same columns, 1st of month → cutoff |
+| Master FTD + MTD (also the "expanded MTD" report — one template) | the 22 columns of the Master Report |
+| Leader-wise · MTD | Date, Leader Name, Total Spend, Leads Target, Leads Achieved, Lead Achievement %, Contacted LQ %, Overall LQ %, FC TAT (Hrs), New Lead % |
+
+Definitions (shown on the page under "How each number is calculated"):
+
+- **FTD** = the reporting day (cutoff). **MTD** = 1st of the cutoff's month → cutoff. Default cutoff = latest complete day with data.
+- **Leads Achieved / Platform leads** = Meta leads (Ads Manager "Results"). **CRM leads** = TeleCRM leads matched to those ads.
+- **CPL** = spend ÷ platform leads. **Lead Sync %** = CRM leads ÷ platform leads (same as the Overview).
+- **Lead Achievement %** = achieved ÷ target. Target = daily lead target × days in period.
+- **Allocated budget** = daily budget × days. **Spend %** = actual ÷ allocated.
+- **CPL Target Achievement %** (Master) = target CPL ÷ actual CPL (over 100% = cheaper than target).
+- **Contacted LQ %** = qualified ÷ leads that were called. **Overall LQ %** = qualified ÷ all CRM leads. Qualified = the statuses ticked in Settings › Rules.
+- **New Lead %** = leads still in a "new" status ÷ CRM leads (statuses listed in Settings › Report targets).
+- **TAT (Hrs)** = average first-call time in working hours (same schedule, Sundays and holidays as the TAT page). Can be switched to all hours.
+- **Leader** = the TeleCRM Assignee Manager who owns most of a campaign's leads (or campaign-word rules you enter). A lead uses its current manager.
+- **Totals** are recomputed from summed numbers, never averaged percentages. "—" means no data/target (different from 0).
+- Markers: ✓ on/above target, ! close, ✗ off (achievement ≥100/≥80%, sync ≥95/≥85%, FTD spend 80–110%/50–130%, MTD spend ≤100/≤110%).
+
+Targets, target CPL, daily budgets and leaders are entered in **Settings › Report targets** ("Fill daily budgets from Meta" copies today's Meta budgets).
+
 ## Rules
 - **Leads in UI** = sum of the Meta Results column. **Leads in CRM** = TeleCRM rows (optional rules in Settings: Meta sources only, report dates only, unique Lead id).
 - CRM leads match Meta by Facebook Campaign + Ad Set + Ad name (or at ad set / campaign level when the Meta export has no ad columns). Unmatched leads keep their own rows; nothing is guessed.
