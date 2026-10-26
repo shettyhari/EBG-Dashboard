@@ -61,6 +61,8 @@ Definitions (shown on the page under "How each number is calculated"):
 - **Totals** are recomputed from summed numbers, never averaged percentages. "—" means no data/target (different from 0).
 - Markers: ✓ on/above target, ! close, ✗ off (achievement ≥100/≥80%, sync ≥95/≥85%, FTD spend 80–110%/50–130%, MTD spend ≤100/≤110%).
 
+**Confirmed by Navath (26 Oct 2026):** TAT = working hours (Mon–Sat 10 AM–9 PM, Sundays/holidays skipped) · New Lead % statuses = New Lead, New, Fresh · monthly targets spread over all days of the month · leader = TeleCRM Assignee Manager owning most of a campaign's leads · ✓/!/✗ cut-offs as listed above.
+
 Targets are entered month by month in **Settings › Report targets**: pick the month, enter monthly lead targets, target CPL and monthly budgets (and leader targets), Save. "Copy from <last month>" starts a new month from the previous one; "Fill budgets from Meta" = today's daily Meta budget × days in the month.
 
 ## Rules
