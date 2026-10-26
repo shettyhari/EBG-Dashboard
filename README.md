@@ -65,6 +65,17 @@ Definitions (shown on the page under "How each number is calculated"):
 
 Targets are entered month by month in **Settings › Report targets**: pick the month, enter monthly lead targets, target CPL and monthly budgets (and leader targets), Save. "Copy from <last month>" starts a new month from the previous one; "Fill budgets from Meta" = today's daily Meta budget × days in the month.
 
+## History (change log)
+
+Sidebar › **History**: who changed what and when, with old → new values, like Meta / Google Ads change history. Filter by person or type, search by brand, campaign or setting.
+
+Recorded by the database (`supabase/change-history.sql`, run once in Supabase › SQL Editor), so nothing can skip it and nobody can edit or delete it:
+- every saved settings change: brands, brand rules, QL statuses, report targets per month, leaders, report remarks, Meta ad accounts on/off and brand, WhatsApp/no-campaign links, holidays, column names…
+- saved data uploaded or deleted
+- team members added, removed or re-roled
+
+Automatic jobs (Meta auto-sync, n8n TeleCRM push) are not logged.
+
 ## Lead leaks page
 
 Sidebar › **Lead leaks** › pick a period › **Find leaks**. Three checks, biggest money first:

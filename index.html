@@ -486,6 +486,11 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .rt-table input{width:100%;max-width:170px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 9px;font:inherit;font-size:13.5px;border-radius:4px}
 .rt-table td{vertical-align:top}
 #rt-month{padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);min-width:240px;max-width:100%}
+.hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
+.hist-list{margin-top:8px}.hist-day{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px;font-weight:600}
+.hist-item{border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:8px;background:var(--panel)}
+.hist-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:4px}.hist-time{color:var(--muted);font-size:13px;min-width:62px}.hist-who{font-size:14px;word-break:break-all}
+.hist-lines{margin:0;padding-left:18px;line-height:1.55;font-size:13.5px}.hist-lines li{word-break:break-word}.hist-old{color:var(--muted);text-decoration:line-through}
 .leak-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 18px}
 @media (max-width:760px){.leak-tiles{grid-template-columns:minmax(0,1fr)}}
 .leak-tile{border:1px solid var(--line);border-left-width:4px;border-radius:6px;padding:12px 14px;background:var(--panel)}
@@ -898,6 +903,7 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
       <button class="tab" role="tab" data-tab="checks" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Data checks</span></button>
       <button class="tab" role="tab" data-tab="ql" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span>QL statuses</span></button>
       <button class="tab" role="tab" data-tab="settings" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
+      <button class="tab" role="tab" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3 2"/></svg><span>History</span></button>
       <button class="tab" role="tab" data-tab="help" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.9"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/></svg><span>Help &amp; terms</span></button>
   </nav>
   <div class="side-foot"><div class="tagline">Every lead,<br>accounted for.<i></i></div></div>
@@ -2275,6 +2281,7 @@ var PAGE_INFO = {
   overview: ["Overview", "Your results at a glance: money spent, leads received, lead quality and how fast leads were called."],
   trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
   leaks: ["Lead leaks", "Paid leads that never reached TeleCRM, WhatsApp leads without a campaign, and ad accounts that spend but aren't synced."],
+  history: ["History", "Who changed what, and when: settings, targets, remarks, saved data and team members, with the old and new value."],
   reports: ["Reports", "The EBG daily and MTD reports (brand-wise, master, leader-wise), ready to check and download as Excel."],
   campaigns: ["Campaigns", "Every campaign with its spend, leads and cost. Click ▸ to see its ad sets and ads."],
   adsets: ["Ad sets", "The same numbers for each ad set, so you can see which audiences work."],
@@ -2291,7 +2298,7 @@ function pageTitle(){
   var info = PAGE_INFO[state.tab] || PAGE_INFO.overview, h = document.querySelector("header.top h1"), p = document.getElementById("period");
   if (h) h.textContent = info[0];
   if (p && state.R){ var pr = state.R.period;
-    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" ? "" : "  ·  Dates: " + rangeText(false));
+    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" || state.tab === "history" ? "" : "  ·  Dates: " + rangeText(false));
     p.title = pr.metaStart !== null ? "Meta data available " + fDay(pr.metaStart) + " – " + fDay(pr.metaEnd) : "No Meta data in these dates yet"; }
 }
 var GLOSS = [
@@ -2815,6 +2822,128 @@ function leakAddAccount(a){ var S = state.settings, list = S.metaAccounts || (S.
   if (ex) ex.on = true; else list.push({id: a.id, name: a.name, brand: "", on: true});
   provSave(); render(); toast(a.name + " added. Its data arrives with the next automatic sync (within 30 minutes). Set its brand in Settings › Data connections if campaign names don't show it."); }
 function leakGoMap(){ state.tab = "settings"; state.setTab = "brands"; render(); setTimeout(function(){ var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({behavior: "smooth", block: "start"}); }, 80); }
+/* ================= History: who changed what, when (recorded by the database, supabase/change-history.sql) ================= */
+var HIST_KEYS = {brands: "Brands", keywords: "Brand rules (campaign word → brand)", slaMin: "Speed-to-lead target (minutes)", diffAlert: "UI vs CRM difference alert", slaTarget: "Within-SLA target",
+  platform: "Platform", report: "Reports", qlPos: "Qualified-lead statuses", qlNeg: "Not-qualified statuses", qlOverride: "Lead status overrides", excludedCampaigns: "Campaigns left out of Leads in UI",
+  includedCampaigns: "Campaigns kept in Leads in UI", autoExcludeNonLead: "Leave out non-lead campaigns automatically", sourceMap: "Leads without a campaign", holidays: "Holidays",
+  cols: "Export column names", metaAccounts: "Meta ad accounts", metaAutoSync: "Meta auto-sync", metaAutoRange: "Meta auto-sync range", metaSources: "Lead sources counted as Meta",
+  dupExclude: "Leave out repeat leads", dupDays: "Repeat-lead window (days)", showOther: "Show brands not in the list", optSource: "Lead-source filter", optDates: "Report date override",
+  optDedupe: "Remove duplicate rows", from: "Report date override · from", to: "Report date override · to"};
+var HIST_REP = {leaderMode: "Leader comes from", newStatuses: "New Lead % statuses", tatBasis: "TAT in reports uses", leaders: "Leaders", months: "Report targets", remarks: "Report remarks"};
+var HIST_TGT = {leads: "Monthly lead target", cpl: "Target CPL", budget: "Monthly budget"};
+function histVal(v){ if (v === null || v === undefined || v === "") return "(empty)"; if (v && typeof v === "object" && isNum(v.inr)) return fINR(v.inr); if (v && typeof v === "object" && "raw" in v) return String(v.raw || "(none)"); if (v === true) return "On"; if (v === false) return "Off";
+  if (typeof v === "number") return v.toLocaleString("en-IN"); if (typeof v === "string") return "“" + v + "”"; if (Array.isArray(v)) return v.length ? v.map(function(x){ return typeof x === "object" ? JSON.stringify(x) : String(x); }).join(", ") : "(none)";
+  return JSON.stringify(v); }
+function histIsObj(v){ return v && typeof v === "object" && !Array.isArray(v); }
+/* generic deep diff → [{path, old, new}] ; arrays compared as lists */
+function histDiff(a, b, path, out){ out = out || [];
+  if (histIsObj(a) || histIsObj(b)){ var A = histIsObj(a) ? a : {}, B = histIsObj(b) ? b : {}, keys = {}; Object.keys(A).forEach(function(k){ keys[k] = 1; }); Object.keys(B).forEach(function(k){ keys[k] = 1; });
+    Object.keys(keys).sort().forEach(function(k){ histDiff(A[k], B[k], path.concat([k]), out); }); return out; }
+  if (JSON.stringify(a) === JSON.stringify(b)) return out;
+  out.push({path: path, o: a, n: b}); return out; }
+function histListDiff(o, n, keyOf, show){ var O = {}, N = {}, add = [], rem = [];
+  (Array.isArray(o) ? o : []).forEach(function(x){ O[keyOf(x)] = x; }); (Array.isArray(n) ? n : []).forEach(function(x){ N[keyOf(x)] = x; });
+  Object.keys(N).forEach(function(k){ if (!(k in O)) add.push(show(N[k])); }); Object.keys(O).forEach(function(k){ if (!(k in N)) rem.push(show(O[k])); });
+  return {add: add, rem: rem, O: O, N: N}; }
+function histMoney(k, v){ return (k === "cpl" || k === "budget") && isNum(v) ? {inr: v} : v; }
+function histMonth(k){ return /^\d{4}-\d{2}$/.test(k) ? monLabel(k) : k; }
+/* one settings key's [old, new] → readable lines */
+function histLines(key, o, n){
+  var L = [], lab = HIST_KEYS[key] || key, line = function(t, a, b){ L.push({t: t, o: a, n: b}); }, note = function(t){ L.push({t: t}); };
+  var listLine = function(t, d){ if (d.add.length) note(t + ": added " + d.add.join(", ")); if (d.rem.length) note(t + ": removed " + d.rem.join(", ")); };
+  if (["brands", "qlPos", "qlNeg", "excludedCampaigns", "includedCampaigns", "metaSources"].indexOf(key) >= 0){
+    var d = histListDiff(o, n, String, String); listLine(lab, d);
+    if (!d.add.length && !d.rem.length) note(lab + ": order changed"); return L; }
+  if (key === "keywords"){ var dk = histListDiff(o, n, function(x){ return JSON.stringify(x); }, function(x){ return "“" + x[0] + "” → " + x[1]; }); listLine(lab, dk); if (!dk.add.length && !dk.rem.length) note(lab + ": order changed"); return L; }
+  if (key === "holidays"){ var dh = histListDiff(o, n, function(x){ return x.id || x.date; }, function(x){ return x.name + " (" + x.date + ")"; }); listLine(lab, dh);
+    Object.keys(dh.N).forEach(function(k){ var a = dh.O[k], b = dh.N[k]; if (!a) return; if (a.active !== b.active) line(lab + " › " + b.name + " (" + b.date + ")", a.active !== false ? "Counted as holiday" : "Not a holiday", b.active !== false ? "Counted as holiday" : "Not a holiday");
+      if (a.name !== b.name) line(lab + " › " + b.date + " › name", a.name, b.name); if (a.date !== b.date) line(lab + " › " + b.name + " › date", a.date, b.date); }); return L; }
+  if (key === "metaAccounts"){ var da = histListDiff(o, n, function(x){ return String(x.id).replace(/^act_/, ""); }, function(x){ return x.name; });
+    Object.keys(da.N).forEach(function(k){ var a = da.O[k], b = da.N[k]; if (!a){ if (b.on !== false) note(lab + ": " + b.name + " added to sync"); return; }
+      if ((a.on !== false) !== (b.on !== false)) note(lab + ": " + b.name + (b.on !== false ? " sync turned ON" : " sync turned OFF"));
+      if ((a.brand || "") !== (b.brand || "")) line(lab + " › " + b.name + " › brand", a.brand || "(from campaign names)", b.brand || "(from campaign names)"); });
+    da.rem.forEach(function(nm){ note(lab + ": " + nm + " removed"); }); return L; }
+  if (key === "sourceMap"){ var A2 = o || {}, B2 = n || {}, ks = {}; Object.keys(A2).forEach(function(k){ ks[k] = 1; }); Object.keys(B2).forEach(function(k){ ks[k] = 1; });
+    Object.keys(ks).forEach(function(k){ var a = [].concat(A2[k] || []), b = [].concat(B2[k] || []); if (JSON.stringify(a.slice().sort()) === JSON.stringify(b.slice().sort())) return;
+      var p = k.split("|"), who2 = (p[0] || "") + " · " + (p[1] || "");
+      var desc = function(x){ return !x.length ? "not linked" : x.length === 1 && /^__none__$|^\(none\)$/i.test(x[0]) ? "not from ads" : x.join(", "); };
+      line(lab + " › " + who2, desc(a), desc(b)); }); return L; }
+  if (key === "qlOverride"){ histDiff(o, n, []).forEach(function(x){ line("Lead status › " + x.path.join(" › ") + " counts as", x.o ? (x.o === "ql" ? "qualified" : x.o === "notql" ? "not qualified" : x.o) : "automatic", x.n ? (x.n === "ql" ? "qualified" : x.n === "notql" ? "not qualified" : x.n) : "automatic"); }); return L; }
+  if (key === "report"){ var RO = o || {}, RN = n || {};
+    ["leaderMode", "newStatuses", "tatBasis"].forEach(function(k){ if (JSON.stringify(RO[k]) !== JSON.stringify(RN[k])) line(HIST_REP[k],
+      k === "leaderMode" ? ({crm: "TeleCRM manager", rules: "campaign-word rules"}[RO[k]] || RO[k]) : k === "tatBasis" ? ({wh: "working hours", all: "all hours"}[RO[k]] || RO[k]) : RO[k],
+      k === "leaderMode" ? ({crm: "TeleCRM manager", rules: "campaign-word rules"}[RN[k]] || RN[k]) : k === "tatBasis" ? ({wh: "working hours", all: "all hours"}[RN[k]] || RN[k]) : RN[k]); });
+    var dl = histListDiff(RO.leaders, RN.leaders, function(x){ return String(x.name).toLowerCase(); }, function(x){ return x.name; }); listLine("Leaders", dl);
+    Object.keys(dl.N).forEach(function(k){ var a = dl.O[k], b = dl.N[k]; if (a && JSON.stringify(a.words || []) !== JSON.stringify(b.words || [])) line("Leaders › " + b.name + " › campaign words", (a.words || []).join(", "), (b.words || []).join(", ")); });
+    histDiff(RO.months, RN.months, []).forEach(function(x){ var p = x.path;
+      if (p[1] === "brands" && p.length >= 4) line("Report targets › " + histMonth(p[0]) + " › " + p[2] + " › " + (HIST_TGT[p[3]] || p[3]), histMoney(p[3], x.o), histMoney(p[3], x.n));
+      else if (p[1] === "leaders" && p.length >= 3) line("Report targets › " + histMonth(p[0]) + " › leader " + p[2] + " › Monthly lead target", x.o, x.n);
+      else if (p[1] === "brands" && p.length === 3 && (histIsObj(x.o) || histIsObj(x.n))) histDiff(x.o, x.n, []).forEach(function(y){ line("Report targets › " + histMonth(p[0]) + " › " + p[2] + " › " + (HIST_TGT[y.path[0]] || y.path[0]), histMoney(y.path[0], y.o), histMoney(y.path[0], y.n)); });
+      else line("Report targets › " + p.map(histMonth).join(" › "), x.o, x.n); });
+    histDiff(RO.remarks, RN.remarks, []).forEach(function(x){ var p = String(x.path[0]).split("|"); line("Report remark › " + (repTypeLabel(p[0]) || p[0]) + " · " + (p[1] || "") + " · " + (p[2] || ""), x.o, x.n); });
+    histDiff(RO.brands, RN.brands, []).forEach(function(x){ line("Report targets (old daily format) › " + x.path.join(" › "), x.o, x.n); });
+    return L; }
+  if (key === "cols"){ histDiff(o, n, []).forEach(function(x){ line(lab + " › " + (x.path[0] === "meta" ? "Meta" : x.path[0] === "crm" ? "TeleCRM" : x.path[0]) + " › " + x.path.slice(1).join(" › "), x.o, x.n); }); return L; }
+  if (!histIsObj(o) && !histIsObj(n) && !Array.isArray(o) && !Array.isArray(n)){ var fmt = function(v){ return key === "diffAlert" || key === "slaTarget" ? (isNum(v) ? Math.round(v * 100) + "%" : v) : v; }; line(lab, fmt(o), fmt(n)); return L; }
+  histDiff(o, n, []).forEach(function(x){ line(lab + (x.path.length ? " › " + x.path.join(" › ") : ""), x.o, x.n); }); return L;
+}
+function histEntryLines(e){ var d = e.detail || {}, L = [];
+  if (e.area === "settings"){ var K = d.keys || {}; Object.keys(K).sort(function(a, b){ return (a === "report" ? 0 : 1) - (b === "report" ? 0 : 1) || a.localeCompare(b); }).forEach(function(k){ var v = K[k] || []; L = L.concat(histLines(k, v[0], v[1])); });
+    if (!L.length) L.push({t: "Settings saved (no visible change)"}); return L; }
+  if (e.area === "upload"){ var parts = []; if (d.crm_file) parts.push("TeleCRM: " + d.crm_file + " (" + fInt(d.crm_rows) + " leads)"); if (d.meta_files && d.meta_files.length) parts.push("Meta: " + d.meta_files.join(", ") + " (" + fInt(d.meta_rows) + " rows)");
+    var span = d.from ? " · data " + d.from + (d.to && d.to !== d.from ? " to " + d.to : "") : "";
+    return [{t: (e.action === "deleted" ? "Deleted saved data: " : "Saved data: ") + (parts.join(" · ") || "upload #" + d.id) + span + (e.action === "deleted" && d.by ? " · it was saved by " + d.by : "")}]; }
+  if (e.area === "team"){ return [{t: e.action === "added" ? "Added team member " + d.email + " as " + d.new_role : e.action === "deleted" ? "Removed team member " + d.email + " (" + d.old_role + ")" : "Changed " + d.email + "'s role", o: e.action === "changed" ? {raw: d.old_role} : undefined, n: e.action === "changed" ? {raw: d.new_role} : undefined}]; }
+  return [{t: JSON.stringify(d)}]; }
+var HIST_AREA = {settings: "Settings", upload: "Saved data", team: "Team"};
+function histLoad(more){
+  var H = state.hist || (state.hist = {rows: [], f: {who: "", area: "", q: ""}});
+  if (!sb.client || sb.status !== "ready"){ H.status = "nosb"; return; }
+  H.status = more ? "more" : "loading"; if (!more) H.rows = []; render();
+  var from = more ? H.rows.length : 0;
+  Promise.resolve().then(function(){ return sb.client.from("change_log").select("*").order("id", {ascending: false}).range(from, from + 99); }).then(function(r){
+    if (r.error){ H.status = "error"; H.err = /change_log|does not exist|PGRST205|42P01|schema cache/i.test(r.error.message + " " + (r.error.code || "")) ? "setup" : r.error.message; }
+    else { H.rows = H.rows.concat(r.data || []); H.more = (r.data || []).length === 100; H.status = "ready"; }
+  }).catch(function(e){ H.status = "error"; H.err = e.message || String(e); }).then(function(){ if (state.tab === "history") render(); });
+}
+function viewHistory(){
+  var H = state.hist || (state.hist = {rows: [], f: {who: "", area: "", q: ""}}), sec = el("section", {cls: "panel hist-page"});
+  if (!H.status) histLoad();
+  if (H.status === "nosb"){ sec.appendChild(el("div", {cls: "empty", text: "History is kept in the team database. Open the live dashboard (ebg-dashboard.vercel.app) and sign in to see it."})); return sec; }
+  if (H.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Loading history…"})); return sec; }
+  if (H.status === "error"){ if (H.err === "setup") sec.appendChild(el("div", {cls: "banner warn"}, el("div", null, el("b", {text: "History isn't switched on yet. "}),
+      "An admin runs the file supabase/change-history.sql once in Supabase › SQL Editor (copy all of it › Run). From then on every change is recorded here.")));
+    else sec.appendChild(el("div", {cls: "msg err", text: "Couldn't load history: " + H.err})); sec.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ histLoad(); }}, "Try again")); return sec; }
+  var F = H.f, people = {}; H.rows.forEach(function(e){ people[e.actor] = 1; });
+  var whoSel = el("select", {"aria-label": "Person"}, [el("option", {value: "", text: "Everyone"})].concat(Object.keys(people).sort().map(function(p){ return el("option", {value: p, selected: F.who === p ? true : null, text: p}); })));
+  whoSel.addEventListener("change", function(){ F.who = whoSel.value; render(); });
+  var areaSel = el("select", {"aria-label": "Type of change"}, [["", "All changes"], ["settings", "Settings"], ["upload", "Saved data"], ["team", "Team"]].map(function(a){ return el("option", {value: a[0], selected: F.area === a[0] ? true : null, text: a[1]}); }));
+  areaSel.addEventListener("change", function(){ F.area = areaSel.value; render(); });
+  var q = el("input", {type: "search", cls: "search", placeholder: "Search (brand, campaign, setting…)", "aria-label": "Search history", value: F.q});
+  q.addEventListener("input", function(){ F.q = q.value; clearTimeout(viewHistory._t); viewHistory._t = setTimeout(function(){ render(); var e = document.querySelector(".hist-page input[type=search]"); if (e){ e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }, 250); });
+  sec.appendChild(el("div", {cls: "rep-controls hist-controls"},
+    el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Who"}), whoSel), el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "What"}), areaSel),
+    el("label", {cls: "field rep-field hist-q"}, el("span", {cls: "small", text: "Search"}), q),
+    el("div", {cls: "rep-actions"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ histLoad(); }}, "Refresh"))));
+  var ql = F.q.trim().toLowerCase(), list = [];
+  H.rows.forEach(function(e){ if (F.who && e.actor !== F.who) return; if (F.area && e.area !== F.area) return; var lines = histEntryLines(e);
+    if (ql){ lines = lines.filter(function(l){ return (l.t + " " + histVal(l.o) + " " + histVal(l.n)).toLowerCase().indexOf(ql) >= 0 || e.actor.indexOf(ql) >= 0; }); if (!lines.length) return; }
+    list.push({e: e, lines: lines}); });
+  sec.appendChild(el("p", {cls: "small", text: "Every change anyone makes is recorded by the database, with the old and new value. Nobody can edit or delete this history. Automatic Meta syncs and n8n TeleCRM pushes aren't listed (see Settings › Data connections for those)."}));
+  if (!list.length){ sec.appendChild(el("div", {cls: "empty", text: H.rows.length ? "No changes match these filters." : "No changes recorded yet. Changes appear here from the moment history was switched on."})); return sec; }
+  var lastDay = null, box = el("div", {cls: "hist-list"});
+  list.forEach(function(x){ var e = x.e, t = new Date(e.at), day = t.toLocaleDateString("en-IN", {weekday: "short", day: "numeric", month: "short", year: "numeric"});
+    if (day !== lastDay){ box.appendChild(el("div", {cls: "hist-day", text: day})); lastDay = day; }
+    var ul = el("ul", {cls: "hist-lines"}), shown = H.open === e.id ? x.lines : x.lines.slice(0, 8);
+    shown.forEach(function(l){ ul.appendChild(el("li", null, el("span", {text: l.t}), l.o !== undefined || l.n !== undefined ? el("span", {cls: "hist-chg"}, ": ", el("span", {cls: "hist-old", text: histVal(l.o)}), " → ", el("b", {text: histVal(l.n)})) : null)); });
+    if (x.lines.length > shown.length) ul.appendChild(el("li", null, el("button", {cls: "linkbtn", type: "button", onclick: function(){ H.open = e.id; render(); }}, "Show " + (x.lines.length - shown.length) + " more")));
+    box.appendChild(el("div", {cls: "hist-item"},
+      el("div", {cls: "hist-meta"}, el("span", {cls: "hist-time", text: t.toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"})}), el("b", {cls: "hist-who", text: e.actor}),
+        el("span", {cls: "pill " + (e.action === "deleted" ? "bad" : e.area === "team" ? "warn" : "mut"), text: HIST_AREA[e.area] || e.area})), ul)); });
+  sec.appendChild(box);
+  if (H.more) sec.appendChild(el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", disabled: H.status === "more" ? true : null, onclick: function(){ histLoad(true); }}, H.status === "more" ? "Loading…" : "Load older changes")));
+  return sec;
+}
 function viewChecks(){
   var R = state.R, box = el("div", {cls: "checks"}), infoBox = el("div", {cls: "checks"});
   var rank = {bad: 0, warn: 1, ok: 2, info: 3};
@@ -4012,7 +4141,7 @@ function render(){
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
   var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks,
-             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, help: viewHelp};
+             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, history: viewHistory, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   pageTitle();
   DRAWS.forEach(function(f){ try { f(true); } catch (e) { console.error(e); } });
