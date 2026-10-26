@@ -6,11 +6,12 @@
 //   GET /api/meta?op=accounts
 //   GET /api/meta?op=funds[&accounts=act_1,act_2]   (any team member; live, not stored)
 //   GET /api/meta?op=reconcile&from=YYYY-MM-DD&to=YYYY-MM-DD&accounts=act_1,act_2   (any team member: Meta account totals vs stored rows, per day)
+//   GET /api/meta?op=coverage&from=YYYY-MM-DD&to=YYYY-MM-DD   (any team member: every ad account the token sees, with spend in the range)
 //   GET /api/meta?op=budgets&accounts=act_1,act_2   (any team member; daily budgets of active campaigns, live)
 //   GET /api/meta?op=data&from=YYYY-MM-DD&to=YYYY-MM-DD&accounts=act_1
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
 const SB_ANON = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nZ21vc2FkbGthcndsdXJ4ZGprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwODEyNjQsImV4cCI6MjEwNzY1NzI2NH0.WfxddEbJwtIXlc5ENVM6fLmB46zmgi7eeVk02FWJfQ0";
-const { VER, COLS, accountRows, adAccounts, accountFunds, accountBudgets, accountDaily } = require("./_metalib");
+const { VER, COLS, accountRows, adAccounts, accountsSpend, accountFunds, accountBudgets, accountDaily } = require("./_metalib");
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function send(res, code, body) {
@@ -39,6 +40,11 @@ module.exports = async function handler(req, res) {
     if (!me || !me.role) return send(res, 401, { error: "Sign in with a team account first." });
     if (op === "status") return send(res, 200, { configured: !!tok, last4: tok ? tok.slice(-4) : null, role: me.role, version: VER, cronReady: !!process.env.SUPABASE_SERVICE_ROLE_KEY });
     if (!tok) return send(res, 400, { error: "META_ACCESS_TOKEN is not set in Vercel yet." });
+    if (op === "coverage") {
+      const from = String(req.query.from || ""), to = String(req.query.to || "");
+      if (!DAY_RE.test(from) || !DAY_RE.test(to) || from > to) return send(res, 400, { error: "Pick a valid date range." });
+      return send(res, 200, { at: new Date().toISOString(), from, to, accounts: await accountsSpend(from, to) });
+    }
     if (op === "reconcile") {
       const from = String(req.query.from || ""), to = String(req.query.to || "");
       if (!DAY_RE.test(from) || !DAY_RE.test(to) || from > to) return send(res, 400, { error: "Pick a valid date range." });

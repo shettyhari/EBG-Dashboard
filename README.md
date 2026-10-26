@@ -65,6 +65,14 @@ Definitions (shown on the page under "How each number is calculated"):
 
 Targets are entered month by month in **Settings › Report targets**: pick the month, enter monthly lead targets, target CPL and monthly budgets (and leader targets), Save. "Copy from <last month>" starts a new month from the previous one; "Fill budgets from Meta" = today's daily Meta budget × days in the month.
 
+## Lead leaks page
+
+Sidebar › **Lead leaks** › pick a period › **Find leaks**. Three checks, biggest money first:
+
+1. **Form leads that don't reach TeleCRM** — per lead-form campaign: Meta leads vs TeleCRM leads, missing leads, money spent on them (missing × CPL), last day each side got a lead. Flags: *No leads reach TeleCRM* (0 in CRM), *Stopped reaching TeleCRM* (3+ missing and TeleCRM quiet 2+ days while Meta still gets leads), *Only some reach* (20%+ and 3+ missing). Gaps of 1–2 leads are ignored (repeat submissions). Includes the fix steps.
+2. **WhatsApp leads without a campaign** — TeleCRM WhatsApp leads per brand that aren't linked to Click-to-WhatsApp campaigns, with a button to Settings › Leads without a campaign.
+3. **Ad accounts spending but not synced** — `GET /api/meta?op=coverage` lists every account the Meta token can see with its spend in the period; unsynced spending accounts can be added to the sync in one click (admins/editors).
+
 ## Rules
 - **Leads in UI** = sum of the Meta Results column. **Leads in CRM** = TeleCRM rows (optional rules in Settings: Meta sources only, report dates only, unique Lead id).
 - CRM leads match Meta by Facebook Campaign + Ad Set + Ad name (or at ad set / campaign level when the Meta export has no ad columns). Unmatched leads keep their own rows; nothing is guessed.

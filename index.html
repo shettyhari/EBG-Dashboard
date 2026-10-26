@@ -486,6 +486,17 @@ main .wrap{padding-block:8px 56px;gap:20px}
 .rt-table input{width:100%;max-width:170px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 9px;font:inherit;font-size:13.5px;border-radius:4px}
 .rt-table td{vertical-align:top}
 #rt-month{padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);min-width:240px;max-width:100%}
+.leak-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 18px}
+@media (max-width:760px){.leak-tiles{grid-template-columns:minmax(0,1fr)}}
+.leak-tile{border:1px solid var(--line);border-left-width:4px;border-radius:6px;padding:12px 14px;background:var(--panel)}
+.leak-bad{border-left-color:var(--bad)}.leak-warn{border-left-color:var(--warn)}.leak-good{border-left-color:var(--good)}.leak-mut{border-left-color:var(--line)}
+.leak-big{font-size:24px;font-weight:600;line-height:1.2}.leak-lbl{font-size:13.5px;margin:2px 0 4px}
+.leak-page{min-width:0;max-width:100%;overflow:hidden}.leak-page .group,.leak-page .rep-table{min-width:0;max-width:100%}.leak-page .tbl-wrap,.leak-page .rep-table{overflow-x:auto}
+.leak-sec{margin-top:18px}.leak-sec h3{margin:0 0 4px}.leak-sec p{margin:0 0 10px;line-height:1.5}
+.leak-fix ol{margin:8px 0 0;padding-left:20px;line-height:1.55}.leak-fix li{margin-bottom:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden;align-self:flex-end}
+.seg button{border:0;background:var(--panel);color:var(--ink);padding:8px 12px;font:inherit;font-size:13.5px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}.seg button.on{background:var(--accent);color:#fff}
 .rt-perday{margin-top:3px;color:var(--muted);font-size:12px}
 .rt-mode{display:grid;gap:6px}
 .row-item input[type=number]{width:90px;flex:0 0 90px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13.5px}
@@ -882,6 +893,7 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
       <div class="side-sec">Lead follow-up</div>
       <button class="tab" role="tab" data-tab="tat" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg><span>TAT &amp; calls</span></button>
       <button class="tab" role="tab" data-tab="crmdata" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11"/></svg><span>CRM leads data</span></button>
+      <button class="tab" role="tab" data-tab="leaks" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.7c3.3 4 6 7.4 6 10.8a6 6 0 0 1-12 0c0-3.4 2.7-6.8 6-10.8z"/><path d="M9.5 14.5a2.6 2.6 0 0 0 2.5 2.5"/></svg><span>Lead leaks</span></button>
       <div class="side-sec">Setup</div>
       <button class="tab" role="tab" data-tab="checks" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Data checks</span></button>
       <button class="tab" role="tab" data-tab="ql" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span>QL statuses</span></button>
@@ -1173,9 +1185,10 @@ function mergeLeads(o, a){
   o.wsum += a.wsum || 0; o.pendO += a.pendO || 0; o.pendW += a.pendW || 0;
   if (a.tats && a.tats.length) o.tats = o.tats.concat(a.tats); if (a.whs && a.whs.length) o.whs = o.whs.concat(a.whs);
   if (a.statusN) for (var k in a.statusN) o.statusN[k] = (o.statusN[k] || 0) + a.statusN[k];
+  if (isNum(a.lastCrm) && !(o.lastCrm >= a.lastCrm)) o.lastCrm = a.lastCrm;   /* latest day a CRM lead arrived */
   o.qlC = (o.qlC || 0) + (a.qlC || 0); if (a.mgrN){ o.mgrN = o.mgrN || {}; for (var m in a.mgrN) o.mgrN[m] = (o.mgrN[m] || 0) + a.mgrN[m]; }
 }
-function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (L.tat !== null && L.tat !== undefined){ o.ts += L.tat; o.called++; o.tats.push(L.tat); if (L.isQL) o.qlC = (o.qlC || 0) + 1; }
+function addLead(o, L){ o.crm++; if (L.isQL) o.ql++; if (isNum(L.created)){ var lcD = dayOf(L.created); if (!(o.lastCrm >= lcD)) o.lastCrm = lcD; } if (L.tat !== null && L.tat !== undefined){ o.ts += L.tat; o.called++; o.tats.push(L.tat); if (L.isQL) o.qlC = (o.qlC || 0) + 1; }
   if (L.manager !== undefined){ o.mgrN = o.mgrN || {}; o.mgrN[L.manager] = (o.mgrN[L.manager] || 0) + 1; }
   if (isNum(L.wh)){ o.wsum += L.wh; o.whs.push(L.wh); } if (L.sla === "Pending"){ o.pendO += L.pendO || 0; o.pendW += L.pendW || 0; }
   if (L.status !== undefined){ var st = L.status || "(no status)"; o.statusN[st] = (o.statusN[st] || 0) + 1; } if (L.sla === "Within SLA") o.win++; if (L.sla !== "Invalid timestamp") o.elig++; if (L.sla === "Pending") o.pend++; }
@@ -1251,7 +1264,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       var a = metaAds[key];
       if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, imp: 0, clk: 0, brand: brandOf(camp)}); metaOrder.push(key); }
       if (inc && rch !== null){ a.reach = (a.reach || 0) + rch; a.reachRows = (a.reachRows || 0) + 1; }
-      if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1; metaResults += ui; metaRowsIn++; }
+      if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1; metaResults += ui; metaRowsIn++; if (ui > 0 && eD !== null && !(a.lastUi >= eD)) a.lastUi = eD; }
       else if (part){ a.partial = true; partialRows++; }
     }
   }
@@ -1391,7 +1404,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
               spend: 0, ui: 0, imp: 0, clk: 0, metaAds: 0, nAds: 0, adsets: {}, crmOnly: 0, nocamp: !!a.nocamp}); order.push(key); }
       if (a.uiExcluded) gr.uiExcluded = true;
       gr.nAds++; gr.adsets[a.adset.toLowerCase()] = 1;
-      if (a.src === "M"){ gr.metaAds++; if (a.partial) gr.partial = true; else { gr.spend += a.spend; gr.ui += a.ui; gr.imp += a.imp || 0; gr.clk += a.clk || 0; } } else gr.crmOnly += a.crm;
+      if (a.src === "M"){ gr.metaAds++; if (a.partial) gr.partial = true; else { gr.spend += a.spend; gr.ui += a.ui; gr.imp += a.imp || 0; gr.clk += a.clk || 0; if (isNum(a.lastUi) && !(gr.lastUi >= a.lastUi)) gr.lastUi = a.lastUi; } } else gr.crmOnly += a.crm;
       if (!hasCtr){ gr.imp = null; gr.clk = null; }
       mergeLeads(gr, a); if (isNum(a.reach)){ gr.reach = (gr.reach || 0) + a.reach; gr.reachRows = (gr.reachRows || 0) + (a.reachRows || 0); }
     });
@@ -2261,6 +2274,7 @@ function viewTAT(){
 var PAGE_INFO = {
   overview: ["Overview", "Your results at a glance: money spent, leads received, lead quality and how fast leads were called."],
   trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
+  leaks: ["Lead leaks", "Paid leads that never reached TeleCRM, WhatsApp leads without a campaign, and ad accounts that spend but aren't synced."],
   reports: ["Reports", "The EBG daily and MTD reports (brand-wise, master, leader-wise), ready to check and download as Excel."],
   campaigns: ["Campaigns", "Every campaign with its spend, leads and cost. Click ▸ to see its ad sets and ads."],
   adsets: ["Ad sets", "The same numbers for each ad set, so you can see which audiences work."],
@@ -2277,7 +2291,7 @@ function pageTitle(){
   var info = PAGE_INFO[state.tab] || PAGE_INFO.overview, h = document.querySelector("header.top h1"), p = document.getElementById("period");
   if (h) h.textContent = info[0];
   if (p && state.R){ var pr = state.R.period;
-    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" ? "" : "  ·  Dates: " + rangeText(false));
+    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" ? "" : "  ·  Dates: " + rangeText(false));
     p.title = pr.metaStart !== null ? "Meta data available " + fDay(pr.metaStart) + " – " + fDay(pr.metaEnd) : "No Meta data in these dates yet"; }
 }
 var GLOSS = [
@@ -2679,6 +2693,128 @@ function repExport(o){
     .then(function(buf){ return dl.save({filename: fname, data: new Uint8Array(buf)}); }).then(function(){ toast("Excel saved"); })
     .catch(function(e){ if (e && e.code === "declined") return; toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
 }
+/* ================= Lead leaks: paid leads that don't reach TeleCRM, WhatsApp leads without a campaign, ad accounts not synced ================= */
+var WA_RE = /whatsapp|ctwa|\bwa\b|message|msg|chat/i;
+function leakState(){ if (!state.leak){ var y = todayDay() - 1, av = state.R && state.R.avail; if (av && isNum(av.max) && av.max < y) y = av.max; if (y < monthStartOf(todayDay())) y = todayDay();
+  state.leak = {preset: "month", from: monthStartOf(y), to: y}; } return state.leak; }
+function leakPreset(L, p){ var t = todayDay(), y = t - 1; L.preset = p;
+  if (p === "month"){ L.from = monthStartOf(t); L.to = t; } else if (p === "7"){ L.from = y - 6; L.to = y; } else if (p === "30"){ L.from = y - 29; L.to = y; } }
+function leakRun(){
+  var L = leakState(), rg = {from: Math.min(L.from, L.to), to: Math.max(L.from, L.to)};
+  L.status = "loading"; L.err = null; L.cov = null; render();
+  repLoad(rg.from, rg.to).then(function(d){ L.out = {R: processData(d.meta, d.crm, state.settings, rg), rg: rg, at: Date.now()}; L.status = "ready"; })
+    .catch(function(e){ L.status = "error"; L.err = e.message || String(e); }).then(function(){ if (state.tab === "leaks") render(); });
+}
+/* one row per lead-form campaign: Meta leads vs TeleCRM leads, and when each last got a lead */
+function leakCalc(R){
+  var forms = [], wa = [], noCamp = {};
+  (R.camps || []).forEach(function(c){
+    if (c.nocamp){ var src = String(c.campaign || "").replace(/^\(No campaign\)\s*[—-]\s*/, "") || "blank source", k = c.brand + "|" + src;
+      noCamp[k] = {brand: c.brand, src: src, n: (noCamp[k] ? noCamp[k].n : 0) + (c.crm || 0), wa: /whatsapp/i.test(src)}; return; }
+    if (!c.metaAds || !isNum(c.ui) || c.uiExcluded) return;
+    var miss = Math.max(0, c.ui - (c.crm || 0)), cpl = c.ui > 0 ? c.spend / c.ui : null;
+    var r = {brand: c.brand, campaign: c.campaign, spend: c.spend, ui: c.ui, crm: c.crm || 0, miss: miss, missP: c.ui > 0 ? miss / c.ui : null,
+      lost: isNum(cpl) ? miss * cpl : null, lastUi: isNum(c.lastUi) ? c.lastUi : null, lastCrm: isNum(c.lastCrm) ? c.lastCrm : null};
+    if (WA_RE.test(c.campaign)){ wa.push(r); return; }
+    /* a gap of 1–2 leads is normal (repeat submissions); flag only real gaps */
+    r.kind = c.ui < 3 || miss < 2 ? "ok" : !r.crm ? "none" : (miss >= 3 && isNum(r.lastUi) && isNum(r.lastCrm) && r.lastUi - r.lastCrm >= 2) ? "stopped" : (r.missP >= 0.2 && miss >= 3) ? "partial" : "ok";
+    forms.push(r); });
+  var leaks = forms.filter(function(r){ return r.kind !== "ok"; }).sort(function(a, b){ return (b.lost || 0) - (a.lost || 0); });
+  var nc = Object.keys(noCamp).map(function(k){ return noCamp[k]; }).filter(function(x){ return x.n > 0; }).sort(function(a, b){ return b.n - a.n; });
+  return {forms: forms, leaks: leaks, wa: wa.sort(function(a, b){ return (b.spend || 0) - (a.spend || 0); }), noCamp: nc,
+    lost: leaks.reduce(function(s0, r){ return s0 + (r.lost || 0); }, 0), missN: leaks.reduce(function(s0, r){ return s0 + r.miss; }, 0)};
+}
+var LEAK_KIND = {none: ["bad", "No leads reach TeleCRM"], stopped: ["bad", "Stopped reaching TeleCRM"], partial: ["warn", "Only some reach TeleCRM"], ok: ["good", "OK"]};
+function leakCovRun(){
+  var L = leakState(), rg = L.out ? L.out.rg : {from: L.from, to: L.to}; L.cov = {status: "loading"}; render();
+  Promise.resolve().then(function(){ if (!sb.client || sb.status !== "ready") throw new Error("Sign in to the team database first (Settings › Data connections)."); return provApi("meta", "coverage", {from: isoDay(rg.from), to: isoDay(rg.to)}); }).then(function(d){ L.cov = {status: "ready", list: d.accounts || [], at: d.at, rg: rg}; })
+    .catch(function(e){ L.cov = {status: "error", err: e.message === "NOAPI" ? "This check runs on the live dashboard (ebg-dashboard.vercel.app), where the Meta connection lives." : e.message}; })
+    .then(function(){ if (state.tab === "leaks") render(); });
+}
+function viewLeaks(){
+  var L = leakState(), S = state.settings, sec = el("section", {cls: "panel leak-page"});
+  var iso = function(d){ return isoDay(d); }, fromIso = function(v){ return v ? dayOf(Date.parse(v + "T00:00:00Z")) : null; };
+  var dIn = function(label, val, set){ var i = el("input", {type: "date", value: iso(val), max: iso(todayDay())}); i.addEventListener("change", function(){ var d = fromIso(i.value); if (isNum(d)){ set(d); L.preset = "custom"; render(); } }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), i); };
+  var pre = el("div", {cls: "seg", role: "radiogroup", "aria-label": "Period"}, [["month", "This month"], ["7", "Last 7 days"], ["30", "Last 30 days"]].map(function(p){
+    return el("button", {type: "button", role: "radio", "aria-checked": L.preset === p[0] ? "true" : "false", cls: L.preset === p[0] ? "on" : null, onclick: function(){ leakPreset(L, p[0]); render(); }}, p[1]); }));
+  sec.appendChild(el("div", {cls: "rep-controls"}, pre, dIn("From", L.from, function(d){ L.from = d; }), dIn("To", L.to, function(d){ L.to = d; }),
+    el("div", {cls: "rep-actions"}, el("button", {cls: "btn", type: "button", disabled: L.status === "loading" ? true : null, onclick: leakRun}, L.status === "loading" ? "Checking…" : "Find leaks"))));
+  if (!L.status){ sec.appendChild(el("div", {cls: "empty", text: "Pick the period and click Find leaks."})); return sec; }
+  if (L.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Comparing Meta leads with TeleCRM leads, campaign by campaign…"})); return sec; }
+  if (L.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't check: " + L.err})); return sec; }
+  var R = L.out.R, X = leakCalc(R), rg = L.out.rg, period = spanText(rg);
+  var waNoCamp = X.noCamp.filter(function(x){ return x.wa; }), waN = waNoCamp.reduce(function(s0, x){ return s0 + x.n; }, 0);
+  var cov = L.cov, unsynced = cov && cov.status === "ready" ? leakUnsynced(cov.list) : null;
+  /* summary */
+  var tile = function(kind, big, label, sub){ return el("div", {cls: "leak-tile leak-" + kind}, el("div", {cls: "leak-big", text: big}), el("div", {cls: "leak-lbl", text: label}), sub ? el("div", {cls: "small", text: sub}) : null); };
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Lead leaks · " + period}), el("span", {cls: "note", text: "Checked " + new Date(L.out.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". Fix the biggest one first."})));
+  sec.appendChild(el("div", {cls: "leak-tiles"},
+    tile(X.leaks.length ? "bad" : "good", X.leaks.length ? fINR(X.lost) : "None", "spent on form leads that didn't reach TeleCRM", X.leaks.length ? fInt(X.missN) + " leads · " + X.leaks.length + " campaign" + (X.leaks.length > 1 ? "s" : "") : "Every lead-form campaign is reaching TeleCRM"),
+    tile(waN ? "warn" : "good", waN ? fInt(waN) : "0", "WhatsApp leads not linked to a campaign", waN ? "Their campaigns' CPL and quality look worse than they are" : "All WhatsApp leads are linked"),
+    tile(!unsynced ? "mut" : unsynced.length ? "bad" : "good", !unsynced ? "?" : unsynced.length ? String(unsynced.length) : "0", "ad accounts spending but not synced", !unsynced ? "Click “Check ad accounts” below" : unsynced.length ? fINR(unsynced.reduce(function(s0, a){ return s0 + a.spend; }, 0)) + " of spend missing from the dashboard" : "All spending accounts are synced")));
+  /* 1. form leads not reaching TeleCRM */
+  var s1 = el("div", {cls: "group leak-sec"}, el("h3", {text: "1 · Form leads that don't reach TeleCRM"}),
+    el("p", {cls: "small", text: "For each lead-form campaign: leads Meta counted vs leads TeleCRM received with that campaign. A small gap is normal (people who submit twice); a big gap, or TeleCRM going quiet while Meta still gets leads, means the form isn't connected to TeleCRM."}));
+  if (!X.leaks.length) s1.appendChild(el("div", {cls: "msg ok", text: "✓ No leaks: every lead-form campaign's leads are reaching TeleCRM (" + X.forms.length + " campaigns checked)."}));
+  else {
+    var cols = [{k: "brand", label: "Brand", t: "text"}, {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "ui", label: "Meta leads", t: "int"}, {k: "crm", label: "In TeleCRM", t: "int"},
+      {k: "miss", label: "Missing", t: "int"}, {k: "missP", label: "Missing %", t: "rpct"}, {k: "lost", label: "Spent on missing leads", t: "rinr"},
+      {k: "lastUi", label: "Last Meta lead", t: "text", get: function(r){ return isNum(r.lastUi) ? fDay(r.lastUi) : "—"; }},
+      {k: "lastCrm", label: "Last TeleCRM lead", t: "text", get: function(r){ return isNum(r.lastCrm) ? fDay(r.lastCrm) : "Never"; }},
+      {k: "kind", label: "What's wrong", t: "text", nosort: true, get: function(r){ return LEAK_KIND[r.kind][1]; }, render: function(r){ var k = LEAK_KIND[r.kind];
+        return el("span", null, el("span", {cls: "pill " + k[0], text: k[1]}), r.kind === "stopped" ? el("div", {cls: "small", text: "since " + fDay(r.lastCrm + 1)}) : null); }}];
+    s1.appendChild(el("div", {cls: "rep-table"}, table("leak-forms", cols, X.leaks, {presorted: true})));
+    var otherNc = X.noCamp.filter(function(x){ return !x.wa && X.leaks.some(function(r){ return r.brand === x.brand; }); });
+    if (otherNc.length) s1.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Check first: TeleCRM has leads for " + otherNc.map(function(x){ return x.brand + " (" + fInt(x.n) + " from “" + x.src + "”)"; }).join(", ") + " saved without a campaign name. Some “missing” leads may be these. If so, the leads are in TeleCRM and only the campaign name isn't being passed. "}),
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ leakGoMap(); }}, "Link them to campaigns")));
+    s1.appendChild(el("details", {cls: "faq leak-fix", open: true}, el("summary", {text: "How to fix (in this order)"}), el("ol", null,
+      el("li", null, el("b", {text: "Recover the missed leads today. "}), "Meta keeps form leads for 90 days. In Meta Business Suite › All tools › Instant Forms (or the Page's Forms library), download each form's leads for " + period + ", then import them into TeleCRM so sales can call them."),
+      el("li", null, el("b", {text: "Check the form is connected. "}), "In TeleCRM's Facebook integration, check that the brand's Page is connected and that these forms are selected. New forms usually have to be added by hand, which is the most common reason for “No leads reach TeleCRM”."),
+      el("li", null, el("b", {text: "Check TeleCRM's access to the Page. "}), "Meta Business Settings › Integrations › Leads Access › pick the Page › CRMs: TeleCRM must be listed. If a Page admin changed or the connection expired, reconnect it in TeleCRM."),
+      el("li", null, el("b", {text: "Send a test lead. "}), "Use Meta's Lead Ads Testing Tool on the form, and confirm it arrives in TeleCRM within a few minutes with the campaign name filled in."),
+      el("li", null, el("b", {text: "Then check here again. "}), "From the next day, “Last TeleCRM lead” should match “Last Meta lead”."))));
+  }
+  sec.appendChild(s1);
+  /* 2. WhatsApp */
+  var s2 = el("div", {cls: "group leak-sec"}, el("h3", {text: "2 · WhatsApp leads without a campaign"}),
+    el("p", {cls: "small", text: "TeleCRM saves WhatsApp chats without the Meta campaign, so the dashboard can't count them for the Click-to-WhatsApp campaigns. Link each brand's WhatsApp leads to its WhatsApp campaigns once; after that, they count every day automatically."}));
+  if (waNoCamp.length){
+    var tb = el("tbody"); waNoCamp.forEach(function(x){ var camps = X.wa.filter(function(r){ return r.brand === x.brand; });
+      tb.appendChild(el("tr", null, el("td", {cls: "name", text: x.brand}), el("td", {text: x.src}), el("td", {cls: "num", text: fInt(x.n)}),
+        el("td", {cls: "small", text: camps.length ? camps.length + " WhatsApp campaign" + (camps.length > 1 ? "s" : "") + " · " + fINR(camps.reduce(function(s0, r){ return s0 + (r.spend || 0); }, 0)) + " spend · " + fInt(camps.reduce(function(s0, r){ return s0 + r.ui; }, 0)) + " chats in Meta" : "No WhatsApp campaign found for this brand in this period"}))); });
+    s2.appendChild(el("div", {cls: "tbl-wrap"}, el("table", {cls: "rt-table"}, el("thead", null, el("tr", null, ["Brand", "Source in TeleCRM", "Leads without campaign", "Its WhatsApp campaigns"].map(function(h){ return el("th", {text: h}); }))), tb)));
+    s2.appendChild(el("div", {cls: "row-add"}, el("button", {cls: "btn", type: "button", onclick: leakGoMap}, "Link WhatsApp leads to campaigns"),
+      el("span", {cls: "small", text: "Opens Settings › Brands & campaigns › Leads without a campaign. Per brand, click “Tick all WhatsApp campaigns”, then Save."})));
+  } else s2.appendChild(el("div", {cls: "msg ok", text: "✓ No unlinked WhatsApp leads in this period" + (X.wa.length ? " (" + X.wa.length + " WhatsApp campaigns)." : ".")}));
+  var waZero = X.wa.filter(function(r){ return r.ui >= 5 && !r.crm && !waNoCamp.some(function(x){ return x.brand === r.brand; }); });
+  if (waZero.length) s2.appendChild(el("div", {cls: "banner warn", text: "These WhatsApp campaigns had chats in Meta but no leads in TeleCRM at all: " + waZero.map(function(r){ return r.campaign + " (" + fInt(r.ui) + " chats)"; }).join("; ") + ". Check the WhatsApp number on those ads is the one connected to TeleCRM."}));
+  sec.appendChild(s2);
+  /* 3. ad accounts */
+  var s3 = el("div", {cls: "group leak-sec"}, el("h3", {text: "3 · Ad accounts spending but not synced"}),
+    el("p", {cls: "small", text: "Lists every ad account the Meta connection can see, with its spend in " + period + ". Accounts that spend but aren't synced make the dashboard's spend (and CPL) too low."}));
+  s3.appendChild(el("div", {cls: "row-add"}, el("button", {cls: "btn" + (cov ? " ghost" : ""), type: "button", disabled: cov && cov.status === "loading" ? true : null, onclick: leakCovRun}, cov && cov.status === "loading" ? "Checking Meta…" : cov ? "Check again" : "Check ad accounts")));
+  if (cov && cov.status === "error") s3.appendChild(el("div", {cls: "msg err", text: cov.err}));
+  if (cov && cov.status === "ready"){
+    var syncedIds = leakSyncedIds(), can = sbCanWrite();
+    var rows = cov.list.filter(function(a){ return a.spend > 0 || syncedIds[leakId(a.id)]; });
+    var tb3 = el("tbody"); rows.forEach(function(a){ var on = !!syncedIds[leakId(a.id)];
+      tb3.appendChild(el("tr", {cls: !on && a.spend > 0 ? "flag-bad" : null}, el("td", {cls: "name"}, a.name, el("div", {cls: "small", text: a.id + (a.active ? "" : " · not active")})),
+        el("td", {cls: "num", text: fINR(a.spend)}), el("td", null, on ? el("span", {cls: "pill good", text: "✓ Synced"}) : el("span", {cls: "pill bad", text: "✗ Not synced"})),
+        el("td", null, !on ? (can ? el("button", {cls: "btn ghost", type: "button", onclick: function(){ leakAddAccount(a); }}, "Add to sync") : el("span", {cls: "small", text: "An admin or editor can add it"})) : null))); });
+    s3.appendChild(rows.length ? el("div", {cls: "tbl-wrap"}, el("table", {cls: "rt-table"}, el("thead", null, el("tr", null, ["Ad account", "Spend " + period, "Dashboard", ""].map(function(h){ return el("th", {text: h}); }))), tb3))
+      : el("div", {cls: "small", text: "No ad account spent in this period."}));
+    s3.appendChild(el("p", {cls: "small", text: "Don't see an account here? The Meta connection can't see it yet. In Meta Business Settings › Users › System users, pick the dashboard's system user › Assign assets › Ad accounts › tick the account (View performance) › Save, then click Check again. Accounts owned by another business (e.g. an agency) must first be shared with EBG's Business Manager."}));
+  }
+  sec.appendChild(s3);
+  return sec;
+}
+function leakId(id){ return String(id).replace(/^act_/, ""); }
+function leakSyncedIds(){ var m = {}; (state.settings.metaAccounts || []).forEach(function(a){ if (a.on !== false) m[leakId(a.id)] = 1; }); return m; }
+function leakUnsynced(list){ var on = leakSyncedIds(); return (list || []).filter(function(a){ return a.spend > 0 && !on[leakId(a.id)]; }); }
+function leakAddAccount(a){ var S = state.settings, list = S.metaAccounts || (S.metaAccounts = []), ex = list.filter(function(x){ return leakId(x.id) === leakId(a.id); })[0];
+  if (ex) ex.on = true; else list.push({id: a.id, name: a.name, brand: "", on: true});
+  provSave(); render(); toast(a.name + " added. Its data arrives with the next automatic sync (within 30 minutes). Set its brand in Settings › Data connections if campaign names don't show it."); }
+function leakGoMap(){ state.tab = "settings"; state.setTab = "brands"; render(); setTimeout(function(){ var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({behavior: "smooth", block: "start"}); }, 80); }
 function viewChecks(){
   var R = state.R, box = el("div", {cls: "checks"}), infoBox = el("div", {cls: "checks"});
   var rank = {bad: 0, warn: 1, ok: 2, info: 3};
@@ -3875,7 +4011,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports,
+  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks,
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   pageTitle();

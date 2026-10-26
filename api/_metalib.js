@@ -102,4 +102,12 @@ async function accountDaily(accountId, from, to) {
   if (!name) { try { name = (await graph(GRAPH + "/" + id + "?fields=name")).name; } catch (e) { name = id; } }
   return { id, name, days: rows.map((r) => ({ date: String(r.date_start).slice(0, 10), spend: Math.round(n(r.spend) * 100) / 100, impressions: Math.round(n(r.impressions)) })) };
 }
-module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, accountFunds, accountBudgets, accountDaily, n };
+/* every ad account the token can see, with its spend for a date range (one call): finds accounts that spend but aren't synced */
+async function accountsSpend(from, to) {
+  const fields = "id,name,account_status,insights.time_range(" + JSON.stringify({ since: from, until: to }) + "){spend}";
+  const list = await all(GRAPH + "/me/adaccounts?fields=" + encodeURIComponent(fields) + "&limit=100", 10);
+  return list.map((a) => ({ id: a.id, name: a.name || a.id, active: a.account_status === 1, status: a.account_status,
+    spend: n(a.insights && a.insights.data && a.insights.data[0] && a.insights.data[0].spend) }))
+    .sort((x, y) => (y.spend - x.spend) || (y.active - x.active));
+}
+module.exports = { VER, COLS, graph, all, result, accountRows, adAccounts, accountsSpend, accountFunds, accountBudgets, accountDaily, n };
