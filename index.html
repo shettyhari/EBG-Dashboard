@@ -2545,6 +2545,11 @@ function repMasterTable(o){
   return {cols: cols, rows: rows, total: T, label: label};
 }
 /* ---------- template 4: leader-wise MTD ---------- */
+/* leader names as the reports will show them: for each campaign in the loaded data, the manager of most of its leads */
+function repCrmLeaders(){ var R = state.R; if (!R) return []; var camps = {}, out = {};
+  (R.allAds || R.ads || []).forEach(function(a){ var k = String(a.campaign || "").toLowerCase(), c = camps[k] || (camps[k] = {mgrN: {}}); for (var m in (a.mgrN || {})) c.mgrN[m] = (c.mgrN[m] || 0) + a.mgrN[m]; });
+  Object.keys(camps).forEach(function(k){ var best = null, bn = 0, M = camps[k].mgrN; for (var m in M){ if (!m || m === "(no manager)") continue; if (M[m] > bn){ bn = M[m]; best = m; } } if (best) out[best] = 1; });
+  return Object.keys(out).sort(); }
 function repLeaderOf(camp, mgrN){
   var RP = repS(state.settings);
   if (RP.leaderMode === "rules"){ var l = String(camp || "").toLowerCase();
@@ -3171,7 +3176,10 @@ function viewSettings(){
       ll.appendChild(el("div", {cls: "row-item"}, el("span", {cls: "row-n", text: String(i + 1)}), nm, el("span", {cls: "small", text: monLabel(mk) + " target"}), tg, wd,
         el("button", {cls: "icon-mini", type: "button", "aria-label": "Remove leader", title: "Remove leader", onclick: function(){ RP.leaders.splice(i, 1); setDirty(); render(); }}, "✕"))); });
     body.appendChild(card("Leaders", "Used by the Leader-wise report. A leader's spend and leads are those of the campaigns that belong to them. With TeleCRM, names must match the Assignee Manager name exactly; leaders found in TeleCRM but not listed here still appear in the report, without a target.",
-      mode, ll, el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ RP.leaders.push({name: "", words: []}); setDirty(); render(); }}, "+ Add leader"))));
+      mode, ll, el("div", {cls: "row-add"}, RP.leaderMode === "crm" ? el("button", {cls: "btn", type: "button", onclick: function(){ var got = repCrmLeaders(), have = {}, n = 0;
+        RP.leaders.forEach(function(L){ have[String(L.name || "").trim().toLowerCase()] = 1; });
+        got.forEach(function(nm){ if (!have[nm.toLowerCase()]){ RP.leaders.push({name: nm, words: []}); n++; } });
+        if (!got.length) toast("No TeleCRM managers in the loaded data yet. Load data first (Saved data or Lead data upload)."); else { toast(n ? "Added " + n + " leader" + (n > 1 ? "s" : "") + " from TeleCRM. Type their " + monLabel(mk) + " targets, then Save changes." : "All TeleCRM leaders are already listed."); setDirty(); render(); } }}, "Add leaders from TeleCRM") : null, el("button", {cls: "btn ghost", type: "button", onclick: function(){ RP.leaders.push({name: "", words: []}); setDirty(); render(); }}, "+ Add leader"))));
     var ns = el("input", {type: "text", value: RP.newStatuses, "aria-label": "New lead statuses"}); ns.addEventListener("input", function(){ RP.newStatuses = ns.value; setDirty(); });
     var tb = el("select", {"aria-label": "TAT basis"}, [["wh", "Working hours (Mon–Sat 10 AM–9 PM, holidays skipped)"], ["all", "All hours (clock time)"]].map(function(x){ return el("option", {value: x[0], selected: RP.tatBasis === x[0] ? true : null, text: x[1]}); }));
     tb.addEventListener("change", function(){ RP.tatBasis = tb.value; setDirty(); });
