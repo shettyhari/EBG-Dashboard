@@ -1703,8 +1703,34 @@ function matchQ(id, r, fields){ var q = (state.q[id] || "").trim().toLowerCase()
 /* ================= customize columns ================= */
 var COLS_KEY = "ebg-lead-dash-cols";
 var ID_KEYS = {brand: 1, campaign: 1, adset: 1, ad: 1, owner: 1, id: 1, period: 1, inc: 1, tree: 1, status: 1};
-function colPrefs(){ if (!state.colPrefs){ try { state.colPrefs = JSON.parse(localStorage.getItem(COLS_KEY) || "{}") || {}; } catch (e){ state.colPrefs = {}; } } return state.colPrefs; }
-function saveColPrefs(){ try { localStorage.setItem(COLS_KEY, JSON.stringify(state.colPrefs || {})); } catch (e) {} }
+/* ---------- personal view settings, per login (never shared): table columns + campaigns left out / kept in ----------
+   Kept in this browser per login, and in the team database (user_prefs, each person can only read / write their own row) so they follow you to other devices. */
+var MY_KEY = "ebg-my-prefs";
+function myKey(){ return MY_KEY + ":" + (typeof sb !== "undefined" && sb.email ? sb.email : "local"); }
+function myPrefs(){
+  if (!state.my || state.my._for !== myKey()){ var p = {}; try { p = JSON.parse(localStorage.getItem(myKey()) || "{}") || {}; } catch (e) { p = {}; }
+    if (!p.cols){ try { var old = JSON.parse(localStorage.getItem(COLS_KEY) || "null"); if (old && myKey() !== MY_KEY + ":local") p.cols = old; } catch (e) {} }   /* first time: keep the columns this browser had */
+    p._for = myKey(); state.my = p; state.colPrefs = null; }
+  return state.my; }
+function saveMyPrefs(){
+  var p = myPrefs(), c = Object.assign({}, p); delete c._for;
+  try { localStorage.setItem(myKey(), JSON.stringify(c)); } catch (e) {}
+  if (typeof sb !== "undefined" && sb.cfg && sb.status === "ready" && sb.email){ clearTimeout(saveMyPrefs._t); var email = sb.email;
+    saveMyPrefs._t = setTimeout(function(){ sb.client.from("user_prefs").upsert({email: email, prefs: c, updated_at: new Date().toISOString()}, {onConflict: "email"})
+      .then(function(r){ if (r && r.error && !/user_prefs|schema cache|does not exist/i.test(r.error.message)) toast("Your view settings were kept on this device only: " + r.error.message); }); }, 700); } }
+/* after sign-in: the copy saved online wins (other device); otherwise this device's copy is saved online */
+function myLoadOnline(){
+  if (!sb.cfg || sb.status !== "ready" || !sb.email) return Promise.resolve();
+  var key = myKey();
+  return sb.client.from("user_prefs").select("prefs").eq("email", sb.email).maybeSingle().then(function(r){
+    if (r.error || myKey() !== key) return;
+    if (r.data && r.data.prefs){ var p = Object.assign({}, r.data.prefs, {_for: key}); state.my = p; state.colPrefs = null; try { var c = Object.assign({}, p); delete c._for; localStorage.setItem(key, JSON.stringify(c)); } catch (e) {} if (state.raw) recompute(); else render(); }
+    else { var m = myPrefs(); if (m.cols || m.camps) saveMyPrefs(); } }).catch(function(){});
+}
+function colPrefs(){ var m = myPrefs(); if (!state.colPrefs) state.colPrefs = m.cols || (m.cols = {}); return state.colPrefs; }
+function saveColPrefs(){ myPrefs().cols = state.colPrefs || {}; saveMyPrefs(); }
+/* campaigns left out / kept in: your own list once you change it, otherwise the team default */
+function myCamps(){ var m = myPrefs(), S = state.settings || {}; return m.camps || {ex: (S.excludedCampaigns || []).slice(), inc: (S.includedCampaigns || []).slice(), team: true}; }
 function colLocked(c){ return !!(c.lock || ID_KEYS[c.k]); }
 /* columns to show for a table: saved choice, or each column's default */
 function visibleCols(id, cols){
@@ -2227,14 +2253,13 @@ function viewCrmData(){
   return sec;
 }
 function setCampaignExcluded(name, ex){
-  var S = state.settings, k = campKey(name);
-  S.excludedCampaigns = (S.excludedCampaigns || []).filter(function(n){ return campKey(n) !== k; });
-  S.includedCampaigns = (S.includedCampaigns || []).filter(function(n){ return campKey(n) !== k; });
+  var S = state.settings, k = campKey(name), C = myCamps();   /* only your own view changes */
+  C = {ex: (C.ex || []).filter(function(n){ return campKey(n) !== k; }), inc: (C.inc || []).filter(function(n){ return campKey(n) !== k; })};
   var fl = state.R && state.R.campFlags ? state.R.campFlags[k] : null;
-  if (ex){ if (!(fl && fl.nonLead && S.autoExcludeNonLead)) S.excludedCampaigns.push(clean(name)); }
-  else if (fl && fl.nonLead && S.autoExcludeNonLead) S.includedCampaigns.push(clean(name));
-  storeSettings(); recompute();
-  toast((ex ? "Results excluded (spend still counted): " : "Results counted again: ") + clean(name));
+  if (ex){ if (!(fl && fl.nonLead && S.autoExcludeNonLead)) C.ex.push(clean(name)); }
+  else if (fl && fl.nonLead && S.autoExcludeNonLead) C.inc.push(clean(name));
+  myPrefs().camps = C; saveMyPrefs(); recompute();
+  toast((ex ? "Results excluded (spend still counted): " : "Results counted again: ") + clean(name) + " · only in your view");
 }
 function excludedSection(){
   var R = state.R, editable = !!state.raw, list = (R.excluded || []).filter(function(x){ return brandOK(x.brand) || !x.inMeta; });
@@ -3578,7 +3603,10 @@ function viewSettings(){
       el("div", {cls: "row-add"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ D.keywords.push(["", ""]); setDirty(); render(); }}, "+ Add rule"))));
     body.appendChild(card("Campaigns to leave out of “Leads in UI”", "Their spend and CRM leads still count; only Meta's result number is ignored (for example traffic or engagement campaigns).",
       tog("s-autoex", "Leave out campaigns whose Meta result isn't a lead (landing page views, link clicks…) automatically", S.autoExcludeNonLead !== false),
-      area("s-excl", "Always leave out these campaigns (one exact name per line)", (S.excludedCampaigns || []).join("\n"), "You can also untick a campaign on the Campaigns page.", 4)));
+      area("s-excl", "Campaigns I leave out (one exact name per line) · only for me", (myCamps().ex || []).join("\n"), myPrefs().camps ? "Your own list: it changes only your view, reports and exports. You can also untick a campaign on the Campaigns page." : "You're using the team default. Change it here or untick a campaign on the Campaigns page to get your own list (only for you).", 4),
+      el("div", {cls: "row-add"}, myPrefs().camps ? el("button", {cls: "btn ghost", type: "button", onclick: function(){ delete myPrefs().camps; saveMyPrefs(); recompute(); toast("Back to the team default"); }}, "Use the team default again") : null,
+        myPrefs().camps && sbCanWrite() ? el("button", {cls: "btn ghost", type: "button", onclick: function(){ var C = myCamps(); S.excludedCampaigns = (C.ex || []).slice(); S.includedCampaigns = (C.inc || []).slice(); storeSettings(); toast("Your list is now the team default (for people without their own list, and Telegram alerts)"); render(); }}, "Make my list the team default") : null,
+        el("span", {cls: "small", text: "Team default: " + ((S.excludedCampaigns || []).length ? (S.excludedCampaigns || []).length + " campaign(s) left out" : "none left out")}))));
     body.appendChild(sourceMapPanel());
   }
   if (tab === "rules"){
@@ -3711,7 +3739,7 @@ function applySettings(){
   S.keywords = D.keywords.map(function(k){ return [String(k[0]).trim(), String(k[1]).trim()]; }).filter(function(k){ return k[0] && k[1]; });
   if (has("s-other")) S.showOther = !!get("s-other");
   if (has("s-autoex")) S.autoExcludeNonLead = !!get("s-autoex");
-  if (has("s-excl")) S.excludedCampaigns = lines("s-excl");
+  if (has("s-excl")){ var newEx = lines("s-excl"), C0 = myCamps(); if (JSON.stringify(newEx) !== JSON.stringify(C0.ex || [])){ myPrefs().camps = {ex: newEx, inc: (C0.inc || []).slice()}; saveMyPrefs(); } }
   if (has("s-osrc")) S.optSource = !!get("s-osrc");
   if (has("s-odate")) S.optDates = !!get("s-odate");
   if (has("s-odup")) S.optDedupe = !!get("s-odup");
@@ -5345,10 +5373,11 @@ function sbInit(){
 function sbSession(session){
   sb.email = session && session.user ? String(session.user.email || "").toLowerCase() : "";
   sb.user = session && session.user ? session.user : null;
-  if (!session){ sb.status = "signedout"; sb.role = null; return Promise.resolve(); }
+  if (!session){ sb.status = "signedout"; sb.role = null; state.my = null; state.colPrefs = null; return Promise.resolve(); }
   return sb.client.from("team_members").select("role").eq("email", sb.email).maybeSingle().then(function(r){
     if (r.error){ sb.status = "error"; sb.err = r.error.message; return; }
     sb.role = r.data ? r.data.role : null; sb.status = sb.role ? "ready" : "norole"; sb.err = ""; sb.msg = null;
+    state.my = null; state.colPrefs = null; if (sb.status === "ready") myLoadOnline();
     if (sb.confirmed){ sb.confirmed = false; setTimeout(function(){ toast("Email confirmed. You're signed in."); }, 300); }
   });
 }
@@ -5632,7 +5661,8 @@ function dbUpload(onStep){
 function isGoogle(){ return state.platform === "google" && state.source === "db"; }   /* uploaded files are always Meta */
 function platName(){ return isGoogle() ? "Google Ads" : "Meta Ads"; }
 /* settings the engine uses for the current platform: Meta-only rules (WhatsApp links, Facebook/Instagram source filter) don't apply to Google */
-function platS(S){ return isGoogle() ? Object.assign({}, S, {sourceMap: {}, optSource: false, platform: "Google Ads"}) : S; }
+function platS(S){ var m = myPrefs(), o = m.camps ? Object.assign({}, S, {excludedCampaigns: m.camps.ex || [], includedCampaigns: m.camps.inc || []}) : S;
+  return isGoogle() ? Object.assign({}, o, {sourceMap: {}, optSource: false, platform: "Google Ads"}) : o; }
 function dbLoad(range, onProgress){
   if (isGoogle()) return dbLoadGoogle(range, onProgress);
   var S = state.settings, cc = S.cols.crm, p = {meta: 0, crm: 0};

@@ -32,6 +32,12 @@ A campaign's brand comes from keywords in its name (e.g. `AAC` → Adhira & Appa
 - **Customize columns** on each report (saved in the browser); Excel uses the same columns unless *Export all columns* is ticked.
 - **Campaigns tab**: Campaign → Ad set → Ad tree with expand / collapse, search that opens matching branches, and sorting within each level. Totals add campaigns only; CTR, CPC and CPL are recalculated from totals. Excel gets a *Campaign hierarchy* sheet with outline groups.
 
+## Personal vs team settings
+
+- **Personal (per login, never affects anyone else):** table columns (Customize columns) and campaigns left out of / kept in "Leads in UI" (Campaigns page tick boxes, Settings › Brands & campaigns › "Campaigns I leave out"). Saved in this browser per login and in `user_prefs` (run `supabase/user-prefs.sql` once) so they follow you to other devices. Your reports and Excel exports use your view.
+- **Team (shared):** brands, brand rules, lead rules / QL statuses, report targets, leaders, ad accounts, WhatsApp links, holidays, column names. Changes are recorded in History.
+- **Team default campaigns:** used by people who haven't made their own list, and by the Telegram alerts. An admin / editor can set it with "Make my list the team default".
+
 ## Reports tab (EBG templates)
 
 Sidebar › **Reports**. Pick a report, brands (empty = all), dates, then **Generate**. **Export Excel** downloads exactly what is on screen (same columns, same order, numbers kept as numbers).
