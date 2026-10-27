@@ -197,6 +197,8 @@ On the Claude artifact, team saving uses the page's built-in shared storage inst
 
 ## Meta Marketing API (direct)
 
+**What counts as a Meta lead (the "Results" the sync stores):** Leads objective → form leads, else WhatsApp / Messenger chats started, else website (pixel) leads. Engagement / Messages → chats, else form / website leads. **Traffic → chats or leads when the campaign produced any (WhatsApp click-to-chat run as Traffic), otherwise landing page views / link clicks** (which the dashboard doesn't count as leads). Other objectives → form leads, chats or website leads. After this rule changed (27 Oct 2026), re-sync older dates once (Settings › Data connections › Sync now) so they're counted the same way. Overview and Trends explain any brand that spends but shows 0 Meta leads.
+
 1. In Meta Business Settings › Users › System users, create (or pick) a system user, give it the ad accounts under **Assigned assets**, and **Generate new token** with `ads_read`.
 2. In Vercel › Settings › Environment Variables add `META_ACCESS_TOKEN` with that token (optional `META_API_VERSION`, default `v23.0`), save and redeploy.
 3. In the dashboard › Lead data upload › **Meta Ads data from: Meta API (direct)** (or Settings), load the ad accounts, set each account's brand and press **Sync now**.

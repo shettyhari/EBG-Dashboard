@@ -502,6 +502,7 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 .ins-item{border:1px solid var(--line);border-left-width:3px;border-radius:5px;padding:8px 10px;margin-bottom:8px}.ins-item.ins-high{border-left-color:var(--bad)}.ins-item.ins-medium{border-left-color:var(--warn)}.ins-item.ins-low{border-left-color:var(--line)}
 .ins-top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:2px}.ins-brand{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .ins-title{font-weight:600;font-size:14px;line-height:1.35}.ins-detail{font-size:13px;margin-top:2px;line-height:1.45}.ins-action{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}.ins-empty{padding:6px 2px}
+.zl-note{line-height:1.55}.zl-note+.zl-note{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}.zl-note .linkbtn{margin-right:12px}
 .lcpl{margin-bottom:18px}.lcpl-line{font-size:13.5px;margin:2px 0}.lcpl-remark{font-size:13.5px;color:var(--muted);line-height:1.5}
 .rep-group-h{margin:18px 0 8px;font-size:16px}
 .act-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}.act-table td.act-remark{min-width:280px;white-space:normal;line-height:1.45}.act-table td{vertical-align:top}
@@ -4057,6 +4058,22 @@ function insightsPanel(){
   if ((D.errors || []).length) sec.appendChild(el("div", {cls: "small", style: "margin-top:8px;color:var(--muted)", text: "Couldn't check everything: " + D.errors.join("; ")}));
   return sec;
 }
+/* a brand that spends but shows 0 Meta leads: say why, and offer to count its left-out results (personal view) */
+function zeroLeadBanner(){
+  var R = state.R; if (!R || !R.brandRows) return null;
+  var notes = [];
+  R.brandRows.forEach(function(b){ if (!brandOK(b.brand) || !(b.spend > 0) || b.ui > 0) return;
+    var ex = (R.excluded || []).filter(function(x){ return x.brand === b.brand && x.excluded && x.inMeta; });
+    var inds = {}; ex.forEach(function(x){ x.indicators.forEach(function(i){ inds[i] = 1; }); });
+    var hidden = ex.reduce(function(s0, x){ return s0 + (x.ui || 0); }, 0);
+    notes.push(el("div", {cls: "zl-note"},
+      el("b", {text: b.brand + " shows 0 Meta leads"}), " although it spent " + fINR(b.spend) + " in these dates. ",
+      ex.length ? el("span", {text: "Its " + ex.length + " campaign" + (ex.length > 1 ? "s'" : "'s") + " Meta results are " + (Object.keys(inds).join(" / ") || "not leads") + " (" + fInt(hidden) + "), which aren't leads, so they aren't counted. If these campaigns send people to WhatsApp or a lead form, the Meta sync now counts the chats / leads instead of the clicks: sync these dates once (Settings › Data connections › Sync now) and the leads appear. If they are pure website-traffic campaigns, 0 leads is correct. "})
+        : el("span", {text: "Meta reports no lead or chat results for its ads in these dates. Check that its ad account is synced (Lead leaks › Check ad accounts) and that its campaigns run for leads or WhatsApp chats. "}),
+      ex.length && sbCanWrite() ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "connections"; render(); setTimeout(function(){ var e = document.getElementById("meta-panel"); if (e) e.scrollIntoView({behavior: "smooth", block: "start"}); }, 80); }}, "Sync these dates now") : null,
+      el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.brand = b.brand; state.tab = "campaigns"; render(); }}, "Open its campaigns"))); });
+  return notes.length ? el("div", {cls: "banner warn zl"}, notes) : null;
+}
 function viewTrends(){
   var gran = state.trendGran || "week", T = trendData(gran, brandOK), rows = T.rows;
   var chips = el("div", {cls: "chips", role: "group", "aria-label": "Group by"}, [["day", "By day"], ["week", "By week"], ["month", "By month"]].map(function(gx){
@@ -4077,7 +4094,8 @@ function viewTrends(){
     barChart("QL rate by " + unit, items, [{k: "qlRate", label: "Qualified leads ÷ CRM leads", cls: "s3", fmt: fPct}], {max: 1, legend: true}),
     barChart("TAT by " + unit, items, [{k: "tat", label: "Overall TAT (avg)", cls: "s1", fmt: fMin}, {k: "whAvg", label: "Working-hrs TAT (avg)", cls: "s3", fmt: fMin}], {legend: true, mark: state.R.slaMin,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + state.R.slaMin + " min")]})));
-  var ins = isGoogle() ? null : insightsPanel(), live = isGoogle() ? null : liveCplPanel();
+  var ins = isGoogle() ? null : insightsPanel(), live = isGoogle() ? null : liveCplPanel(), zl = zeroLeadBanner();
+  if (zl) sec.insertBefore(zl, sec.children[1] || null);
   return ins || live ? el("div", null, ins, live, sec) : sec;
 }
 
@@ -4241,6 +4259,7 @@ function viewOverview(){
       unm.map(function(a){ return a.brand + ": " + fInt(a.crm); }).join(", ") + "), so they aren't matched to Meta's Leads in UI. Map them to their Meta campaign to compare correctly."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); var e = document.getElementById("srcmap"); if (e) e.scrollIntoView({block: "start"}); }}, "Map campaigns")));
   var rb = reconBadge(); if (rb) sec.appendChild(rb);
+  var zlb = zeroLeadBanner(); if (zlb) sec.appendChild(zlb);
   sec.appendChild(gaSnapshot(T, prevTotals()));
   var grp = function(title, cards){ return el("div", {cls: "kpi-group"}, el("div", {cls: "eyebrow", text: title}), el("div", {cls: "kpis"}, cards)); };
   sec.appendChild(grp("Media", [

@@ -20,14 +20,16 @@ const act = (list, types) => { let s = 0; (list || []).forEach((a) => { if (type
 /* what Meta's "Results" column would show for the row, from the campaign objective */
 function result(r) {
   const obj = String(r.objective || "").toUpperCase(), A = r.actions || [];
-  const leads = act(A, ["onsite_conversion.lead_grouped"]) || act(A, ["lead"]) || act(A, ["leadgen.other"]);
+  const form = act(A, ["onsite_conversion.lead_grouped"]) || act(A, ["lead"]) || act(A, ["leadgen.other"]);
+  const web = act(A, ["offsite_conversion.fb_pixel_lead"]) || act(A, ["onsite_web_lead"]);   // website leads tracked by the pixel
   const msgs = act(A, ["onsite_conversion.messaging_conversation_started_7d"]);
   const lpv = act(A, ["landing_page_view"]), lc = act(A, ["link_click"]) || n(r.inline_link_clicks);
-  const L = [leads, "Leads (form)"], M = [msgs, "Messaging conversations started"];
-  if (/LEAD/.test(obj)) return leads > 0 ? L : msgs > 0 ? M : [0, ""];
-  if (/ENGAGEMENT|MESSAG/.test(obj)) return msgs > 0 ? M : leads > 0 ? L : [0, ""];
-  if (/TRAFFIC|LINK_CLICK/.test(obj)) return lpv > 0 ? [lpv, "Landing page views"] : lc > 0 ? [lc, "Link clicks"] : [0, ""];
-  return leads > 0 ? L : msgs > 0 ? M : [0, ""];
+  const L = [form, "Leads (form)"], W = [web, "Leads (website)"], M = [msgs, "Messaging conversations started"];
+  if (/LEAD/.test(obj)) return form > 0 ? L : msgs > 0 ? M : web > 0 ? W : [0, ""];
+  if (/ENGAGEMENT|MESSAG/.test(obj)) return msgs > 0 ? M : form > 0 ? L : web > 0 ? W : [0, ""];
+  // Traffic campaigns that send people to WhatsApp / a form / a lead page: count the chats or leads, not the clicks
+  if (/TRAFFIC|LINK_CLICK/.test(obj)) return msgs > 0 ? M : form > 0 ? L : web > 0 ? W : lpv > 0 ? [lpv, "Landing page views"] : lc > 0 ? [lc, "Link clicks"] : [0, ""];
+  return form > 0 ? L : msgs > 0 ? M : web > 0 ? W : [0, ""];
 }
 const COLS = ["date", "account_id", "account_name", "currency", "campaign", "adset", "ad", "spend", "results", "result_indicator", "impressions", "clicks", "reach", "ad_id"];
 /* daily ad-level rows for one ad account, as arrays in COLS order */
