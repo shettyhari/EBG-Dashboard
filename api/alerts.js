@@ -33,7 +33,9 @@ module.exports = async function handler(req, res) {
     if (!me || !me.role) return send(res, 401, { error: "Sign in with a team account first." });
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return send(res, 400, { error: "SUPABASE_SERVICE_ROLE_KEY is not set in Vercel." });
     const st = await sbFetch("team_settings?id=eq.1&select=settings"), S = (st && st[0] && st[0].settings) || {};
-    const rec = isRecipient(S, me.email), boss = me.role === "admin";
+    const rec = isRecipient(S, me.email);
+    // everything about alerts is visible to the recipient's own login only
+    if (!rec) return send(res, op === "status" ? 200 : 403, op === "status" ? { isRecipient: false } : { error: "Alerts are private to the alert recipient." });
     if (op === "status") {
       let link = null, bot = null; try { link = await A.chatOf(sbFetch); } catch (e) { return send(res, 200, { configured: T.configured(), setup: /alert_state|schema cache|does not exist/i.test(e.message), error: e.message, me: me.email, isRecipient: rec }); }
       if (T.configured()) { try { bot = (await T.tg("getMe")).username; } catch (e) { bot = null; } }
@@ -60,10 +62,10 @@ module.exports = async function handler(req, res) {
       await T.send(hit.chat.id, "✅ <b>EBG alerts connected</b> for " + T.esc(me.email) + ".\nYou'll get: Meta ad account changes (who changed what), CPL up / down alerts, and an update every 30 minutes.");
       return send(res, 200, { linked: true, name: who });
     }
-    if (op === "unlink") { if (!rec && !boss) return send(res, 403, { error: "Only the recipient or an admin can disconnect." }); await A.setState(sbFetch, "telegram", null); return send(res, 200, { ok: true }); }
-    if (op === "test") { if (!rec && !boss) return send(res, 403, { error: "Only the recipient or an admin can send a test." });
+    if (op === "unlink") { if (!rec) return send(res, 403, { error: "Only the recipient or an admin can disconnect." }); await A.setState(sbFetch, "telegram", null); return send(res, 200, { ok: true }); }
+    if (op === "test") { if (!rec) return send(res, 403, { error: "Only the recipient or an admin can send a test." });
       const ok = await A.deliver(sbFetch, "test", "👋 Test from the EBG dashboard (" + T.esc(me.email) + "). Alerts are working."); return send(res, ok ? 200 : 400, ok ? { ok } : { error: "Telegram isn't connected yet." }); }
-    if (op === "run") { if (!rec && !boss && me.role !== "editor") return send(res, 403, { error: "Not allowed." });
+    if (op === "run") { if (!rec) return send(res, 403, { error: "Not allowed." });
       const what = String(req.query.what || "summary");
       return send(res, 200, what === "activity" ? await A.runActivity(S, sbFetch, { force: true }) : await A.runSummary(S, sbFetch, { force: true })); }
     return send(res, 400, { error: "Unknown op" });

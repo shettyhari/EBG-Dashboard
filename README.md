@@ -67,7 +67,7 @@ Targets are entered month by month in **Settings › Report targets**: pick the 
 
 ## Telegram alerts
 
-Settings › **Alerts**. Sent to one person only (the shettyharikrishna login, changeable by an admin), in a private Telegram chat:
+Settings › **Alerts**. Private to one person (the shettyharikrishna login): only that login sees the Alerts tab and its History lines, and the server refuses alert requests from anyone else. Alerts go to that person's private Telegram chat:
 - **Ad account changes** — checked every 5 minutes from Meta's account activity log: who (person or app) changed what (budget, on/off, new or edited ads, targeting, bids…), on which campaign / ad set / ad, with old → new values when Meta gives them. Only new changes, never repeated.
 - **CPL alerts** — per brand, once today's CPL moves ±20% (adjustable) vs its last 7 days and/or vs yesterday, and when it crosses its target CPL (Report targets); again when it's back to normal. Only after a brand has 3+ leads today (adjustable).
 - **Update every 30 minutes** — live campaigns / ad sets / ads (total and per brand), today's spend, Meta leads, TeleCRM leads and CPL per brand with change vs 7 days, best and weakest brand today (CPL), brands spending with 0 leads, month best / weakest by CPQL.

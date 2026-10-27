@@ -2899,8 +2899,8 @@ function histLines(key, o, n){
   histDiff(o, n, []).forEach(function(x){ line(lab + (x.path.length ? " › " + x.path.join(" › ") : ""), x.o, x.n); }); return L;
 }
 function histEntryLines(e){ var d = e.detail || {}, L = [];
-  if (e.area === "settings"){ var K = d.keys || {}; Object.keys(K).sort(function(a, b){ return (a === "report" ? 0 : 1) - (b === "report" ? 0 : 1) || a.localeCompare(b); }).forEach(function(k){ var v = K[k] || []; L = L.concat(histLines(k, v[0], v[1])); });
-    if (!L.length) L.push({t: "Settings saved (no visible change)"}); return L; }
+  if (e.area === "settings"){ var K = d.keys || {}; Object.keys(K).filter(function(k){ return k !== "alerts" || alertsAllowed(); }).sort(function(a, b){ return (a === "report" ? 0 : 1) - (b === "report" ? 0 : 1) || a.localeCompare(b); }).forEach(function(k){ var v = K[k] || []; L = L.concat(histLines(k, v[0], v[1])); });
+    if (!L.length && !(d.keys && d.keys.alerts && !alertsAllowed())) L.push({t: "Settings saved (no visible change)"}); return L; }
   if (e.area === "upload"){ var parts = []; if (d.crm_file) parts.push("TeleCRM: " + d.crm_file + " (" + fInt(d.crm_rows) + " leads)"); if (d.meta_files && d.meta_files.length) parts.push("Meta: " + d.meta_files.join(", ") + " (" + fInt(d.meta_rows) + " rows)");
     var span = d.from ? " · data " + d.from + (d.to && d.to !== d.from ? " to " + d.to : "") : "";
     return [{t: (e.action === "deleted" ? "Deleted saved data: " : "Saved data: ") + (parts.join(" · ") || "upload #" + d.id) + span + (e.action === "deleted" && d.by ? " · it was saved by " + d.by : "")}]; }
@@ -2937,7 +2937,7 @@ function viewHistory(){
     el("label", {cls: "field rep-field hist-q"}, el("span", {cls: "small", text: "Search"}), q),
     el("div", {cls: "rep-actions"}, el("button", {cls: "btn ghost", type: "button", onclick: function(){ histLoad(); }}, "Refresh"))));
   var ql = F.q.trim().toLowerCase(), list = [];
-  H.rows.forEach(function(e){ if (F.who && e.actor !== F.who) return; if (F.area && e.area !== F.area) return; var lines = histEntryLines(e);
+  H.rows.forEach(function(e){ if (F.who && e.actor !== F.who) return; if (F.area && e.area !== F.area) return; var lines = histEntryLines(e); if (!lines.length) return;
     if (ql){ lines = lines.filter(function(l){ return (l.t + " " + histVal(l.o) + " " + histVal(l.n)).toLowerCase().indexOf(ql) >= 0 || e.actor.indexOf(ql) >= 0; }); if (!lines.length) return; }
     list.push({e: e, lines: lines}); });
   sec.appendChild(el("p", {cls: "small", text: "Every change anyone makes is recorded by the database, with the old and new value. Nobody can edit or delete this history. Automatic Meta syncs and n8n TeleCRM pushes aren't listed (see Settings › Data connections for those)."}));
@@ -3150,6 +3150,9 @@ function gadsPanel(){
 }
 /* ================= Settings › Alerts (Telegram) ================= */
 var ALERT_DEF = {activity: true, summary: true, cpl7: true, cplYday: true, cplTarget: true, pct: 20, minLeads: 3, quietFrom: 23, quietTo: 8, activityInQuiet: true, recipient: ""};
+/* only the alert recipient's own login sees anything about alerts (Settings › Alerts, its History lines) */
+function alertsAllowed(){ var e = String(sb.email || "").toLowerCase(), r = String(((state.settings || {}).alerts || {}).recipient || "").toLowerCase().trim();
+  return !!(sb.cfg && sb.status === "ready" && e && (r ? e === r : /^shettyharikrishna/.test(e))); }
 function alertsApi(op, params){ return provApi("alerts", op, params); }
 function alertsPanel(){
   var S = state.settings, A = state.alerts || (state.alerts = {}), C = Object.assign({}, ALERT_DEF, S.alerts || {}), box = el("div");
@@ -3180,7 +3183,7 @@ function alertsPanel(){
             .catch(function(e){ A.linking = false; A.msg = {kind: "err", text: e.message}; render(); }); })(); render(); })
         .catch(function(e){ A.linking = false; A.msg = {kind: "err", text: e.message}; render(); }); }}, A.linking ? "Waiting for START in Telegram…" : St.linked ? "Reconnect Telegram" : "Connect Telegram"));
     if (A.linking && A.linkUrl) acts.appendChild(el("a", {href: A.linkUrl, target: "_blank", rel: "noopener", cls: "linkbtn", text: "Open Telegram again"}));
-    if (St.linked && (St.isRecipient || St.role === "admin")){
+    if (St.linked && St.isRecipient){
       acts.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ alertsApi("test").then(function(){ toast("Test message sent to Telegram"); }).catch(function(e){ toast(e.message); }); }}, "Send test"));
       acts.appendChild(el("button", {cls: "btn ghost", type: "button", disabled: A.running ? true : null, onclick: function(){ A.running = true; render();
         alertsApi("run", {what: "summary"}).then(function(d){ toast(d.skipped || "Update sent to Telegram"); }).catch(function(e){ toast(e.message); }).then(function(){ A.running = false; A.log = undefined; A.status = A.status; render(); }); }}, A.running ? "Sending…" : "Send update now"));
@@ -3206,10 +3209,10 @@ function alertsPanel(){
     el("div", {cls: "small", text: "No updates or CPL alerts between these times (India time). Set both the same to never pause."}),
     el("div", {cls: "rep-controls"}, hours("quietFrom", "From"), hours("quietTo", "To")),
     tog("activityInQuiet", "Still send ad account changes during quiet hours (recommended: a change at night is worth knowing about)")));
-  if (St && St.role === "admin"){
+  if (St && St.isRecipient){
     var ri = el("input", {type: "email", value: C.recipient || "", placeholder: "shettyharikrishna@…", style: "max-width:320px"});
     ri.addEventListener("change", function(){ save("recipient", ri.value.trim().toLowerCase()); A.status = null; render(); });
-    box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Who gets alerts"}), el("div", {cls: "small", text: "Only this dashboard login can connect a Telegram chat. Leave empty for the shettyharikrishna login."}), ri)); }
+    box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Who gets alerts"}), el("div", {cls: "small", text: "Only this dashboard login sees the Alerts settings and can connect a Telegram chat. Leave empty for the shettyharikrishna login. Careful: if you change it to someone else, this tab disappears for you."}), ri)); }
   /* 3. recent */
   if (A.log === undefined && !A.logLoading){ A.logLoading = true; alertsApi("log", {n: 10}).then(function(d){ A.log = d.log || []; }).catch(function(){ A.log = null; }).then(function(){ A.logLoading = false; if (state.tab === "settings") render(); }); }
   if (A.log && A.log.length){ var ul = el("ul", {cls: "hist-lines"});
@@ -3460,6 +3463,7 @@ function viewSettings(){
   var tab = state.setTab; if (!tab){ try { tab = localStorage.getItem("ebg-set-tab"); } catch (e) {} }
   if (!SET_TABS.some(function(t){ return t[0] === tab; })) tab = sb.cfg ? "connections" : "brands";
   if (tab === "connections" && !sb.cfg) tab = "brands";
+  if (tab === "alerts" && !alertsAllowed()) tab = sb.cfg ? "connections" : "brands";
   var go = function(t){ state.setTab = t; try { localStorage.setItem("ebg-set-tab", t); } catch (e) {} render(); window.scrollTo(0, 0); };
   /* inputs keep their unsaved value while you switch sections */
   var val = function(id, cur){ return id in D.inputs ? D.inputs[id] : cur; };
@@ -3475,13 +3479,13 @@ function viewSettings(){
 
   var head = el("div", {cls: "set-head"},
     el("p", {cls: "small", text: (sb.cfg && sb.status === "ready" && sbCanWrite() ? "Changes are shared with your whole team when you save." : "Changes are saved in this browser.") + (editable ? "" : " Load data to see their effect on the report.")}));
-  var nav = el("div", {cls: "set-nav", role: "tablist", "aria-label": "Settings sections"}, SET_TABS.filter(function(t){ return t[0] !== "connections" || sb.cfg; }).map(function(t){
+  var nav = el("div", {cls: "set-nav", role: "tablist", "aria-label": "Settings sections"}, SET_TABS.filter(function(t){ return (t[0] !== "connections" || sb.cfg) && (t[0] !== "alerts" || alertsAllowed()); }).map(function(t){
     return el("button", {type: "button", role: "tab", "aria-selected": t[0] === tab ? "true" : "false", onclick: function(){ go(t[0]); }}, t[1]); }));
   var info = SET_TABS.filter(function(t){ return t[0] === tab; })[0];
   var body = el("div", {cls: "set-body"}, el("p", {cls: "set-lead", text: info[2]}));
   var needsSave = false;
 
-  if (tab === "alerts"){ body.appendChild(alertsPanel()); }
+  if (tab === "alerts" && alertsAllowed()){ body.appendChild(alertsPanel()); }
   if (tab === "connections"){
     body.appendChild(connStatusCard()); body.appendChild(provPanel("meta", false)); body.appendChild(gadsPanel()); body.appendChild(crmPushPanel());
   }
