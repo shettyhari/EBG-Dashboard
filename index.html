@@ -494,6 +494,7 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 .gbar .plat-pick{margin-right:8px}
 @media (max-width:760px){#plat-select{font-size:14px;max-width:30vw}}
 .gads-tbl td{vertical-align:middle}.set-body input[type=email],.group input[type=email]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit}#gads-panel .auto-box select{max-width:320px}.gads-tbl select{max-width:180px}
+.act-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}.act-table td.act-remark{min-width:280px;white-space:normal;line-height:1.45}.act-table td{vertical-align:top}
 .hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
 .hist-list{margin-top:8px}.hist-day{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px;font-weight:600}
 .hist-item{border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:8px;background:var(--panel)}
@@ -912,6 +913,7 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
       <button class="tab" role="tab" data-tab="ql" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span>QL statuses</span></button>
       <button class="tab" role="tab" data-tab="settings" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
       <button class="tab" role="tab" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3 2"/></svg><span>History</span></button>
+      <button class="tab" role="tab" data-tab="activity" aria-selected="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span>Ad account activity</span></button>
       <button class="tab" role="tab" data-tab="help" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.9"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/></svg><span>Help &amp; terms</span></button>
   </nav>
   <div class="side-foot"><div class="tagline">Every lead,<br>accounted for.<i></i></div></div>
@@ -2289,6 +2291,7 @@ var PAGE_INFO = {
   overview: ["Overview", "Your results at a glance: money spent, leads received, lead quality and how fast leads were called."],
   trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
   leaks: ["Lead leaks", "Paid leads that never reached TeleCRM, WhatsApp leads without a campaign, and ad accounts that spend but aren't synced."],
+  activity: ["Ad account activity", "Who changed what in the Meta ad accounts, in plain language, with what will happen next. Visible only to you."],
   history: ["History", "Who changed what, and when: settings, targets, remarks, saved data and team members, with the old and new value."],
   reports: ["Reports", "The EBG daily and MTD reports (brand-wise, master, leader-wise), ready to check and download as Excel."],
   campaigns: ["Campaigns", "Every campaign with its spend, leads and cost. Click ▸ to see its ad sets and ads."],
@@ -2306,7 +2309,7 @@ function pageTitle(){
   var info = PAGE_INFO[state.tab] || PAGE_INFO.overview, h = document.querySelector("header.top h1"), p = document.getElementById("period");
   if (h) h.textContent = info[0];
   if (p && state.R){ var pr = state.R.period;
-    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" || state.tab === "history" ? "" : "  ·  Dates: " + rangeText(false)) +
+    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" || state.tab === "history" || state.tab === "activity" ? "" : "  ·  Dates: " + rangeText(false)) +
       (isGoogle() && state.tab !== "settings" && state.tab !== "help" && state.tab !== "history" ? "  ·  Google Ads view: Leads in UI = Google conversions; Leads in CRM = TeleCRM leads whose UTM campaign is that Google campaign." : "");
     p.title = pr.metaStart !== null ? "Meta data available " + fDay(pr.metaStart) + " – " + fDay(pr.metaEnd) : "No Meta data in these dates yet"; }
 }
@@ -3219,6 +3222,62 @@ function alertsPanel(){
     A.log.forEach(function(l){ var txt = String(l.text).replace(/<[^>]+>/g, "").replace(/\n+/g, " · "); ul.appendChild(el("li", null, el("span", {cls: "hist-old", style: "text-decoration:none", text: new Date(l.at).toLocaleString("en-IN", {day: "numeric", month: "short", hour: "numeric", minute: "2-digit"}) + " · " + l.kind + " · "}), el("span", {text: txt.length > 220 ? txt.slice(0, 217) + "…" : txt}))); });
     box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Last alerts sent"}), ul)); }
   return box;
+}
+/* ================= Ad account activity (who changed what), private to the alert recipient's login ================= */
+var ACT_TYPES = [["", "All changes"], ["budget", "Budget"], ["status", "On / off"], ["created", "New"], ["targeting", "Targeting / audience"], ["bidding", "Bidding"], ["creative", "Creative"], ["approved", "Review"], ["billing", "Billing / limits"], ["other", "Other"]];
+var ACT_TYPE_OF = {audience: "targeting", rejected: "approved", payfail: "billing", cap: "billing", stopped: "billing", schedule: "other", rename: "other", access: "other", learning: "other", delivery: "other"};
+function actLoad(sync){
+  var A = state.act || (state.act = {days: 7, f: {brand: "", who: "", impact: "", type: "", q: ""}});
+  A.status = sync ? "syncing" : "loading"; A.err = null; render();
+  (sync ? alertsApi("activity-sync").then(function(d){ A.syncMsg = (d.events ? d.events + " new change" + (d.events > 1 ? "s" : "") : "No new changes") + (d.errors && d.errors.length ? " · couldn't read: " + d.errors.join("; ") : "") + (d.skipped ? " · " + d.skipped : ""); }) : Promise.resolve())
+    .then(function(){ return alertsApi("activity", {days: A.days}); })
+    .then(function(d){ A.rows = d.rows || []; A.at = Date.now(); A.status = "ready"; })
+    .catch(function(e){ A.status = "error"; A.err = e.message === "NOAPI" ? "This page works on the live dashboard (ebg-dashboard.vercel.app)." : /meta_activity|schema cache|does not exist/i.test(e.message) ? "setup" : e.message; })
+    .then(function(){ if (state.tab === "activity") render(); });
+}
+function viewActivity(){
+  var sec = el("section", {cls: "panel act-page"});
+  if (!alertsAllowed()){ sec.appendChild(el("div", {cls: "empty", text: "This page is private."})); return sec; }
+  var A = state.act || (state.act = {days: 7, f: {brand: "", who: "", impact: "", type: "", q: ""}}), F = A.f;
+  if (!A.status) actLoad(false);
+  var sel = function(label, val, opts, set){ var s = el("select", {"aria-label": label}, opts.map(function(o){ return el("option", {value: o[0], selected: String(val) === String(o[0]) ? true : null, text: o[1]}); }));
+    s.addEventListener("change", function(){ set(s.value); }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), s); };
+  var rows = A.rows || [], uniq = function(k){ var o = {}; rows.forEach(function(r){ if (r[k]) o[r[k]] = 1; }); return Object.keys(o).sort(); };
+  var q = el("input", {type: "search", cls: "search", placeholder: "Search campaign, ad, person…", value: F.q, "aria-label": "Search changes"});
+  q.addEventListener("input", function(){ F.q = q.value; clearTimeout(viewActivity._t); viewActivity._t = setTimeout(function(){ render(); var e = document.querySelector(".act-page input[type=search]"); if (e){ e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }, 250); });
+  sec.appendChild(el("div", {cls: "rep-controls"},
+    sel("Period", A.days, [[1, "Last 24 hours"], [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]], function(v){ A.days = +v; actLoad(false); }),
+    sel("Brand", F.brand, [["", "All brands"]].concat(uniq("brand").map(function(b){ return [b, b]; })), function(v){ F.brand = v; render(); }),
+    sel("Who", F.who, [["", "Everyone"]].concat(uniq("who").map(function(b){ return [b, b]; })), function(v){ F.who = v; render(); }),
+    sel("Type", F.type, ACT_TYPES, function(v){ F.type = v; render(); }),
+    sel("Impact", F.impact, [["", "Any impact"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]], function(v){ F.impact = v; render(); }),
+    el("label", {cls: "field rep-field hist-q"}, el("span", {cls: "small", text: "Search"}), q),
+    el("div", {cls: "rep-actions"}, el("button", {cls: "btn", type: "button", disabled: A.status === "syncing" || A.status === "loading" ? true : null, onclick: function(){ actLoad(true); }}, A.status === "syncing" ? "Checking Meta…" : "Check Meta now"))));
+  if (A.syncMsg) sec.appendChild(el("div", {cls: "small", style: "margin:-4px 0 8px", text: A.syncMsg}));
+  if (A.status === "loading" && !A.rows){ sec.appendChild(el("div", {cls: "empty", text: "Loading changes…"})); return sec; }
+  if (A.status === "error"){ sec.appendChild(A.err === "setup" ? el("div", {cls: "banner warn", text: "Not set up yet: run supabase/alerts.sql once in Supabase › SQL Editor. Changes are then collected every 5 minutes (the first run also loads the last 7 days)."}) : el("div", {cls: "msg err", text: A.err})); return sec; }
+  var ql = F.q.trim().toLowerCase();
+  var list = rows.filter(function(r){ if (F.brand && r.brand !== F.brand) return false; if (F.who && r.who !== F.who) return false; if (F.impact && r.impact !== F.impact) return false;
+    if (F.type){ var t = ACT_TYPE_OF[r.category] || r.category; if (F.type === "other" ? ACT_TYPES.some(function(x){ return x[0] && x[0] !== "other" && x[0] === t; }) : t !== F.type) return false; }
+    return !ql || [r.who, r.brand, r.account, r.campaign, r.adset, r.ad, r.object, r.what, r.status, r.remark].join(" ").toLowerCase().indexOf(ql) >= 0; });
+  var hi = list.filter(function(r){ return r.impact === "high"; }).length, people = {}; list.forEach(function(r){ people[r.who] = 1; });
+  sec.appendChild(el("div", {cls: "act-chips"}, el("span", {cls: "pill mut", text: list.length + " change" + (list.length === 1 ? "" : "s")}), el("span", {cls: "pill " + (hi ? "bad" : "good"), text: hi + " high impact"}),
+    el("span", {cls: "pill mut", text: Object.keys(people).length + " people / systems"}), el("span", {cls: "small", text: "Collected from Meta every 5 minutes · newest first"})));
+  if (!list.length){ sec.appendChild(el("div", {cls: "empty", text: rows.length ? "No changes match these filters." : "No changes in this period yet. Changes appear here within 5 minutes of being made in Ads Manager."})); return sec; }
+  var IMP = {high: ["bad", "High"], medium: ["warn", "Medium"], low: ["mut", "Low"]};
+  var cols = [
+    {k: "at", label: "When", t: "text", get: function(r){ return r.at; }, render: function(r){ var d = new Date(r.at); return el("span", {cls: "nowrap"}, d.toLocaleDateString("en-IN", {day: "numeric", month: "short"}), el("div", {cls: "small", text: d.toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"})})); }},
+    {k: "who", label: "Who", t: "text"},
+    {k: "brand", label: "Brand", t: "text", render: function(r){ return el("span", null, r.brand || "—", el("div", {cls: "small", text: r.account})); }},
+    {k: "campaign", label: "Campaign", t: "text", cls: "name", get: function(r){ return r.campaign || (r.level === "campaign" ? r.object : "") || "—"; }},
+    {k: "adset", label: "Ad set / Ad", t: "text", get: function(r){ return [r.adset || (r.level === "adset" ? r.object : ""), r.ad || (r.level === "ad" ? r.object : "")].filter(Boolean).join(" › ") || (r.level === "account" || r.level === "campaign" || !r.object || r.object === r.campaign ? "—" : r.object); }},
+    {k: "what", label: "What changed", t: "text", render: function(r){ return el("b", {text: r.what}); }},
+    {k: "status", label: "Status (before → after)", t: "text", get: function(r){ return r.status || "—"; }},
+    {k: "remark", label: "Remarks: what happens next", t: "text", cls: "act-remark"},
+    {k: "impact", label: "Impact", t: "text", get: function(r){ return (IMP[r.impact] || IMP.low)[1]; }, render: function(r){ var x = IMP[r.impact] || IMP.low; return el("span", {cls: "pill " + x[0], text: x[1]}); }}];
+  sec.appendChild(el("div", {cls: "rep-table act-table"}, table("act", cols, list, {presorted: !state.sort.act})));
+  sec.appendChild(el("p", {cls: "small", text: "Impact: High = changes delivery or results right away (on/off, budget ±20%+, targeting, bidding, rejected ads, payment problems). Medium = smaller budget moves, new ads, creative or schedule edits. Low = names, approvals, routine billing. Budgets shown in ₹ per day as Meta reports them."}));
+  return sec;
 }
 function provPanel(pk, compact){
   var P = PROV[pk], SW = state.prov || (state.prov = {}), W = SW[pk] || (SW[pk] = {range: "last3"}), S = state.settings;
@@ -4288,6 +4347,8 @@ function render(){
   if (!state.R){ renderEmpty(); if (state.tab === "help"){ var hv = document.getElementById("view"); hv.textContent = ""; hv.appendChild(viewHelp()); var h1 = document.querySelector("header.top h1"); if (h1) h1.textContent = "Help & terms"; } return; }
   CUR = state.R.currency || "₹";
   if (isGoogle() && (state.tab === "adsets" || state.tab === "ads")) state.tab = "campaigns";   /* Google data is campaign-level */
+  var actBtn = document.querySelector('.tab[data-tab="activity"]'); if (actBtn) actBtn.hidden = !alertsAllowed();
+  if (state.tab === "activity" && !alertsAllowed()) state.tab = "overview";
   renderHeader();
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"), y = window.scrollY; v.textContent = ""; DRAWS = [];
@@ -4297,7 +4358,7 @@ function render(){
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
   var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks,
-             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, history: viewHistory, help: viewHelp};
+             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, history: viewHistory, activity: viewActivity, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   pageTitle();
   DRAWS.forEach(function(f){ try { f(true); } catch (e) { console.error(e); } });

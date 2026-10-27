@@ -75,6 +75,8 @@ Settings › **Alerts**. Private to one person (the shettyharikrishna login): on
 
 Numbers use the dashboard's definitions (Meta leads = lead / chat Results; excluded campaigns' leads left out; repeat TeleCRM leads left out).
 
+**Ad account activity page** (sidebar › Setup, visible only to the alert recipient's login): every Meta ad account change of the last 1 / 7 / 30 / 90 days as a table — When · Who · Brand · Campaign · Ad set / Ad · What changed · Status (before → after) · Remarks: what happens next · Impact (High / Medium / Low) — with filters (brand, person, type, impact, search) and **Check Meta now**. Changes are collected every 5 minutes even without Telegram; the first run also loads the last 7 days.
+
 **Setup (10 minutes):**
 1. Telegram › **@BotFather** › `/newbot` › name it (e.g. *EBG Alerts*) › copy the token.
 2. Vercel › Settings › Environment Variables › `TELEGRAM_BOT_TOKEN` = token › Save › Redeploy.
