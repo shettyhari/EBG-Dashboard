@@ -495,6 +495,7 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 @media (max-width:760px){#plat-select{font-size:14px;max-width:30vw}}
 .gads-tbl td{vertical-align:middle}.set-body input[type=email],.group input[type=email]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit}#gads-panel .auto-box select{max-width:320px}.gads-tbl select{max-width:180px}
 .rep-table td.act-remark{min-width:320px;white-space:normal;line-height:1.45}.rep-table td.nowrap{white-space:nowrap}
+.lcpl{margin-bottom:18px}.lcpl-line{font-size:13.5px;margin:2px 0}.lcpl-remark{font-size:13.5px;color:var(--muted);line-height:1.5}
 .rep-group-h{margin:18px 0 8px;font-size:16px}
 .act-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}.act-table td.act-remark{min-width:280px;white-space:normal;line-height:1.45}.act-table td{vertical-align:top}
 .hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
@@ -3954,6 +3955,50 @@ function trendCols(){ var R = state.R, up = function(k){ return function(r){ ret
     {k: "whAvg", label: "Working-hrs TAT (avg)", t: "min"}, {k: "whMed", label: "Working-hrs TAT (median)", t: "min", def: false},
     {k: "pend", label: "Not Contacted", t: "int"},
     {k: "sla", label: "SLA %", t: "pct", flag: function(r){ return isNum(r.sla) && r.sla < R.slaTarget ? "warn" : null; }}]; }
+/* ================= Trends › Live CPL updates (same as the Telegram CPL alerts, in plain language; private to the alert recipient) ================= */
+function lcplLoad(){
+  var L = state.lcpl || (state.lcpl = {}); if (L.loading) return; L.loading = true;
+  alertsApi("cpl", {n: 60}).then(function(d){ L.now = d.now; L.events = d.events || []; L.at = Date.now(); L.err = null; })
+    .catch(function(e){ L.err = e.message === "NOAPI" ? "Live CPL updates work on ebg-dashboard.vercel.app." : /alert_log|alerts_brand_daily|schema cache|does not exist/i.test(e.message) ? "Run supabase/alerts.sql once in Supabase to switch this on." : e.message; })
+    .then(function(){ L.loading = false; if (state.tab === "trends") render(); });
+  if (!window._lcplTimer) window._lcplTimer = setInterval(function(){ if (state.tab === "trends" && alertsAllowed() && document.visibilityState !== "hidden") lcplLoad(); }, 5 * 60000);
+}
+function liveCplPanel(){
+  if (!alertsAllowed()) return null;
+  var L = state.lcpl || (state.lcpl = {}); if (!L.at && !L.loading && !L.err) lcplLoad();
+  var sec = el("section", {cls: "panel lcpl"});
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Live CPL updates"}),
+    el("span", {cls: "note"}, (L.at ? "Updated " + new Date(L.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + " · refreshes every 5 minutes · " : "") + "Same updates as Telegram. Only you see this. ",
+      el("button", {cls: "linkbtn", type: "button", disabled: L.loading ? true : null, onclick: function(){ lcplLoad(); render(); }}, L.loading ? "Refreshing…" : "Refresh now"))));
+  if (L.err){ sec.appendChild(el("div", {cls: "msg err", text: L.err})); return sec; }
+  if (!L.now){ sec.appendChild(el("div", {cls: "empty", text: "Loading today's CPL…"})); return sec; }
+  var pctTxt = function(v){ return isNum(v) ? (v > 0 ? "+" : "") + Math.round(v * 100) + "%" : "—"; };
+  var ST = {"CPL up": ["bad", "📈 CPL up"], "CPL down": ["good", "📉 CPL down"], "Above target": ["warn", "Above target"], "Normal": ["mut", "Normal"], "No leads yet": ["bad", "No leads yet"], "Too few leads yet": ["mut", "Too few leads yet"], "No spend today": ["mut", "No spend today"]};
+  var rows = L.now.rows.filter(function(r){ return brandOK(r.brand); });
+  var flag = function(v){ return !isNum(v) ? null : v >= L.now.pct ? "bad" : v <= -L.now.pct ? "good" : null; };
+  var cols = [{k: "brand", label: "Brand", t: "text", cls: "name"}, {k: "spend", label: "Spent today", t: "inr"}, {k: "leads", label: "Meta leads today", t: "int"},
+    {k: "cpl", label: "CPL today", t: "rinr"}, {k: "cpl7", label: "7-day average CPL", t: "rinr"}, {k: "ch7", label: "vs 7 days", t: "text", get: function(r){ return pctTxt(r.ch7); }, flag: function(r){ return flag(r.ch7); }},
+    {k: "cplYd", label: "Yesterday's CPL", t: "rinr"}, {k: "chYd", label: "vs yesterday", t: "text", get: function(r){ return pctTxt(r.chYd); }, flag: function(r){ return flag(r.chYd); }},
+    {k: "target", label: "Target CPL", t: "rinr"},
+    {k: "status", label: "Status", t: "text", render: function(r){ var x = ST[r.status] || ["mut", r.status]; return el("span", {cls: "pill " + x[0], text: x[1]}); }},
+    {k: "remark", label: "What it means / what to do", t: "text", cls: "act-remark"}];
+  sec.appendChild(el("h3", {cls: "rep-group-h", text: "CPL right now · " + new Date(Date.parse(L.now.day + "T00:00:00Z")).toLocaleDateString("en-IN", {day: "numeric", month: "short", timeZone: "UTC"})}));
+  sec.appendChild(rows.length ? el("div", {cls: "rep-table"}, table("lcpl-now", cols, rows, {presorted: true, stickyFirst: true})) : el("div", {cls: "empty", text: "No spend yet today for this brand."}));
+  sec.appendChild(el("p", {cls: "small", text: "Up / down = " + Math.round(L.now.pct * 100) + "% or more vs the brand's last 7 days or yesterday, once it has " + L.now.minLeads + "+ leads today (change this in Settings › Alerts). Today's numbers come from the Meta sync (every 30 minutes)."}));
+  var ev = (L.events || []).filter(function(e){ return brandOK(e.brand); }).slice(0, 30);
+  sec.appendChild(el("h3", {cls: "rep-group-h", text: "Recent CPL updates"}));
+  if (!ev.length) sec.appendChild(el("div", {cls: "empty", text: "No CPL moves yet. An update appears here (and in Telegram) when a brand's CPL moves up, down, crosses its target or goes back to normal; checked every 30 minutes."}));
+  else { var list = el("div", {cls: "hist-list"}), lastDay = null, IMP = {high: "bad", medium: "warn", low: "mut"};
+    ev.forEach(function(e){ var t = new Date(e.at), day = t.toLocaleDateString("en-IN", {weekday: "short", day: "numeric", month: "short"});
+      if (day !== lastDay){ list.appendChild(el("div", {cls: "hist-day", text: day})); lastDay = day; }
+      list.appendChild(el("div", {cls: "hist-item"},
+        el("div", {cls: "hist-meta"}, el("span", {cls: "hist-time", text: t.toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"})}), el("b", {cls: "hist-who", text: e.brand}),
+          el("span", {cls: "pill " + (IMP[e.impact] || "mut"), text: (e.band === "high" ? "📈 " : e.band === "low" ? "📉 " : "↔️ ") + e.what})),
+        el("div", {cls: "lcpl-line"}, el("b", {text: "Today " + fINR(e.cpl)}), " · " + (e.comparisons || []).map(function(c){ return "vs " + c.compared + " " + fINR(c.ref) + (isNum(c.change) ? " (" + pctTxt(c.change) + ")" : ""); }).join(" · ") + " · " + fInt(e.leads) + " leads for " + fINR(e.spend)),
+        el("div", {cls: "lcpl-remark", text: "💡 " + e.remark}))); });
+    sec.appendChild(list); }
+  return sec;
+}
 function viewTrends(){
   var gran = state.trendGran || "week", T = trendData(gran, brandOK), rows = T.rows;
   var chips = el("div", {cls: "chips", role: "group", "aria-label": "Group by"}, [["day", "By day"], ["week", "By week"], ["month", "By month"]].map(function(gx){
@@ -3974,7 +4019,8 @@ function viewTrends(){
     barChart("QL rate by " + unit, items, [{k: "qlRate", label: "Qualified leads ÷ CRM leads", cls: "s3", fmt: fPct}], {max: 1, legend: true}),
     barChart("TAT by " + unit, items, [{k: "tat", label: "Overall TAT (avg)", cls: "s1", fmt: fMin}, {k: "whAvg", label: "Working-hrs TAT (avg)", cls: "s3", fmt: fMin}], {legend: true, mark: state.R.slaMin,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + state.R.slaMin + " min")]})));
-  return sec;
+  var live = isGoogle() ? null : liveCplPanel();
+  return live ? el("div", null, live, sec) : sec;
 }
 
 /* ================= premium overview: KPI cards, trend chart, donuts ================= */

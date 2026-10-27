@@ -91,22 +91,51 @@ function cplChecks(S, N, c) {
   });
   return out;
 }
+/* a brand's CPL moves (vs 7 days / yesterday / target) as ONE plain-language update (same words on the dashboard and in Telegram) */
+function cplStory(list, N, changes) {
+  const b = list[0].b, t = N.td[b] || { leads: 0, spend: 0 }, nCh = (changes || {})[b] || 0;
+  const up = list.some((x) => !x.target && x.band === "high"), down = list.some((x) => !x.target && x.band === "low"), overT = list.some((x) => x.target && x.band === "high"), underT = list.some((x) => x.target && x.band === "low");
+  let what, remark, impact, band;
+  if (up) { what = "CPL went up"; band = "high"; impact = "high";
+    remark = "Leads are getting more expensive than usual. Check " + (nCh ? "the " + nCh + " ad account change" + (nCh > 1 ? "s" : "") + " made today (Ad account activity), " : "Ad account activity for changes, ") + "which ad set is taking the spend, and whether one ad's CPL jumped (Reports › Creative analysis)."; }
+  else if (overT) { what = "CPL is above target"; band = "high"; impact = "high"; remark = "Above the target CPL set in Report targets. Look at the costliest ad sets / ads and move budget to the cheaper ones."; }
+  else if (down) { what = "CPL went down"; band = "low"; impact = "medium"; remark = "Leads are cheaper than usual. If lead quality holds (check QL in TeleCRM), consider raising the best ad set's budget by up to 20% — bigger jumps can restart learning."; }
+  else if (underT) { what = "CPL is back under target"; band = "ok"; impact = "low"; remark = "Back under the target CPL — no action needed."; }
+  else { what = "CPL back to normal"; band = "ok"; impact = "low"; remark = "CPL is back in its usual range — no action needed."; }
+  if (up && overT) remark += " It is also above the target CPL.";
+  return { at: new Date().toISOString(), day: N.today, brand: b, band, what, cpl: list[0].cpl, leads: t.leads, spend: t.spend, changesToday: nCh, remark, impact,
+    comparisons: list.map((x) => ({ compared: x.target ? "target CPL" : x.label, ref: x.ref, change: x.target ? null : (x.ref ? x.cpl / x.ref - 1 : null), band: x.band })) };
+}
+function storyText(e) {
+  const icon = e.band === "high" ? "📈" : e.band === "low" ? "📉" : "↔️";
+  return icon + " <b>" + T.esc(e.what) + "</b> · <b>" + T.esc(e.brand) + "</b>\n" +
+    "Today " + inr(e.cpl) + " · " + (e.comparisons || []).map((c) => "vs " + c.compared + " " + inr(c.ref) + (c.change !== null && c.change !== undefined ? " (" + pct(c.change) + ")" : "")).join(" · ") +
+    "\n" + int(e.leads) + " leads for " + inr(e.spend) + " today\n💡 " + T.esc(e.remark);
+}
+async function changesToday(sbFetch) {   // ad account changes per brand since midnight (IST)
+  try { const since = new Date(Date.parse(istDay(0) + "T00:00:00Z") - 330 * 60000).toISOString();
+    const r = await sbFetch("meta_activity?select=brand&event_time=gte." + encodeURIComponent(since) + "&limit=2000") || [], o = {};
+    r.forEach((x) => { if (x.brand) o[x.brand] = (o[x.brand] || 0) + 1; }); return o; } catch (e) { return {}; }
+}
 async function runSummary(S, sbFetch, opt) {
   opt = opt || {}; const c = cfgOf(S);
-  if (!(await chatOf(sbFetch))) return { skipped: "Telegram isn't connected (Settings › Alerts)." };
-  if (inQuiet(c) && !opt.force) return { skipped: "Quiet hours." };
+  const chat = T.configured() ? await chatOf(sbFetch) : null, quiet = inQuiet(c) && !opt.force;
   const N = await brandNumbers(S, sbFetch), sent = [];
-  /* CPL alerts: only when a brand moves into a new band (high / low / back to normal), once per band per day */
+  /* CPL alerts: only when a brand moves into a new band (high / low / back to normal), once per band per day.
+     Always recorded for the dashboard (Trends › Live CPL updates); sent to Telegram when connected and outside quiet hours. */
   if (c.cpl7 || c.cplYday || c.cplTarget) {
-    const key = "cpl:" + N.today, st = (await getState(sbFetch, key)) || {}, msgs = [];
+    const key = "cpl:" + N.today, st = (await getState(sbFetch, key)) || {}, events = [], moved = {}, chg = await changesToday(sbFetch);
     cplChecks(S, N, c).forEach((x) => { const k = x.b + "|" + x.rule, prev = st[k];
       if (prev === x.band || (!prev && x.band === "ok") || (x.target && !prev && x.band === "low")) { st[k] = x.band; return; }
-      st[k] = x.band; const ch = x.cpl / x.ref - 1;
-      msgs.push((x.band === "high" ? "📈 <b>CPL up</b> · " : x.band === "low" ? "📉 <b>CPL down</b> · " : "↔️ <b>CPL back to normal</b> · ") + "<b>" + T.esc(x.b) + "</b>: today " + inr(x.cpl) +
-        (x.target ? (x.band === "high" ? " is above" : " is back under") + " target " + inr(x.ref) : " vs " + x.label + " " + inr(x.ref) + " (" + pct(ch) + ")") + " · " + int(N.td[x.b].leads) + " leads, " + inr(N.td[x.b].spend)); });
+      st[k] = x.band; (moved[x.b] = moved[x.b] || []).push(x); });
+    Object.keys(moved).forEach((b) => events.push(cplStory(cplChecks(S, N, c).filter((x) => x.b === b), N, chg)));
     await setState(sbFetch, key, st);
-    if (msgs.length) { await deliver(sbFetch, "cpl", msgs.join("\n")); sent.push("cpl:" + msgs.length); }
+    for (const e of events) await logSent(sbFetch, "cpl-event", JSON.stringify(e));
+    if (events.length && chat && !quiet) { await T.send(chat.chat_id, events.map(storyText).join("\n\n")); await logSent(sbFetch, "cpl", events.map(storyText).join("\n\n")); sent.push("cpl:" + events.length); }
+    else if (events.length) sent.push("cpl recorded:" + events.length);
   }
+  if (!chat) return { sent, skipped: "Telegram isn't connected (Settings › Alerts)." };
+  if (quiet) return { sent, skipped: "Quiet hours." };
   if (c.summary || opt.force) {
     const L = await liveCounts(S), brands = (S.brands || []).concat(Object.keys(N.mtd).filter((b) => (S.brands || []).indexOf(b) < 0 && b !== "Unmapped"));
     const t = Object.values(N.td).reduce((o, x) => ({ spend: o.spend + x.spend, leads: o.leads + x.leads, crm: o.crm + x.crm }), { spend: 0, leads: 0, crm: 0 });
@@ -133,4 +162,24 @@ async function runSummary(S, sbFetch, opt) {
   }
   return { sent };
 }
-module.exports = { cfgOf, runActivity, runSummary, getState, setState, deliver, chatOf, brandNumbers, cplChecks, liveCounts, DEF };
+/* every brand's CPL right now vs its 7-day average, yesterday and target (Trends › Live CPL updates) */
+async function cplNow(S, sbFetch) {
+  const c = cfgOf(S), N = await brandNumbers(S, sbFetch), lim = (+c.pct || 20) / 100, mk = N.today.slice(0, 7), M = (((S.report || {}).months || {})[mk] || {}).brands || {};
+  const chg = await changesToday(sbFetch), out = [];
+  const brands = (S.brands || []).concat(Object.keys(N.td).filter((b) => (S.brands || []).indexOf(b) < 0 && b !== "Unmapped"));
+  brands.forEach((b) => { const t = N.td[b], p7 = N.p7[b], yd = N.yd[b]; if (!t && !p7) return;
+    const cpl = cplOf(t), r7 = cplOf(p7), ry = cplOf(yd), tg = M[b] && Number(M[b].cpl) > 0 ? Number(M[b].cpl) : null, enough = t && t.leads >= (+c.minLeads || 3);
+    const band = (ref) => (!enough || !cpl || !ref ? null : cpl >= ref * (1 + lim) ? "high" : cpl <= ref * (1 - lim) ? "low" : "ok");
+    const b7 = band(r7), by = band(ry), bt = enough && cpl && tg ? (cpl > tg ? "high" : "ok") : null;
+    let status = !t || !t.spend ? "No spend today" : !t.leads && t.spend >= 500 ? "No leads yet" : !enough ? "Too few leads yet" : b7 === "high" || by === "high" ? "CPL up" : b7 === "low" || by === "low" ? "CPL down" : "Normal";
+    if (bt === "high" && status === "Normal") status = "Above target";
+    const remark = status === "CPL up" ? "Costlier than usual: check today's changes" + (chg[b] ? " (" + chg[b] + ")" : "") + ", the ad set taking the spend, and Creative analysis."
+      : status === "CPL down" ? "Cheaper than usual: if lead quality holds, the best ad set can take up to 20% more budget."
+      : status === "Above target" ? "In its usual range, but above the target CPL: shift budget to the cheaper ad sets."
+      : status === "No leads yet" ? "Spending " + inr(t.spend) + " today with no Meta leads — check the ads are delivering to the right form (Lead forms) and that nothing changed (Ad account activity)."
+      : status === "Too few leads yet" ? "Fewer than " + (+c.minLeads || 3) + " leads today, too early to judge CPL." : status === "No spend today" ? "Not spending today." : "In its usual range.";
+    out.push({ brand: b, spend: t ? t.spend : 0, leads: t ? t.leads : 0, crm: t ? t.crm : 0, cpl, cpl7: r7, ch7: cpl && r7 ? cpl / r7 - 1 : null, cplYd: ry, chYd: cpl && ry ? cpl / ry - 1 : null,
+      target: tg, status, remark, changesToday: chg[b] || 0 }); });
+  return { day: N.today, at: new Date().toISOString(), pct: lim, minLeads: +c.minLeads || 3, rows: out };
+}
+module.exports = { cfgOf, cplNow, cplStory, runActivity, runSummary, getState, setState, deliver, chatOf, brandNumbers, cplChecks, liveCounts, DEF };

@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
     if (!process.env.META_ACCESS_TOKEN) return send(res, 200, { skipped: "META_ACCESS_TOKEN is not set." });
     const st = await sbFetch("team_settings?id=eq.1&select=settings"), S = (st && st[0] && st[0].settings) || {};
     const mode = String((req.query && req.query.mode) || "summary");
-    if (mode !== "activity" && !T.configured()) return send(res, 200, { skipped: "TELEGRAM_BOT_TOKEN is not set." });   // changes are still saved for the dashboard
+    // without Telegram, changes and CPL moves are still recorded for the dashboard
     return send(res, 200, mode === "activity" ? await A.runActivity(S, sbFetch) : await A.runSummary(S, sbFetch));
   } catch (e) { return send(res, 502, { error: String((e && e.message) || e) }); }
 };
