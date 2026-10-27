@@ -19,10 +19,10 @@ module.exports = async function handler(req, res) {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return send(res, 400, { error: "SUPABASE_SERVICE_ROLE_KEY is not set in Vercel." });
     const secret = process.env.CRON_SECRET || "", given = String(req.headers["x-cron-secret"] || String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""));
     if (!((secret && given && same(given, secret)) || await keyOk(req.headers["x-cron-key"]))) return send(res, 401, { error: "Not allowed" });
-    if (!T.configured()) return send(res, 200, { skipped: "TELEGRAM_BOT_TOKEN is not set." });
     if (!process.env.META_ACCESS_TOKEN) return send(res, 200, { skipped: "META_ACCESS_TOKEN is not set." });
     const st = await sbFetch("team_settings?id=eq.1&select=settings"), S = (st && st[0] && st[0].settings) || {};
     const mode = String((req.query && req.query.mode) || "summary");
+    if (mode !== "activity" && !T.configured()) return send(res, 200, { skipped: "TELEGRAM_BOT_TOKEN is not set." });   // changes are still saved for the dashboard
     return send(res, 200, mode === "activity" ? await A.runActivity(S, sbFetch) : await A.runSummary(S, sbFetch));
   } catch (e) { return send(res, 502, { error: String((e && e.message) || e) }); }
 };

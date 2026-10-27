@@ -34,45 +34,26 @@ function brander(S) {
   return (acc, name) => (acc && acc.brand) || (function(){ const s = String(name || "").toLowerCase(); for (const k of kws) if (s.indexOf(k[0]) >= 0) return k[1]; return "Unmapped"; })();
 }
 
-/* ---------- 1. who changed what (Meta account activity log) ---------- */
-function extraText(x) {
-  let o = null; try { o = typeof x === "string" ? JSON.parse(x) : x; } catch (e) { return ""; }
-  if (!o || typeof o !== "object") return "";
-  const v = (z) => { if (z === null || z === undefined || z === "") return "(empty)"; if (typeof z === "object") { const s = JSON.stringify(z); return s.length > 80 ? s.slice(0, 77) + "…" : s; } return String(z).slice(0, 80); };
-  if ("old_value" in o || "new_value" in o) return v(o.old_value) + " → " + v(o.new_value);
-  return "";
-}
+/* ---------- 1. who changed what (Meta account activity log), in plain language ---------- */
+const ACT = require("./_activity");
+const IMPACT = { high: "🔴", medium: "🟠", low: "⚪" };
 async function runActivity(S, sbFetch, opt) {
   opt = opt || {}; const c = cfgOf(S);
-  if (!c.activity && !opt.force) return { skipped: "Change alerts are off." };
-  if (inQuiet(c) && !c.activityInQuiet && !opt.force) return { skipped: "Quiet hours." };
-  if (!(await chatOf(sbFetch))) return { skipped: "Telegram isn't connected (Settings › Alerts)." };
-  const accs = accountsOf(S); if (!accs.length) return { skipped: "No Meta ad accounts ticked." };
-  const st = (await getState(sbFetch, "activity")) || {}, next = Object.assign({}, st), events = [], errors = [];
-  const nowIso = new Date().toISOString();
-  await Promise.all(accs.map(async (a) => {
-    const id = actId(a.id), last = st[id];
-    if (!last) { next[id] = nowIso; return; }   // first run for this account: start from now, don't send old history
-    try {
-      const since = Math.floor(Date.parse(last) / 1000) - 120;
-      const list = await all(GRAPH + "/" + id + "/activities?fields=event_time,event_type,translated_event_type,actor_name,actor_id,object_name,object_type,object_id,extra_data,application_name&since=" + since + "&limit=100", 3);
-      let max = last;
-      list.forEach((e) => { const t = new Date(Date.parse(String(e.event_time).replace(/([+-]\d{2})(\d{2})$/, "$1:$2"))).toISOString();
-        if (t <= last) return; if (t > max) max = t; events.push(Object.assign({ _t: t, _acc: a }, e)); });
-      next[id] = max;
-    } catch (e) { errors.push((a.name || id) + ": " + e.message); }
-  }));
-  await setState(sbFetch, "activity", next);
-  if (!events.length) return { events: 0, errors };
-  events.sort((x, y) => (x._t < y._t ? -1 : 1));
-  const by = {}; events.forEach((e) => { const k = actId(e._acc.id); (by[k] = by[k] || []).push(e); });
-  const lines = ["🔔 <b>Meta ad account changes</b> (" + events.length + ")"];
-  Object.keys(by).forEach((k) => { const L = by[k], a = L[0]._acc;
-    lines.push("", "<b>" + T.esc(a.name || k) + "</b>" + (a.brand ? " · " + T.esc(a.brand) : ""));
-    L.slice(0, 25).forEach((e) => { const ex = extraText(e.extra_data);
-      lines.push("• " + timeIst(e.event_time) + " · <b>" + T.esc(e.actor_name || e.application_name || "Meta (automatic)") + "</b> · " + T.esc(e.translated_event_type || e.event_type) +
-        (e.object_name ? " · <i>" + T.esc(e.object_name) + "</i>" : "") + (ex ? " · " + T.esc(ex) : "")); });
-    if (L.length > 25) lines.push("… and " + (L.length - 25) + " more in Ads Manager › Activity history"); });
+  if (!c.activity && !opt.force) return { skipped: "Change tracking is off." };
+  if (!accountsOf(S).length) return { skipped: "No Meta ad accounts ticked." };
+  // always stored for the dashboard's Ad account activity page; Telegram only when connected
+  const r = await ACT.fetchAndStore(S, sbFetch, { getState, setState, backfillDays: 7 });
+  const events = r.fresh, errors = r.errors;
+  if (!events.length || opt.storeOnly) return { events: events.length, errors };
+  if (inQuiet(c) && !c.activityInQuiet && !opt.force) return { events: events.length, errors, telegram: "quiet hours" };
+  if (!T.configured() || !(await chatOf(sbFetch))) return { events: events.length, errors, telegram: "not connected" };
+  const lines = ["🔔 <b>Ad account changes</b> (" + events.length + ")"];
+  events.slice(0, 25).forEach((e) => { const d = ACT.describe(e), where = [e.campaign, e.adset && d.level !== "adset" ? e.adset : (d.level === "adset" ? e.adset || e.object_name : ""), e.ad].filter(Boolean);
+    lines.push("", IMPACT[d.impact] + " <b>" + T.esc(d.what) + "</b>" + (d.status ? " · " + T.esc(d.status) : ""),
+      "👤 " + T.esc(e.actor_name || e.application_name || "Meta (automatic)") + " · " + timeIst(e.event_time) + (e.brand ? " · " + T.esc(e.brand) : ""),
+      "📍 " + T.esc(where.length ? where.join(" › ") : (e.object_name || e.account_name)),
+      "💡 " + T.esc(d.remark)); });
+  if (events.length > 25) lines.push("", "… and " + (events.length - 25) + " more on the dashboard › Ad account activity");
   if (errors.length) lines.push("", "⚠️ Couldn't read: " + T.esc(errors.join("; ")));
   await deliver(sbFetch, "activity", lines.join("\n"));
   return { events: events.length, errors };

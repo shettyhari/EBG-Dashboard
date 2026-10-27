@@ -20,6 +20,32 @@ create index if not exists alert_log_at on public.alert_log (at desc);
 alter table public.alert_log enable row level security;
 revoke all on public.alert_log from anon, authenticated;            -- read through /api/alerts (team members)
 
+-- 1b. Meta ad account activity (who changed what), kept for the dashboard's "Ad account activity" page (private: read through /api/alerts)
+create table if not exists public.meta_activity (
+  ev_key           text primary key,
+  account_id       text not null,
+  account_name     text not null default '',
+  brand            text not null default '',
+  event_time       timestamptz not null,
+  event_type       text not null default '',
+  translated       text not null default '',
+  actor_name       text not null default '',
+  actor_id         text not null default '',
+  application_name text not null default '',
+  object_type      text not null default '',
+  object_id        text not null default '',
+  object_name      text not null default '',
+  level            text not null default '',
+  campaign         text not null default '',
+  adset            text not null default '',
+  ad               text not null default '',
+  extra            text,
+  stored_at        timestamptz not null default now()
+);
+create index if not exists meta_activity_time on public.meta_activity (event_time desc);
+alter table public.meta_activity enable row level security;
+revoke all on public.meta_activity from anon, authenticated;
+
 -- 2. brand × day numbers for the alerts, with the dashboard's definitions:
 --    Meta leads = Results of lead / chat rows (not link clicks, landing page views…), excluded campaigns left out;
 --    CRM leads = TeleCRM leads by created day, repeat leads (same person again) left out; ql = qualified leads.

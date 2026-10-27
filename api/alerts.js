@@ -1,5 +1,5 @@
 // Alerts (Settings › Alerts): connect the one person who gets Telegram alerts, send a test, send an update now, list recent alerts.
-//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity | log
+//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity | log | activity&days=7 | activity-sync
 // Vercel env: TELEGRAM_BOT_TOKEN, SUPABASE_SERVICE_ROLE_KEY (and META_ACCESS_TOKEN for the Meta parts).
 const crypto = require("crypto");
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
@@ -42,6 +42,15 @@ module.exports = async function handler(req, res) {
       return send(res, 200, { configured: T.configured(), bot, linked: link ? { name: link.name, email: link.email, at: link.at } : null, me: me.email, isRecipient: rec, role: me.role });
     }
     if (op === "log") { const r = await sbFetch("alert_log?select=at,kind,text&order=id.desc&limit=" + Math.min(50, +req.query.n || 20)); return send(res, 200, { log: r || [] }); }
+    if (op === "activity") {   // Ad account activity page: stored changes, explained
+      const days = Math.max(1, Math.min(90, +req.query.days || 7)), since = new Date(Date.now() - days * 864e5).toISOString();
+      const rows = await sbFetch("meta_activity?select=*&event_time=gte." + encodeURIComponent(since) + "&order=event_time.desc&limit=2000") || [];
+      const ACT = require("./_activity");
+      return send(res, 200, { days, rows: rows.map((r) => Object.assign({ at: r.event_time, who: r.actor_name || r.application_name || "Meta (automatic)", account: r.account_name, brand: r.brand,
+        campaign: r.campaign || "", adset: r.adset || "", ad: r.ad || "", object: r.object_name, meta: r.translated || r.event_type }, ACT.describe(r))) });
+    }
+    if (op === "activity-sync") { if (!process.env.META_ACCESS_TOKEN) return send(res, 400, { error: "META_ACCESS_TOKEN is not set in Vercel." });
+      return send(res, 200, await A.runActivity(S, sbFetch, { force: true, storeOnly: true })); }
     if (!T.configured()) return send(res, 400, { error: "TELEGRAM_BOT_TOKEN is not set in Vercel yet." });
     if (op === "link-start") {
       if (!rec) return send(res, 403, { error: "Only the alert recipient can connect their Telegram." });
