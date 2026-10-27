@@ -29,7 +29,7 @@ function result(r) {
   if (/TRAFFIC|LINK_CLICK/.test(obj)) return lpv > 0 ? [lpv, "Landing page views"] : lc > 0 ? [lc, "Link clicks"] : [0, ""];
   return leads > 0 ? L : msgs > 0 ? M : [0, ""];
 }
-const COLS = ["date", "account_id", "account_name", "currency", "campaign", "adset", "ad", "spend", "results", "result_indicator", "impressions", "clicks", "reach"];
+const COLS = ["date", "account_id", "account_name", "currency", "campaign", "adset", "ad", "spend", "results", "result_indicator", "impressions", "clicks", "reach", "ad_id"];
 /* daily ad-level rows for one ad account, as arrays in COLS order */
 async function accountRows(accountId, from, to) {
   const id = String(accountId).indexOf("act_") === 0 ? accountId : "act_" + accountId;
@@ -37,13 +37,13 @@ async function accountRows(accountId, from, to) {
   const q = new URLSearchParams({
     level: "ad", time_increment: "1", limit: "500", action_breakdowns: "action_type",
     time_range: JSON.stringify({ since: from, until: to }),
-    fields: "date_start,campaign_name,adset_name,ad_name,objective,spend,impressions,inline_link_clicks,reach,actions",
+    fields: "date_start,campaign_name,adset_name,ad_name,ad_id,objective,spend,impressions,inline_link_clicks,reach,actions",
   });
   const rows = await all(GRAPH + "/" + id + "/insights?" + q.toString(), 60);
   return rows.filter((r) => r.campaign_name).map((r) => {
     const rs = result(r);
     return [String(r.date_start).slice(0, 10), id, info.name || id, info.currency || "", String(r.campaign_name || ""), String(r.adset_name || ""), String(r.ad_name || ""),
-      Math.round(n(r.spend) * 100) / 100, rs[0], rs[1], Math.round(n(r.impressions)), Math.round(n(r.inline_link_clicks)), r.reach === undefined ? null : Math.round(n(r.reach))];
+      Math.round(n(r.spend) * 100) / 100, rs[0], rs[1], Math.round(n(r.impressions)), Math.round(n(r.inline_link_clicks)), r.reach === undefined ? null : Math.round(n(r.reach)), String(r.ad_id || "")];
   });
 }
 async function adAccounts() {

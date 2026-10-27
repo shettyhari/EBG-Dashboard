@@ -494,6 +494,8 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 .gbar .plat-pick{margin-right:8px}
 @media (max-width:760px){#plat-select{font-size:14px;max-width:30vw}}
 .gads-tbl td{vertical-align:middle}.set-body input[type=email],.group input[type=email]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit}#gads-panel .auto-box select{max-width:320px}.gads-tbl select{max-width:180px}
+.rep-table td.act-remark{min-width:320px;white-space:normal;line-height:1.45}.rep-table td.nowrap{white-space:nowrap}
+.rep-group-h{margin:18px 0 8px;font-size:16px}
 .act-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}.act-table td.act-remark{min-width:280px;white-space:normal;line-height:1.45}.act-table td{vertical-align:top}
 .hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
 .hist-list{margin-top:8px}.hist-day{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px;font-weight:600}
@@ -1088,7 +1090,8 @@ var META_SYN = {
   indicator: {exact: ["result indicator", "result type"], prefix: ["result indicator"]},
   impressions: {exact: ["impressions", "impr.", "impr"], prefix: ["impressions"]},
   reach: {exact: ["reach"], prefix: []},
-  clicks: {exact: ["link clicks", "clicks (link)", "outbound clicks", "clicks (all)", "clicks", "all clicks"], prefix: ["link clicks"]}
+  clicks: {exact: ["link clicks", "clicks (link)", "outbound clicks", "clicks (all)", "clicks", "all clicks"], prefix: ["link clicks"]},
+  adid: {exact: ["ad id", "ad_id", "adid", "ad id (meta)"], prefix: []}
 };
 function hn(x){ return String(x == null ? "" : x).replace(/\s+/g, " ").trim().toLowerCase(); }
 /* find a Meta field: the name set in Settings first, then Meta's usual names; exact match before prefix match */
@@ -1100,7 +1103,7 @@ function metaCol(H, field, setName){
   return -1;
 }
 function detectMetaColumns(H, cm){
-  var c = {}; ["campaign", "adset", "ad", "spend", "results", "leads", "start", "end", "indicator", "impressions", "clicks", "reach"].forEach(function(f){ c[f] = metaCol(H, f, cm && cm[f]); });
+  var c = {}; ["campaign", "adset", "ad", "spend", "results", "leads", "start", "end", "indicator", "impressions", "clicks", "reach", "adid"].forEach(function(f){ c[f] = metaCol(H, f, cm && cm[f]); });
   if (c.ad === c.adset) c.ad = -1;
   c.lead = c.results >= 0 ? c.results : c.leads;
   if (c.end === c.start) c.end = -1;
@@ -1279,6 +1282,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       metaRows++;
       var a = metaAds[key];
       if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, imp: 0, clk: 0, brand: brandOf(camp)}); metaOrder.push(key); }
+      if (c.adid >= 0){ var aidv = clean(r[c.adid]); if (aidv) String(aidv).split(/\s*,\s*/).forEach(function(x){ if (x && (!a.adId || (", " + a.adId + ", ").indexOf(", " + x + ", ") < 0)) a.adId = a.adId ? a.adId + ", " + x : x; }); }
       if (inc && rch !== null){ a.reach = (a.reach || 0) + rch; a.reachRows = (a.reachRows || 0) + 1; }
       if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1; metaResults += ui; metaRowsIn++; if (ui > 0 && eD !== null && !(a.lastUi >= eD)) a.lastUi = eD; }
       else if (part){ a.partial = true; partialRows++; }
@@ -1538,7 +1542,7 @@ function fDur(v){ if (!isNum(v)) return "N/A"; if (v < 59.95) return v.toFixed(1
 function fMin(v){ return fDur(v); }
 function fShortINR(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v); if (CUR !== "₹") return fINR(v); if (a >= 1e7) return "₹" + (v / 1e7).toFixed(2) + " Cr"; if (a >= 1e5) return "₹" + (v / 1e5).toFixed(2) + " L"; return fINR(v); }
 function fINR2(v){ return isNum(v) ? (v < 0 ? "-" : "") + CUR + Math.abs(v).toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "N/A"; }
-var FMT = {rint: function(v){ return isNum(v) ? fInt(v) : "—"; }, rinr: function(v){ return isNum(v) ? fINR(v) : "—"; }, rpct: function(v){ return isNum(v) ? Math.round(v * 100) + "%" : "—"; }, dt: function(v){ return isNum(v) ? fTime(v) : "—"; }, inr2: fINR2, int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
+var FMT = {rpct2: function(v){ return isNum(v) ? (v * 100).toFixed(2) + "%" : "—"; }, rint: function(v){ return isNum(v) ? fInt(v) : "—"; }, rinr: function(v){ return isNum(v) ? fINR(v) : "—"; }, rpct: function(v){ return isNum(v) ? Math.round(v * 100) + "%" : "—"; }, dt: function(v){ return isNum(v) ? fTime(v) : "—"; }, inr2: fINR2, int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
 
 /* ================= DOM helpers ================= */
 function el(tag, attrs){ var e = document.createElement(tag); if (attrs) for (var k in attrs){ var v = attrs[k];
@@ -2485,9 +2489,9 @@ function reconSection(){
 
 /* ================= Reports: EBG daily / MTD templates ================= */
 var REPORT_TYPES = [["brand_day", "FTD Brand-wise report"], ["leader_day", "FTD Leader-wise report"], ["brand_mtd", "MTD Brand-wise report"],
-  ["leader_mtd", "MTD Leader-wise report"], ["master", "Master report · FTD + MTD (platform, CRM, budget)"]];
+  ["leader_mtd", "MTD Leader-wise report"], ["master", "Master report · FTD + MTD (platform, CRM, budget)"], ["creative", "Creative analysis · top & bottom ads by CTR"]];
 /* FTD reports take a day (or a From–To range); MTD and master take a reporting date */
-function repIsRange(t){ return t === "brand_day" || t === "leader_day"; }
+function repIsRange(t){ return t === "brand_day" || t === "leader_day" || t === "creative"; }
 function repIsLeader(t){ return t === "leader_day" || t === "leader_mtd"; }
 function repState(){ if (!state.rep){ var y = todayDay() - 1, t = null, av = state.R && state.R.avail;
   /* default = latest complete day that has data (never today, which is still running) */
@@ -2647,7 +2651,37 @@ function repLeaderTable(o){
 function repUnmapped(o){ var R = o.R || o.mtd, listed = state.settings.brands, s0 = 0, n = 0;
   (R.allAds || []).forEach(function(a){ if (a.src === "M" && !a.partial && listed.indexOf(a.brand) < 0 && (a.spend || 0) > 0){ s0 += a.spend; n++; } }); return n ? {spend: s0, ads: n} : null; }
 function repUnmappedText(u){ return fINR(u.spend) + " of Meta spend (" + u.ads + " ad" + (u.ads > 1 ? "s" : "") + ") is in campaigns that don't match any brand, so it isn't in this report. Add the brand word in Settings › Brands & campaigns to include it."; }
-function repBuild(o){ return o.type === "master" ? repMasterTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
+/* ---------- Creative analysis: top and bottom ads by CTR (link clicks ÷ impressions), with the Meta Ad ID to find each creative in Ads Manager ---------- */
+function repCreativeTable(o){
+  var P = o.params, R = o.R, label = repDateLabel(o.rg.from, o.rg.to), minImp = Math.max(0, +P.minImp || 0), N = Math.max(1, +P.topN || 10);
+  var listed = state.settings.brands, okB = function(b){ return P.brands.length ? P.brands.indexOf(b) >= 0 : listed.indexOf(b) >= 0; };
+  var base = (R.ads || []).filter(function(a){ return a.src === "M" && !a.partial && okB(a.brand) && isNum(a.imp) && a.imp > 0 && isNum(a.clk); });
+  var ads = base.filter(function(a){ return a.imp >= minImp; }).sort(function(a, b){ return (b.ctr - a.ctr) || (b.imp - a.imp); });
+  var med = function(arr){ arr = arr.filter(isNum).sort(function(x, y){ return x - y; }); if (!arr.length) return null; var m = Math.floor(arr.length / 2); return arr.length % 2 ? arr[m] : (arr[m - 1] + arr[m]) / 2; };
+  var medCpl = med(ads.filter(function(a){ return a.ui > 0; }).map(function(a){ return a.spend / a.ui; })), medCtr = med(ads.map(function(a){ return a.ctr; }));
+  var quality = function(a){ return a.crm >= 5 && isNum(a.qlRate) && a.qlRate < 0.1 ? " Lead quality is low (" + Math.round(a.qlRate * 100) + "% qualified) — check targeting / form questions." : ""; };
+  var remark = function(a, top){ var cpl = a.ui > 0 ? a.spend / a.ui : null;
+    if (top){ if (!a.ui) return "Grabs attention but no Meta leads yet — people click and don't submit: check the form / landing page." + quality(a);
+      if (isNum(medCpl) && cpl <= medCpl) return "Winner: high CTR and CPL at or below the median (" + fINR(medCpl) + ") — scale it and use it as the model for new creatives." + quality(a);
+      return "Catches attention but leads cost more than the median (" + fINR(medCpl) + ") — keep the visual, test a shorter form or a clearer offer." + quality(a); }
+    if (!a.ui) return a.spend > 0 ? "Low CTR and no leads — pause it or replace the creative (new hook / visual)." : "Low CTR, no spend or leads yet.";
+    if (isNum(medCpl) && cpl <= medCpl) return "Low CTR but leads are cheap — keep it running; test a stronger hook or thumbnail to lift CTR." + quality(a);
+    return "Low CTR and costly leads — refresh the creative (new hook, visual or offer) or pause it." + quality(a); };
+  var row = function(a, i, grp, top){ return {group: grp, rank: i + 1, brand: a.brand, campaign: a.campaign, adset: a.adset, ad: a.ad, adId: a.adId || "", imp: a.imp, clk: a.clk, ctr: a.ctr,
+    spend: a.spend, cpc: a.clk > 0 ? a.spend / a.clk : null, ui: a.ui, cpl: a.ui > 0 ? a.spend / a.ui : null, crm: a.crm, ql: a.ql, qlRate: a.crm ? a.ql / a.crm : null, cpql: a.ql > 0 ? a.spend / a.ql : null, remark: remark(a, top),
+    _rk: "creative|" + label + "|" + a.key}; };
+  var topA = ads.slice(0, N), rest = ads.slice(topA.length), botA = rest.slice(-N).reverse();
+  var gTop = "Top " + topA.length + " by CTR", gBot = "Bottom " + botA.length + " by CTR";
+  var top = topA.map(function(a, i){ return row(a, i, gTop, true); }), bot = botA.map(function(a, i){ return row(a, i, gBot, false); });
+  var cols = [repCol("group", "Group", "text"), repCol("rank", "Rank", "rint"), repCol("brand", "Brand", "text"), repCol("campaign", "Campaign", "text", null, {cls: "name"}), repCol("adset", "Ad set", "text"),
+    repCol("ad", "Ad name", "text"), repCol("adId", "Ad ID", "text", null, {cls: "nowrap", get: function(r){ return r.adId || "—"; }}),
+    repCol("imp", "Impressions", "rint"), repCol("clk", "Link clicks", "rint"), repCol("ctr", "CTR", "rpct2", function(v){ return !isNum(v) || !isNum(medCtr) ? null : v >= medCtr * 1.2 ? "good" : v <= medCtr * 0.8 ? "bad" : null; }),
+    repCol("spend", "Spend", "rinr"), repCol("cpc", "CPC", "rinr"), repCol("ui", "Meta leads", "rint"), repCol("cpl", "CPL", "rinr"), repCol("crm", "CRM leads", "rint"), repCol("ql", "Qualified leads", "rint"),
+    repCol("qlRate", "QL rate", "rpct"), repCol("cpql", "CPQL", "rinr"), repCol("remark", "Remarks: what to do", "text", null, {cls: "act-remark"})];
+  return {cols: cols, rows: top.concat(bot), total: null, label: label, groups: [{title: gTop, rows: top}, {title: gBot, rows: bot}],
+    info: {compared: ads.length, small: base.length - ads.length, minImp: minImp, medCtr: medCtr, medCpl: medCpl, noCtr: !R.hasCtr, noIds: ads.length > 0 && !ads.some(function(a){ return a.adId; })}};
+}
+function repBuild(o){ return o.type === "master" ? repMasterTable(o) : o.type === "creative" ? repCreativeTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
 function repTypeLabel(t){ return (REPORT_TYPES.filter(function(x){ return x[0] === t; })[0] || ["", ""])[1]; }
 /* a multi-select dropdown (empty = all) */
 function repPicker(label, options, selected, onApply, key){
@@ -2677,6 +2711,11 @@ function viewReports(){
   else { ctr.appendChild(dateIn("Reporting date (cutoff)", P.cutoff, function(d){ P.cutoff = d; }));
     ctr.appendChild(el("div", {cls: "small rep-mtd", text: "MTD = " + repDateLabel(monthStartOf(P.cutoff), P.cutoff) + (P.type === "master" ? " · FTD = " + repDateLabel(P.cutoff, P.cutoff) : "")})); }
   ctr.appendChild(repPicker("Brands", S.brands.slice(), P.brands, function(a){ P.brands = a; }, "b"));
+  if (P.type === "creative"){ if (!isNum(P.minImp)) P.minImp = 1000; if (!isNum(P.topN)) P.topN = 10;
+    var mi = el("input", {type: "number", min: "0", step: "100", value: String(P.minImp), style: "width:110px", "aria-label": "Minimum impressions"}); mi.addEventListener("change", function(){ P.minImp = Math.max(0, +mi.value || 0); render(); });
+    var tn = el("select", {"aria-label": "How many top and bottom ads"}, [5, 10, 20, 50].map(function(n){ return el("option", {value: String(n), selected: P.topN === n ? true : null, text: "Top / bottom " + n}); })); tn.addEventListener("change", function(){ P.topN = +tn.value; render(); });
+    ctr.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Only ads with at least"}), el("span", null, mi, " impressions")));
+    ctr.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Show"}), tn)); }
   if (repIsLeader(P.type)){ var known = RP.leaders.map(function(L){ return L.name; }); if (O && O.out && repIsLeader(O.out.type)) repBuild(O.out).leaders.forEach(function(n){ if (known.indexOf(n) < 0) known.push(n); });
     ctr.appendChild(repPicker("Leaders", known, P.leaders, function(a){ P.leaders = a; }, "l")); }
   var built = O && O.status === "ready" ? O.out : null, stale = built && JSON.stringify(built.params) !== JSON.stringify(P);
@@ -2690,7 +2729,7 @@ function viewReports(){
   var goTargets = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; setDraft().repMonth = tMon; render(); }}, "Set " + monLabel(tMon) + " targets");
   if (repIsLeader(P.type)){ var noL = !RP.leaders.some(function(L){ return isNum(repLeaderTgt(L.name, bRg.from, bRg.to)); });
     if (noL) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No leader targets set for " + monLabel(tMon) + "; the target columns show “—”. "}), goTargets)); }
-  else if (missing.length) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
+  else if (missing.length && P.type !== "creative") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
   if (!O){ sec.appendChild(el("div", {cls: "empty", text: "Pick the report and dates, then click Generate."})); }
   else if (O.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Loading the data and calculating… (a month of data can take a few seconds)"})); }
   else if (O.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't build the report: " + O.err})); }
@@ -2702,12 +2741,24 @@ function viewReports(){
     var un = built.params.brands.length ? null : repUnmapped(built);
     if (un) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: repUnmappedText(un) + " "}), el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); }}, "Open brand settings")));
     if (!T.rows.length) sec.appendChild(el("div", {cls: "empty", text: "No rows for these options."}));
+    else if (T.groups){ var I = T.info;
+      if (I.noCtr) sec.appendChild(el("div", {cls: "banner warn", text: "This Meta data has no Impressions / Link clicks, so CTR can't be worked out. The Meta API sync includes them; for uploaded files, export with those columns."}));
+      if (I.noIds) sec.appendChild(el("div", {cls: "banner warn", text: "Ad IDs aren't in the data yet. After creative-report.sql is run, the next Meta sync (every 30 min) fills them in for the synced days; use Settings › Data connections › Sync now for older days."}));
+      sec.appendChild(el("p", {cls: "small", text: fInt(I.compared) + " ads with at least " + fInt(I.minImp) + " impressions compared" + (I.small ? " (" + fInt(I.small) + " smaller ads left out: too few impressions to judge CTR)" : "") + ". Median CTR " + (isNum(I.medCtr) ? (I.medCtr * 100).toFixed(2) + "%" : "—") + " · median CPL " + (isNum(I.medCpl) ? fINR(I.medCpl) : "—") + ". CTR ✓ = 20%+ above median, ✗ = 20%+ below. Copy an Ad ID and paste it into the Ads Manager search box to open the creative."}));
+      T.groups.forEach(function(g){ sec.appendChild(el("h3", {cls: "rep-group-h", text: g.title})); sec.appendChild(g.rows.length ? el("div", {cls: "rep-table"}, table("rep-creative-" + g.title.split(" ")[0], T.cols.filter(function(c){ return c.k !== "group"; }), g.rows, {presorted: true})) : el("div", {cls: "empty", text: "No ads with enough impressions in this period."})); }); }
     else sec.appendChild(el("div", {cls: "rep-table"}, table("rep-" + built.type, T.cols, T.rows, {total: T.total, presorted: true, totalBottom: true})));
     sec.appendChild(repHowCalc(built.type));
   }
   return sec;
 }
 function repHowCalc(type){
+  if (type === "creative") return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}), el("table", {cls: "help-gloss"}, el("tbody", null, [
+    ["CTR", "Link clicks ÷ impressions, per ad, for the chosen dates. Ads with fewer impressions than the minimum are left out (a few lucky clicks would make their CTR look huge)."],
+    ["Top / bottom", "All remaining ads ranked by CTR; the highest N and the lowest N (lowest first). An ad is never in both lists."],
+    ["Ad ID", "Meta's ID of the ad. Paste it into the Ads Manager search box to open the creative. Two IDs = two ads with the same name in that ad set."],
+    ["Meta leads / CPL", "Meta Results (lead forms and WhatsApp chats) and spend ÷ Meta leads, as everywhere in the dashboard."],
+    ["CRM leads / QL", "TeleCRM leads matched to this ad and how many are qualified; CPQL = spend ÷ qualified leads."],
+    ["Remarks", "Compared with the median CPL of the compared ads: winners to scale, attention-grabbers with costly leads, and weak creatives to refresh or pause."]].map(function(x){ return el("tr", null, el("td", {cls: "nowrap"}, el("b", {text: x[0]})), el("td", {text: x[1]})); }))));
   var RP = repS(state.settings), L = [
     ["Leads Achieved / Platform Lead Count", "Meta leads (form leads and WhatsApp chats started), the same as Leads in UI. Campaigns whose results aren't leads are left out."],
     ["CRM Lead Count", "TeleCRM leads created in the period (repeat leads left out if that setting is on)."],
@@ -2731,10 +2782,11 @@ function repExport(o){
   var title = (o.platform === "Google Ads" ? "Google Ads · " : "") + repTypeLabel(o.type), when = o.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(o.rg.from, o.rg.to) : T.label;
   var un = o.params.brands.length ? null : repUnmapped(o);
   var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + " · ✓/!/✗ colours: green on or above target, amber close, red off target" + (un ? " · Note: " + repUnmappedText(un) : ""), cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
+  var specs = T.groups ? T.groups.map(function(g){ return {name: g.title.slice(0, 31), title: title + " · " + g.title, note: when + " · ads with at least " + fInt(T.info.minImp) + " impressions · CTR = link clicks ÷ impressions · search the Ad ID in Ads Manager to open the creative", cols: cols.filter(function(c){ return c.k !== "group"; }), rows: g.rows, total: null, freeze: 2, keepBlank: true}; }) : [spec];
   var sub = "EBG Group · " + when + " · Generated " + new Date().toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
   var fname = "EBG " + title.replace(/[·\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + " " + (repIsRange(o.type) ? isoDay(o.rg.from) + (o.rg.to !== o.rg.from ? " to " + isoDay(o.rg.to) : "") : isoDay(o.rg.to)) + ".xlsx";
   toast("Building the workbook…");
-  loadExcelJS().then(function(ExcelJS){ return buildWorkbookExcelJS(ExcelJS, [spec], sub); }).catch(function(){ return buildWorkbookPlain([spec], sub); })
+  loadExcelJS().then(function(ExcelJS){ return buildWorkbookExcelJS(ExcelJS, specs, sub); }).catch(function(){ return buildWorkbookPlain(specs, sub); })
     .then(function(buf){ return dl.save({filename: fname, data: new Uint8Array(buf)}); }).then(function(){ toast("Excel saved"); })
     .catch(function(e){ if (e && e.code === "declined") return; toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
 }
@@ -3082,8 +3134,9 @@ function provSync(pk, W){
       var row = {_acc: r[C.account_id], source_file: P.prefix + (r[C.account_name] || r[C.account_id]) + " · " + aidL, campaign: camp, adset: adset, ad: ad, day: day, day_end: day,
         spend: Number(r[C.spend]) || 0, results: Number(r[C.results]) || 0, result_indicator: r[C.result_indicator] || "", currency: r[C.currency] || "INR",
         brand: brandFor[String(r[C.account_id]).replace(/^act_/, "")] || kw(camp), impressions: Number(r[C.impressions]) || 0, clicks: Number(r[C.clicks]) || 0,
-        reach: r[C.reach] === null ? null : Number(r[C.reach])};
+        reach: r[C.reach] === null ? null : Number(r[C.reach]), ad_id: C.ad_id >= 0 && r[C.ad_id] ? String(r[C.ad_id]) : ""};
       if (x){ x.spend = Math.round((x.spend + row.spend) * 100) / 100; x.results += row.results; x.impressions += row.impressions; x.clicks += row.clicks; x.reach = null;
+        if (row.ad_id && (", " + x.ad_id + ", ").indexOf(", " + row.ad_id + ", ") < 0) x.ad_id = x.ad_id ? x.ad_id + ", " + row.ad_id : row.ad_id;
         if (!x.result_indicator) x.result_indicator = row.result_indicator; }
       else mm[k] = row; });
     metaRows = Object.keys(mm).map(function(k){ return mm[k]; });
@@ -3101,7 +3154,7 @@ function provSync(pk, W){
   .then(function(){
     var now = new Date().toISOString(), B = 500, chain = Promise.resolve(), done = 0;
     for (var i = 0; i < metaRows.length; i += B) (function(batch){ chain = chain.then(function(){
-      return sb.client.from("meta_ad_rows").upsert(batch.map(function(x){ return Object.assign({}, x, {upload_id: uid, updated_at: now}); }), {onConflict: "campaign,adset,ad,day,day_end"})
+      return metaUpsert("meta_ad_rows", batch.map(function(x){ return Object.assign({}, x, {upload_id: uid, updated_at: now}); }), "campaign,adset,ad,day,day_end")
         .then(function(r){ if (r.error) throw r.error; done += batch.length; W.busy = "Saving… " + fInt(done) + " of " + fInt(metaRows.length); ["-sync", "-sync-up"].forEach(function(sfx){ var b = document.getElementById(pk + sfx); if (b) b.textContent = W.busy; }); }); }); })(metaRows.slice(i, i + B));
     return chain; })
   .then(function(){ W.busy = null;
@@ -4522,9 +4575,9 @@ function normaliseMeta(aoa, hi, S){
     var st = g(r, c.start), en = c.end >= 0 ? r[c.end] : st;
     var a = parseDT(st), b = parseDT(en);
     if (isNum(a)){ a = dayOf(a); from = from === null ? a : Math.min(from, a); } if (isNum(b)){ b = dayOf(b); to = to === null ? b : Math.max(to, b); }
-    rows.push([r[c.campaign], g(r, c.adset), g(r, c.ad), g(r, c.spend), g(r, c.lead), st, en, c.lead === c.results ? g(r, c.indicator) : "", g(r, c.impressions), g(r, c.clicks), g(r, c.reach)]);
+    rows.push([r[c.campaign], g(r, c.adset), g(r, c.ad), g(r, c.spend), g(r, c.lead), st, en, c.lead === c.results ? g(r, c.indicator) : "", g(r, c.impressions), g(r, c.clicks), g(r, c.reach), c.adid >= 0 ? String(g(r, c.adid) || "") : ""]);
   }
-  return {rows: rows, ctr: c.impressions >= 0 && c.clicks >= 0, reach: c.reach >= 0, level: level, currency: cur ? cur[1].toUpperCase() : "", missing: (c.spend < 0 ? ["Amount spent"] : []).concat(c.lead < 0 ? ["Results / Leads"] : []),
+  return {rows: rows, ctr: c.impressions >= 0 && c.clicks >= 0, reach: c.reach >= 0, adid: c.adid >= 0, level: level, currency: cur ? cur[1].toUpperCase() : "", missing: (c.spend < 0 ? ["Amount spent"] : []).concat(c.lead < 0 ? ["Results / Leads"] : []),
           leadCol: c.lead >= 0 ? String(H[c.lead]).trim() : "", from: from, to: to,
           campaigns: rows.reduce(function(m, r){ m[clean(r[0]).toLowerCase()] = 1; return m; }, {})};
 }
@@ -4537,6 +4590,7 @@ function combineMeta(files){
   var ctr = files.every(function(f){ return f.ctr; }); if (ctr) head = head.concat(["Impressions", "Link clicks"]);
   var rch = files.every(function(f){ return f.reach; }); if (rch) head = head.concat(["Reach"]);
   head = head.concat(["Brand"]);
+  var aidOn = level >= 3 && files.some(function(f){ return f.adid; }); if (aidOn) head = head.concat(["Ad ID"]);
   out = [head];
   /* the same campaign on the same day in two files: the file added later replaces the earlier one (no double counting) */
   var span = function(r){ var a = parseDT(r[5]), b = parseDT(r[6]); a = isNum(a) ? dayOf(a) : null; b = isNum(b) ? dayOf(b) : a; return a === null ? null : [a, Math.max(a, Math.min(b, a + 400))]; };
@@ -4547,7 +4601,7 @@ function combineMeta(files){
     var sp = span(r), later = false;
     if (sp) for (var d = sp[0]; d <= sp[1]; d++) if (lastFile[campKey(r[0]) + "|" + d] > fi){ later = true; break; }
     if (later){ dropped++; droppedFrom[f.name] = (droppedFrom[f.name] || 0) + 1; return; }
-    out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : []).concat(rch ? [r[10]] : []).concat([f.brand || ""]));
+    out.push([r[0]].concat(level >= 2 ? [r[1]] : []).concat(level >= 3 ? [r[2]] : []).concat([r[3], r[4], r[5], r[6], r[7]]).concat(ctr ? [r[8], r[9]] : []).concat(rch ? [r[10]] : []).concat([f.brand || ""]).concat(aidOn ? [r[11] || ""] : []));
     fileOf.push(f.name); }); });
   return {aoa: out, level: level, currencies: Object.keys(curs), fileOf: fileOf, dropped: dropped, droppedFrom: droppedFrom};
 }
@@ -4837,11 +4891,11 @@ function xlCols(cols){
 function xlVal(c, r){ return c.get ? c.get(r) : r[c.k]; }
 var XL = {ink: "FF111111", headFg: "FFFFFFFF", sub: "FF686868", faint: "FF9A9A9A", line: "FFDDDDDD", zebra: "FFF7F7F5", total: "FFECECE8",
   bad: "FFB42318", badBg: "FFFBE7E5", warn: "FF8A5D0B", warnBg: "FFFBF1DD", good: "FF1F7A4A", goodBg: "FFE6F2EB"};
-function xlNumFmt(t){ var c = (CUR || "₹").trim(); if (t === "rint") return "#,##0"; if (t === "rinr") return "#,##0"; if (t === "rpct") return "0%"; return t === "inr2" ? '"' + c + '"#,##0.00' : t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
+function xlNumFmt(t){ var c = (CUR || "₹").trim(); if (t === "rint") return "#,##0"; if (t === "rinr") return "#,##0"; if (t === "rpct") return "0%"; if (t === "rpct2") return "0.00%"; return t === "inr2" ? '"' + c + '"#,##0.00' : t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
 function xlSolid(argb){ return {type: "pattern", pattern: "solid", fgColor: {argb: argb}}; }
 function xlCellVal(c, v){
   if (c.t === "text") return v == null ? "" : String(v);
-  if (c.t === "rint" || c.t === "rinr" || c.t === "rpct") return isNum(v) ? (c.t === "rpct" ? Math.round(v * 10000) / 10000 : Math.round(v)) : "—";
+  if (c.t === "rint" || c.t === "rinr" || c.t === "rpct" || c.t === "rpct2") return isNum(v) ? (c.t === "rpct" ? Math.round(v * 10000) / 10000 : c.t === "rpct2" ? Math.round(v * 1000000) / 1000000 : Math.round(v)) : "—";
   if (c.t === "dt") return isNum(v) ? new Date(v) : "";
   if (!isNum(v)) return "N/A";
   return c.t === "pct" ? Math.round(v * 10000) / 10000 : Math.round(v * 100) / 100;
@@ -5512,7 +5566,7 @@ function dbAddToUpload(u, files, onStep){
   ["meta_ad_rows", "crm_leads"].forEach(function(t){ var rows = batches.filter(function(b){ return b[0] === t; }).map(function(b){ return Object.assign({}, b[1], {upload_id: u.id, updated_at: now}); });
     for (var i = 0; i < rows.length; i += B) jobs.push([t, rows.slice(i, i + B), t === "crm_leads" ? "lead_id" : "campaign,adset,ad,day,day_end"]); });
   var done = 0, chain = Promise.resolve();
-  jobs.forEach(function(jb){ chain = chain.then(function(){ return sb.client.from(jb[0]).upsert(jb[1], {onConflict: jb[2]}).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, batches.length); }); }); });
+  jobs.forEach(function(jb){ chain = chain.then(function(){ return metaUpsert(jb[0], jb[1], jb[2]).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, batches.length); }); }); });
   return chain.then(function(){ return crmRows.length ? dbRefreshDupes().catch(function(e){ console.warn("duplicate check", e); }) : null; })
     .then(function(){ return Promise.all([dbCount("meta_ad_rows", u.id, null), dbCount("crm_leads", u.id, null)]); }).then(function(c){
     var mf = (u.meta_files || []).slice(); metas.forEach(function(f){ if (mf.indexOf(f.name) < 0) mf.push(f.name); });
@@ -5582,8 +5636,9 @@ function dbRowsFromRaw(rawIn, crmName){
         spend: c.spend >= 0 ? Math.round(num(r[c.spend]) * 100) / 100 : 0, results: c.lead >= 0 ? num(r[c.lead]) : 0,
         result_indicator: c.indicator >= 0 && c.lead === c.results ? clean(r[c.indicator]) : "", currency: code, brand: brandOf(camp),
         impressions: c.impressions >= 0 ? Math.round(num(r[c.impressions])) : 0, clicks: c.clicks >= 0 ? Math.round(num(r[c.clicks])) : 0,
-        reach: c.reach >= 0 && !blank(r[c.reach]) ? Math.round(num(r[c.reach])) : null};
-      if (prevRow){ var nr = mm[mmk]; nr.spend = Math.round((nr.spend + prevRow.spend) * 100) / 100; nr.results += prevRow.results; nr.impressions += prevRow.impressions; nr.clicks += prevRow.clicks; nr.reach = null; }
+        reach: c.reach >= 0 && !blank(r[c.reach]) ? Math.round(num(r[c.reach])) : null, ad_id: c.adid >= 0 ? clean(String(r[c.adid] == null ? "" : r[c.adid])) : ""};
+      if (prevRow){ var nr = mm[mmk]; nr.spend = Math.round((nr.spend + prevRow.spend) * 100) / 100; nr.results += prevRow.results; nr.impressions += prevRow.impressions; nr.clicks += prevRow.clicks; nr.reach = null;
+        if (prevRow.ad_id && nr.ad_id !== prevRow.ad_id) nr.ad_id = [prevRow.ad_id, nr.ad_id].filter(Boolean).join(", "); }
     }
     out.meta = Object.keys(mm).map(function(k){ return mm[k]; });
   }
@@ -5651,7 +5706,7 @@ function dbUpload(onStep){
       var done = 0, chain = Promise.resolve();
       jobs.forEach(function(jb){ chain = chain.then(function(){
         var batch = jb[1].map(function(x){ return Object.assign({}, x, {upload_id: uid, updated_at: now}); });
-        return sb.client.from(jb[0]).upsert(batch, {onConflict: jb[2]}).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, rows.meta.length + rows.crm.length); }); }); });
+        return metaUpsert(jb[0], batch, jb[2]).then(function(r){ if (r.error) throw r.error; done += jb[1].length; if (onStep) onStep(done, rows.meta.length + rows.crm.length); }); }); });
       return chain; })
     .then(function(){ return rows.crm.length ? dbRefreshDupes().catch(function(e){ console.warn("duplicate check", e); }) : null; })
     .then(function(){ return {replaced: rows.replaced, id: uid, meta: rows.meta.length, crm: rows.crm.length, noDate: rows.noDate, level: rows.level, from: rows.from, to: rows.to}; });
@@ -5663,21 +5718,29 @@ function platName(){ return isGoogle() ? "Google Ads" : "Meta Ads"; }
 /* settings the engine uses for the current platform: Meta-only rules (WhatsApp links, Facebook/Instagram source filter) don't apply to Google */
 function platS(S){ var m = myPrefs(), o = m.camps ? Object.assign({}, S, {excludedCampaigns: m.camps.ex || [], includedCampaigns: m.camps.inc || []}) : S;
   return isGoogle() ? Object.assign({}, o, {sourceMap: {}, optSource: false, platform: "Google Ads"}) : o; }
+/* meta_ad_rows writes: if the database doesn't have the ad_id column yet (creative-report.sql not run), save without it */
+function metaUpsert(table, rows, onConflict){
+  var strip = function(x){ return x.map(function(r){ var o = Object.assign({}, r); delete o.ad_id; return o; }); };
+  if (table !== "meta_ad_rows") return sb.client.from(table).upsert(rows, {onConflict: onConflict});
+  return sb.client.from(table).upsert(sb.noAdId ? strip(rows) : rows, {onConflict: onConflict}).then(function(r){
+    if (r.error && !sb.noAdId && /ad_id/i.test(r.error.message || "")){ sb.noAdId = true; return sb.client.from(table).upsert(strip(rows), {onConflict: onConflict}); }
+    return r; }); }
 function dbLoad(range, onProgress){
   if (isGoogle()) return dbLoadGoogle(range, onProgress);
   var S = state.settings, cc = S.cols.crm, p = {meta: 0, crm: 0};
   var tell = function(){ if (onProgress) onProgress(p); };
-  var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach,brand").order("id");
+  var mq = function(){ var q = sb.client.from("meta_ad_rows").select("campaign,adset,ad,day,day_end,spend,results,result_indicator,currency,impressions,clicks,reach,brand" + (sb.noAdId ? "" : ",ad_id")).order("id");
     return range ? q.lte("day", isoDay(range.to)).gte("day_end", isoDay(range.from)) : q; };
   var cq = function(){ var q = sb.client.from("crm_leads").select("lead_id,created_on,lead_source,campaign,adset,ad,status,crm_brand,first_call,owner,manager,prev_lead,prev_created,dup_match,lead_name,phone,email").order("lead_id");
     return range ? q.gte("created_on", isoDay(range.from) + " 00:00:00").lt("created_on", isoDay(range.to + 1) + " 00:00:00") : q; };
-  return Promise.all([sbAll(mq, function(n){ p.meta = n; tell(); }), sbAll(cq, function(n){ p.crm = n; tell(); }),
+  var mAll = function(){ return sbAll(mq, function(n){ p.meta = n; tell(); }).catch(function(e){ if (!sb.noAdId && /ad_id/i.test((e && e.message) || "")){ sb.noAdId = true; return sbAll(mq, function(n){ p.meta = n; tell(); }); } throw e; }); };
+  return Promise.all([mAll(), sbAll(cq, function(n){ p.crm = n; tell(); }),
     sb.client.from("data_days").select("d").then(function(r){ if (r.error) throw r.error; return r.data; }),
     sb.client.from("team_settings").select("settings,updated_at,updated_by").eq("id", 1).maybeSingle().then(function(r){ return r.error ? null : r.data; })])
   .then(function(res){
     var cur = res[0].length ? res[0][0].currency : "INR";
-    var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach", "Brand"]]
-      .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach), m.brand || ""]; }));
+    var meta = [["Campaign name", "Ad set name", "Ad name", "Amount spent (" + cur + ")", "Results", "Reporting starts", "Reporting ends", "Result indicator", "Impressions", "Link clicks", "Reach", "Brand", "Ad ID"]]
+      .concat(res[0].map(function(m){ return [m.campaign, m.adset, m.ad, Number(m.spend), Number(m.results), m.day, m.day_end, m.result_indicator, Number(m.impressions || 0), Number(m.clicks || 0), m.reach === null || m.reach === undefined ? "" : Number(m.reach), m.brand || "", m.ad_id || ""]; }));
     var crm = [[cc.id, cc.created, cc.source, cc.campaign, cc.adset, cc.ad, cc.status, cc.brand, cc.firstCall, cc.owner, cc.manager, "Previous lead", "Previous lead created", "Duplicate match", "Name", cc.phone, cc.email]]
       .concat(res[1].map(function(l){ return [l.lead_id.indexOf("noid:") === 0 ? "" : l.lead_id, l.created_on ? l.created_on.replace("T", " ") : "", l.lead_source, l.campaign, l.adset, l.ad, l.status, l.crm_brand, l.first_call ? l.first_call.replace("T", " ") : "", l.owner, l.manager || "",
         l.prev_lead || "", l.prev_created ? l.prev_created.replace("T", " ") : "", l.dup_match || "", l.lead_name || "", l.phone || "", l.email || ""]; }));

@@ -92,7 +92,7 @@ module.exports = async function handler(req, res) {
     else { const ins = await sbFetch("uploads", { method: "POST", headers: { prefer: "return=representation" }, body: JSON.stringify([{ uploaded_by: "meta-auto-sync", meta_files: [AUTO_FILE], meta_rows: 0, crm_rows: 0, date_from: R.from, date_to: R.to }]) }); uid = ins[0].id; }
 
     const errors = [], done = [], files = new Set([AUTO_FILE]);
-    let rowsSaved = 0, olderDone = 0, idx = 0;
+    let rowsSaved = 0, olderDone = 0, idx = 0, noAdId = false;
     const took = { ms: 0, n: 0 };
     const save = async (job, raw) => {
       const mm = {};
@@ -100,8 +100,9 @@ module.exports = async function handler(req, res) {
         const camp = clean(r[4]), adset = clean(r[5]), ad = clean(r[6]), day = r[0]; if (!camp) return;
         const k = [camp, adset, ad, day].join("|~|"), x = mm[k];
         const row = { source_file: "Meta API · " + (r[2] || r[1]) + " · " + acctId(r[1] || job.a.id), campaign: camp, adset, ad, day, day_end: day, spend: r[7], results: r[8], result_indicator: r[9],
-          currency: r[3] || "INR", brand: job.a.brand || kw(camp), impressions: r[10], clicks: r[11], reach: r[12] };
-        if (x) { x.spend = Math.round((x.spend + row.spend) * 100) / 100; x.results += row.results; x.impressions += row.impressions; x.clicks += row.clicks; x.reach = null; if (!x.result_indicator) x.result_indicator = row.result_indicator; }
+          currency: r[3] || "INR", brand: job.a.brand || kw(camp), impressions: r[10], clicks: r[11], reach: r[12], ad_id: String(r[13] || "") };
+        if (x) { x.spend = Math.round((x.spend + row.spend) * 100) / 100; x.results += row.results; x.impressions += row.impressions; x.clicks += row.clicks; x.reach = null; if (!x.result_indicator) x.result_indicator = row.result_indicator;
+          if (row.ad_id && (", " + x.ad_id + ", ").indexOf(", " + row.ad_id + ", ") < 0) x.ad_id = x.ad_id ? x.ad_id + ", " + row.ad_id : row.ad_id; }
         else mm[k] = row;
       });
       const rows = Object.values(mm); if (!rows.length) return;
@@ -112,9 +113,12 @@ module.exports = async function handler(req, res) {
       for (let i = 0; i < camps.length; i += 40)
         await sbFetch("meta_ad_rows?campaign=in.(" + encodeURIComponent(camps.slice(i, i + 40).map(q).join(",")) + ")&day=gte." + job.from + "&day_end=lte." + job.to, { method: "DELETE" });
       const now = new Date().toISOString();
-      for (let i = 0; i < rows.length; i += 500)
-        await sbFetch("meta_ad_rows?on_conflict=campaign,adset,ad,day,day_end", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" },
-          body: JSON.stringify(rows.slice(i, i + 500).map((r) => Object.assign({}, r, { upload_id: uid, updated_at: now }))) });
+      for (let i = 0; i < rows.length; i += 500) {
+        const put = (strip) => sbFetch("meta_ad_rows?on_conflict=campaign,adset,ad,day,day_end", { method: "POST", headers: { prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(rows.slice(i, i + 500).map((r) => { const o = Object.assign({}, r, { upload_id: uid, updated_at: now }); if (strip) delete o.ad_id; return o; })) });
+        // before creative-report.sql is run the table has no ad_id column: save without it rather than fail
+        try { await put(noAdId); } catch (e) { if (!noAdId && /ad_id/i.test(e.message)) { noAdId = true; await put(true); } else throw e; }
+      }
       rowsSaved += rows.length;
     };
     const worker = async () => {
