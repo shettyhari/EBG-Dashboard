@@ -124,6 +124,13 @@ Recorded by the database (`supabase/change-history.sql`, run once in Supabase �
 
 Automatic jobs (Meta auto-sync, n8n TeleCRM push) are not logged.
 
+## Lead forms tab
+
+Sidebar › Campaigns › **Lead forms**: pick a brand (and dates with the date box) to see every Meta lead form with Ads, Amount spent, **Leads in Meta (UI)**, **Leads in CRM**, Difference, Lead sync %, **Qualified leads**, QL rate, CPL, CPQL, and Excel export.
+- Each ad is linked to the lead form in its creative (`/api/meta?op=forms`, ads_read); the ad's Meta leads, spend, TeleCRM leads and qualified leads add up to its form. Rows for WhatsApp / website ads ("Not a lead form"), ads without an Ad ID yet, and ads Meta can't read keep the totals honest.
+- Needs Ad IDs (`supabase/creative-report.sql`, then Sync now for older days).
+- Form names come from the Facebook Pages the dashboard's system user can manage (Business Settings › System users › Assign assets › Pages). Without that, forms show as "Form <id>". Active forms on those Pages with no ads in the dates are listed too.
+
 ## Lead leaks page
 
 Sidebar › **Lead leaks** › pick a period › **Find leaks**. Three checks, biggest money first:

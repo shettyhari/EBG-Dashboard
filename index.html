@@ -864,6 +864,7 @@ td.r,th.r,td.num{font-variant-numeric:tabular-nums}
 header.top .period{max-width:760px;line-height:1.5}
 table.sticky-1 th:first-child,table.sticky-1 td:first-child{position:sticky;left:0;z-index:2;background:var(--panel);box-shadow:inset -1px 0 0 var(--line)}
 table.sticky-1 thead th:first-child{z-index:4}
+.rep-table table.sticky-1 thead th:first-child{background:#1f3864;color:#fff}
 table.sticky-1 tr.total td:first-child{z-index:3}
 table.sticky-1 tbody tr:hover td:first-child{background:var(--row-hover)}
 .budget-note{margin:8px 0 4px;line-height:1.5}
@@ -906,6 +907,7 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
       <button class="tab sub" role="tab" data-tab="adsets" aria-selected="false"><svg class="sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>Ad sets</span></button>
       <button class="tab sub" role="tab" data-tab="ads" aria-selected="false"><svg class="sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg><span>Ads</span></button>
       <button class="tab sub" role="tab" data-tab="status" aria-selected="false"><svg class="sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span>Lead status</span></button>
+      <button class="tab sub" role="tab" data-tab="forms" aria-selected="false"><svg class="sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span>Lead forms</span></button>
       <div class="side-sec">Lead follow-up</div>
       <button class="tab" role="tab" data-tab="tat" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg><span>TAT &amp; calls</span></button>
       <button class="tab" role="tab" data-tab="crmdata" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11"/></svg><span>CRM leads data</span></button>
@@ -2326,6 +2328,7 @@ var PAGE_INFO = {
   campaigns: ["Campaigns", "Every campaign with its spend, leads and cost. Click ▸ to see its ad sets and ads."],
   adsets: ["Ad sets", "The same numbers for each ad set, so you can see which audiences work."],
   ads: ["Ads", "The same numbers for each ad, so you can see which creatives work."],
+  forms: ["Lead forms", "Every Meta lead form of a brand: leads in Meta, leads in TeleCRM and qualified leads per form."],
   status: ["Lead status", "Where leads stand in TeleCRM (interested, not interested, site visit…) for each campaign, ad set and ad."],
   tat: ["TAT & calls", "How quickly the sales team called each lead, and which leads still need a call."],
   crmdata: ["CRM leads data", "Every TeleCRM lead with all its details and the Meta ad it came from. Search by phone number or lead id."],
@@ -2787,6 +2790,94 @@ function repExport(o){
   var fname = "EBG " + title.replace(/[·\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + " " + (repIsRange(o.type) ? isoDay(o.rg.from) + (o.rg.to !== o.rg.from ? " to " + isoDay(o.rg.to) : "") : isoDay(o.rg.to)) + ".xlsx";
   toast("Building the workbook…");
   loadExcelJS().then(function(ExcelJS){ return buildWorkbookExcelJS(ExcelJS, specs, sub); }).catch(function(){ return buildWorkbookPlain(specs, sub); })
+    .then(function(buf){ return dl.save({filename: fname, data: new Uint8Array(buf)}); }).then(function(){ toast("Excel saved"); })
+    .catch(function(e){ if (e && e.code === "declined") return; toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
+}
+/* ================= Lead forms: Meta leads, TeleCRM leads and qualified leads per Meta lead form (through each ad's form) ================= */
+function fmIdsOf(a){ return String(a.adId || "").split(/\s*,\s*/).filter(Boolean); }
+function fmLoad(force){
+  var F = state.fm || (state.fm = {ads: {}, forms: {}, pages: [], errors: []}), R = state.R;
+  var ids = []; R.ads.forEach(function(a){ if (a.src === "M" && brandOK(a.brand)) fmIdsOf(a).forEach(function(id){ if (force || !F.ads[id]) ids.push(id); }); });
+  ids = ids.filter(function(x, i){ return ids.indexOf(x) === i; });
+  F.status = "loading"; F.err = null; F.errors = []; render();
+  var chunks = []; for (var i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
+  var chain = Promise.resolve();
+  chunks.forEach(function(c, i){ chain = chain.then(function(){ F.progress = "Reading lead forms from Meta… " + Math.min(ids.length, (i + 1) * 150) + " of " + ids.length + " ads"; render();
+    return provApi("meta", "forms", {ads: c.join(","), names: "0"}).then(function(d){ Object.assign(F.ads, d.ads || {}); F.errors = F.errors.concat(d.errors || []); }); }); });
+  chain.then(function(){ F.progress = "Reading form names from your Facebook Pages…"; render(); return provApi("meta", "forms", {ads: "", names: "1"}); })
+    .then(function(d){ Object.assign(F.forms, d.forms || {}); F.pages = d.pages || []; F.errors = F.errors.concat(d.errors || []); F.status = "ready"; F.at = Date.now(); })
+    .catch(function(e){ F.status = "error"; F.err = e.message === "NOAPI" ? "Lead forms are read live from Meta, so this tab works on ebg-dashboard.vercel.app." : e.message; })
+    .then(function(){ F.progress = null; if (state.tab === "forms") render(); });
+}
+function fmRows(){
+  var F = state.fm || {ads: {}, forms: {}}, R = state.R, by = {}, order = [];
+  var get = function(key, seed){ if (!by[key]){ by[key] = newAcc(Object.assign({key: key, spend: 0, ui: 0, nAds: 0, adNames: [], brands: {}}, seed)); order.push(key); } return by[key]; };
+  R.ads.forEach(function(a){ if (a.src !== "M" || !brandOK(a.brand) || a.partial) return;
+    if (!(a.ui || a.crm || a.spend)) return;
+    var ids = fmIdsOf(a), form = "", seen = false, err = false;
+    ids.forEach(function(id){ var x = F.ads[id]; if (x){ seen = true; if (x.err) err = true; if (x.form && !form) form = x.form; } });
+    var key = !ids.length ? "~noid" : form ? form : !seen ? "~pending" : err ? "~unknown" : "~noform", fm = F.forms[form] || {};
+    var g = get(key, {form: form, name: form ? (fm.name || "") : "", page: fm.page || "", status: fm.status || ""});
+    g.spend += a.spend || 0; g.ui += a.ui || 0; g.nAds++; if (g.adNames.length < 30) g.adNames.push(a.ad + (ids.length ? " (" + ids.join(", ") + ")" : "")); g.brands[a.brand] = 1; mergeLeads(g, a); });
+  /* active forms on the same Pages that had no ads in these dates */
+  var pagesUsed = {}; order.forEach(function(k){ var g = by[k], pid = g.form && F.forms[g.form] && F.forms[g.form].pageId; if (pid){ var pu = pagesUsed[pid] || (pagesUsed[pid] = {}); Object.keys(g.brands).forEach(function(b){ pu[b] = 1; }); } });
+  Object.keys(F.forms).forEach(function(id){ var f = F.forms[id]; if (by[id] || !pagesUsed[f.pageId] || f.status !== "ACTIVE") return; get(id, {form: id, name: f.name, page: f.page, status: f.status, idle: true, brands: Object.assign({}, pagesUsed[f.pageId])}); });
+  return order.map(function(k){ var g = derive(by[k]); g.brand = Object.keys(g.brands).join(", ");
+    g.label = k === "~noid" ? "Ads without an Ad ID yet" : k === "~pending" ? "Not checked yet (click Refresh from Meta)" : k === "~unknown" ? "Ads Meta couldn't read (deleted?)" : k === "~noform" ? "Not a lead form (WhatsApp / website / other ads)" : (g.name || "Form " + g.form);
+    g.special = k.charAt(0) === "~"; g.gap = isNum(g.ui) ? g.ui - g.crm : null; g.sync = g.ui > 0 ? g.crm / g.ui : null; return g; })
+    .sort(function(a, b){ return (a.special - b.special) || (!!a.idle - !!b.idle) || (b.ui - a.ui) || (b.spend - a.spend); });
+}
+function viewForms(){
+  var sec = el("section", {cls: "panel fm-page"}), R = state.R, F = state.fm || (state.fm = {ads: {}, forms: {}, pages: [], errors: []});
+  if (isGoogle()){ sec.appendChild(el("div", {cls: "empty", text: "Lead forms are a Meta feature. Switch Platform to Meta Ads."})); return sec; }
+  var bsel = el("select", {"aria-label": "Brand"}, ["All"].concat(state.settings.brands).map(function(b){ return el("option", {value: b, selected: state.brand === b ? true : null, text: b === "All" ? "All brands" : b}); }));
+  bsel.addEventListener("change", function(){ state.brand = bsel.value; render(); });
+  var canApi = sb.cfg && sb.status === "ready";
+  sec.appendChild(el("div", {cls: "rep-controls"}, el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Brand"}), bsel),
+    el("div", {cls: "small", style: "align-self:flex-end;padding-bottom:10px", text: "Dates: " + rangeText(false) + " (change them with the date box above)"}),
+    el("div", {cls: "rep-actions"}, el("button", {cls: "btn", type: "button", disabled: !canApi || F.status === "loading" ? true : null, onclick: function(){ fmLoad(true); }}, F.status === "loading" ? "Reading Meta…" : "Refresh from Meta"),
+      el("button", {cls: "btn ghost", type: "button", disabled: !state.caps.downloads || F.status !== "ready" ? true : null, onclick: fmExport}, "Export Excel"))));
+  if (!canApi){ sec.appendChild(el("div", {cls: "empty", text: "Sign in to the team database on ebg-dashboard.vercel.app: lead forms are read live from Meta."})); return sec; }
+  if (!F.status) fmLoad(false);
+  if (F.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: F.progress || "Reading lead forms from Meta…"})); return sec; }
+  if (F.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't read lead forms: " + F.err})); return sec; }
+  var rows = fmRows(), real = rows.filter(function(r){ return !r.special; });
+  if (rows.some(function(r){ return r.key === "~noid"; }) && !real.length) sec.appendChild(el("div", {cls: "banner warn", text: "Ad IDs aren't in the data yet, so ads can't be linked to their forms. Run supabase/creative-report.sql once in Supabase, then Settings › Data connections › Sync now for these dates (the 30-minute sync also fills them in from now on)."}));
+  var pageErr = (F.errors || []).filter(function(e){ return /pages_|permission|\(#200\)|\(#10\)|Pages:/i.test(e); });
+  if (real.some(function(r){ return !r.name; }) || pageErr.length) sec.appendChild(el("div", {cls: "banner warn", text: "Some form names couldn't be read" + (pageErr.length ? " (" + pageErr.slice(0, 3).join("; ") + ")" : "") + ". They show as “Form <id>”. To see names: Meta Business Settings › Users › System users › the dashboard's system user › Assign assets › Pages › tick each brand's Page (allow Create ads / Leads access) › Save, then Refresh from Meta."}));
+  var T = sumRows(real); T.label = "TOTAL (lead forms)"; T.gap = T.ui - T.crm; T.sync = T.ui > 0 ? T.crm / T.ui : null; T.nAds = real.reduce(function(s0, r){ return s0 + r.nAds; }, 0);
+  var cols = [
+    {k: "label", label: "Lead form", t: "text", cls: "name", render: function(r){ return el("span", null, el("b", {text: r.label}), r.form && !r.special ? el("div", {cls: "small", text: "Form ID " + r.form + (r.page ? " · " + r.page : "")}) : null, r.idle ? el("div", {cls: "small", text: "No ads with results in these dates"}) : null); }},
+    {k: "brand", label: "Brand", t: "text"},
+    {k: "status", label: "Form status", t: "text", get: function(r){ return r.special ? "" : r.status ? r.status.charAt(0) + r.status.slice(1).toLowerCase() : "—"; }},
+    {k: "nAds", label: "Ads", t: "int", render: function(r){ return el("span", {title: (r.adNames || []).join("\n")}, fInt(r.nAds || 0)); }},
+    {k: "spend", label: "Amount spent", t: "inr"},
+    {k: "ui", label: "Leads in Meta (UI)", t: "int"},
+    {k: "crm", label: "Leads in CRM", t: "int"},
+    {k: "gap", label: "Difference (Meta − CRM)", t: "int", flag: function(r){ return isNum(r.gap) && r.ui >= 5 && r.gap / r.ui > 0.2 ? "bad" : null; }},
+    {k: "sync", label: "Lead sync %", t: "pct", flag: function(r){ return isNum(r.sync) && r.ui >= 5 ? (r.sync < 0.8 ? "bad" : r.sync >= 0.95 ? "good" : null) : null; }},
+    {k: "ql", label: "Qualified leads", t: "int"},
+    {k: "qlRate", label: "QL rate", t: "pct"},
+    {k: "cpl", label: "CPL", t: "inr"},
+    {k: "cpql", label: "CPQL", t: "inr"}];
+  state.fmLast = {cols: cols, rows: rows, total: T};
+  sec.appendChild(el("p", {cls: "small", text: real.length + " lead form" + (real.length === 1 ? "" : "s") + (state.brand === "All" ? " across all brands" : " for " + state.brand) + ". Each ad is linked to the form it uses; Meta leads, TeleCRM leads and qualified leads of the ad add up to its form. Hover the Ads number to see which ads. Checked with Meta " + (F.at ? new Date(F.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) : "") + "."}));
+  sec.appendChild(el("div", {cls: "rep-table"}, table("forms", cols, rows, {total: real.length > 1 ? T : null, stickyFirst: true})));
+  sec.appendChild(el("details", {cls: "faq rep-how"}, el("summary", {text: "How this is worked out"}), el("ul", {cls: "hist-lines"},
+    el("li", {text: "Meta tells us which lead form each ad uses (from the ad's creative). An ad's leads, spend and TeleCRM leads count for that form."}),
+    el("li", {text: "Leads in Meta (UI) = Meta's Results of those ads (same as everywhere in the dashboard). Leads in CRM = TeleCRM leads matched to those ads. Qualified = your QL statuses."}),
+    el("li", {text: "A big Difference on one form usually means that form isn't connected to TeleCRM (check TeleCRM's Facebook integration, and Lead leaks)."}),
+    el("li", {text: "“Not a lead form” = WhatsApp, website or other ads. “Without an Ad ID” = days synced before Ad IDs were saved: Sync now fixes it."}))));
+  return sec;
+}
+function fmExport(){
+  var L = state.fmLast, dl = state.caps.downloads; if (!L || !dl) return;
+  var cols = L.cols.map(function(c){ var x = Object.assign({}, c); delete x.render; if (c.k === "label") x.w = 40; if (c.k === "status") x.get = c.get; return x; });
+  var title = "Lead forms · " + (state.brand === "All" ? "All brands" : state.brand), when = rangeText(false);
+  var spec = {name: "Lead forms", title: title, note: when + " · each ad counted for the lead form it uses", cols: cols, rows: L.rows, total: L.total, freeze: 1};
+  var fname = "EBG Lead forms " + (state.brand === "All" ? "All brands" : state.brand).replace(/[\/\\:*?"<>|]+/g, "-") + " " + when.replace(/[\/\\:*?"<>|]+/g, "-") + ".xlsx";
+  toast("Building the workbook…");
+  loadExcelJS().then(function(ExcelJS){ return buildWorkbookExcelJS(ExcelJS, [spec], "EBG Group · " + when); }).catch(function(){ return buildWorkbookPlain([spec], "EBG Group · " + when); })
     .then(function(buf){ return dl.save({filename: fname, data: new Uint8Array(buf)}); }).then(function(){ toast("Excel saved"); })
     .catch(function(e){ if (e && e.code === "declined") return; toast("Could not save the file" + (e && e.message ? ": " + e.message : "")); });
 }
@@ -4438,7 +4529,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks,
+  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks, forms: viewForms,
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, history: viewHistory, activity: viewActivity, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   pageTitle();

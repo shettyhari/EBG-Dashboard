@@ -7,6 +7,7 @@
 //   GET /api/meta?op=funds[&accounts=act_1,act_2]   (any team member; live, not stored)
 //   GET /api/meta?op=reconcile&from=YYYY-MM-DD&to=YYYY-MM-DD&accounts=act_1,act_2   (any team member: Meta account totals vs stored rows, per day)
 //   GET /api/meta?op=coverage&from=YYYY-MM-DD&to=YYYY-MM-DD   (any team member: every ad account the token sees, with spend in the range)
+//   GET /api/meta?op=forms&ads=id1,id2 (any team member: lead form of each ad, form names from the Pages the token can manage)
 //   GET /api/meta?op=budgets&accounts=act_1,act_2   (any team member; daily budgets of active campaigns, live)
 //   GET /api/meta?op=data&from=YYYY-MM-DD&to=YYYY-MM-DD&accounts=act_1
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
@@ -71,6 +72,13 @@ module.exports = async function handler(req, res) {
         return { id: a.id, name: a.name, label, days };
       });
       return send(res, 200, { at: new Date().toISOString(), from, to, accounts: out, errors });
+    }
+    if (op === "forms") {   // which lead form each ad uses (+ form names); ads = comma-separated Meta ad ids (any team member)
+      const F = require("./_forms");
+      const ids = String(req.query.ads || "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 200);
+      const a = await F.adForms(ids), fids = Array.from(new Set(Object.values(a.ads).map((x) => x.form).filter(Boolean)));
+      const n = req.query.names === "0" ? { forms: {}, pages: [], errors: [] } : await F.formNames(fids);
+      return send(res, 200, { at: new Date().toISOString(), ads: a.ads, forms: n.forms, pages: n.pages, errors: a.errors.concat(n.errors) });
     }
     if (op === "budgets") {
       const acc = String(req.query.accounts || "").split(",").map((s) => s.trim()).filter((s) => /^(act_)?\d+$/.test(s)).slice(0, 40);
