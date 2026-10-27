@@ -1,5 +1,5 @@
 // Alerts (Settings › Alerts): connect the one person who gets Telegram alerts, send a test, send an update now, list recent alerts.
-//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity | log | activity&days=7 | activity-sync | cpl
+//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity | log | activity&days=7 | activity-sync | cpl | insights
 // Vercel env: TELEGRAM_BOT_TOKEN, SUPABASE_SERVICE_ROLE_KEY (and META_ACCESS_TOKEN for the Meta parts).
 const crypto = require("crypto");
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
@@ -42,6 +42,7 @@ module.exports = async function handler(req, res) {
       return send(res, 200, { configured: T.configured(), bot, linked: link ? { name: link.name, email: link.email, at: link.at } : null, me: me.email, isRecipient: rec, role: me.role });
     }
     if (op === "log") { const r = await sbFetch("alert_log?select=at,kind,text&order=id.desc&limit=" + Math.min(50, +req.query.n || 20)); return send(res, 200, { log: r || [] }); }
+    if (op === "insights") return send(res, 200, await require("./_insights").insights(S, sbFetch));   // Trends › Updates & issues
     if (op === "cpl") {   // Trends › Live CPL updates: CPL right now + the CPL alerts that were sent / recorded
       const [now, ev] = await Promise.all([A.cplNow(S, sbFetch), sbFetch("alert_log?select=at,text&kind=eq.cpl-event&order=id.desc&limit=" + Math.min(200, +req.query.n || 60))]);
       return send(res, 200, { now, events: (ev || []).map((r) => { try { return JSON.parse(r.text); } catch (e) { return null; } }).filter(Boolean) });

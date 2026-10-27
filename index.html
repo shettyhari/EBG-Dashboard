@@ -495,6 +495,13 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 @media (max-width:760px){#plat-select{font-size:14px;max-width:30vw}}
 .gads-tbl td{vertical-align:middle}.set-body input[type=email],.group input[type=email]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit}#gads-panel .auto-box select{max-width:320px}.gads-tbl select{max-width:180px}
 .rep-table td.act-remark{min-width:320px;white-space:normal;line-height:1.45}.rep-table td.nowrap{white-space:nowrap}
+.ins{margin-bottom:18px}.ins-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+@media (max-width:900px){.ins-grid{grid-template-columns:minmax(0,1fr)}}
+.ins-col{border:1px solid var(--line);border-radius:6px;padding:12px;background:var(--panel)}.ins-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}.ins-h .small{flex-basis:100%}
+.ins-issues{border-top:3px solid var(--bad)}.ins-upcoming{border-top:3px solid var(--warn)}.ins-updates{border-top:3px solid var(--accent)}
+.ins-item{border:1px solid var(--line);border-left-width:3px;border-radius:5px;padding:8px 10px;margin-bottom:8px}.ins-item.ins-high{border-left-color:var(--bad)}.ins-item.ins-medium{border-left-color:var(--warn)}.ins-item.ins-low{border-left-color:var(--line)}
+.ins-top{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:2px}.ins-brand{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ins-title{font-weight:600;font-size:14px;line-height:1.35}.ins-detail{font-size:13px;margin-top:2px;line-height:1.45}.ins-action{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}.ins-empty{padding:6px 2px}
 .lcpl{margin-bottom:18px}.lcpl-line{font-size:13.5px;margin:2px 0}.lcpl-remark{font-size:13.5px;color:var(--muted);line-height:1.5}
 .rep-group-h{margin:18px 0 8px;font-size:16px}
 .act-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}.act-table td.act-remark{min-width:280px;white-space:normal;line-height:1.45}.act-table td{vertical-align:top}
@@ -3999,6 +4006,40 @@ function liveCplPanel(){
     sec.appendChild(list); }
   return sec;
 }
+/* ================= Trends › Updates & issues (private to the alert recipient) ================= */
+function insLoad(){
+  var I = state.ins || (state.ins = {}); if (I.loading) return; I.loading = true;
+  alertsApi("insights").then(function(d){ I.d = d; I.at = Date.now(); I.err = null; })
+    .catch(function(e){ I.err = e.message === "NOAPI" ? "Updates & issues work on ebg-dashboard.vercel.app." : /alert_log|meta_activity|alerts_brand_daily|schema cache|does not exist/i.test(e.message) ? "Run supabase/alerts.sql once in Supabase to switch this on." : e.message; })
+    .then(function(){ I.loading = false; if (state.tab === "trends") render(); });
+  if (!window._insTimer) window._insTimer = setInterval(function(){ if (state.tab === "trends" && alertsAllowed() && document.visibilityState !== "hidden") insLoad(); }, 5 * 60000);
+}
+function insightsPanel(){
+  if (!alertsAllowed()) return null;
+  var I = state.ins || (state.ins = {}); if (!I.at && !I.loading && !I.err) insLoad();
+  var sec = el("section", {cls: "panel ins"});
+  sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: "Updates & issues"}),
+    el("span", {cls: "note"}, (I.at ? "Checked " + new Date(I.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + " · every 5 minutes · " : "") + "Only you see this. ",
+      el("button", {cls: "linkbtn", type: "button", disabled: I.loading ? true : null, onclick: function(){ insLoad(); render(); }}, I.loading ? "Checking…" : "Check now"))));
+  if (I.err){ sec.appendChild(el("div", {cls: "msg err", text: I.err})); return sec; }
+  if (!I.d){ sec.appendChild(el("div", {cls: "empty", text: "Checking accounts, budgets, leads and feeds…"})); return sec; }
+  var keep = function(x){ return !x.brand || brandOK(x.brand); }, D = I.d;
+  var cols = [["issues", "🔴 Issues", "Needs action now", "Nothing needs action right now."], ["upcoming", "🟠 Upcoming issues", "Heading that way if nothing changes", "Nothing coming up."], ["updates", "🔵 Updates", "What happened (last 24 hours)", "No updates in the last 24 hours."]];
+  var grid = el("div", {cls: "ins-grid"}), LV = {high: ["bad", "High"], medium: ["warn", "Medium"], low: ["mut", "Low"]};
+  cols.forEach(function(c){ var list = (D[c[0]] || []).filter(keep), open = (state.insOpen || {})[c[0]], shown = open ? list : list.slice(0, 6);
+    var col = el("div", {cls: "ins-col ins-" + c[0]}, el("div", {cls: "ins-h"}, el("b", {text: c[1]}), el("span", {cls: "pill " + (c[0] === "issues" && list.length ? "bad" : c[0] === "upcoming" && list.length ? "warn" : "mut"), text: String(list.length)}), el("div", {cls: "small", text: c[2]})));
+    if (!list.length) col.appendChild(el("div", {cls: "ins-empty small", text: "✓ " + c[3]}));
+    shown.forEach(function(x){ var lv = LV[x.level] || LV.low, t = new Date(x.at);
+      col.appendChild(el("div", {cls: "ins-item ins-" + x.level},
+        el("div", {cls: "ins-top"}, x.brand ? el("span", {cls: "ins-brand", text: x.brand}) : null, c[0] === "updates" ? el("span", {cls: "small", text: t.toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"})}) : el("span", {cls: "pill " + lv[0], text: lv[1]})),
+        el("div", {cls: "ins-title", text: x.title}), x.detail ? el("div", {cls: "ins-detail", text: x.detail}) : null,
+        x.action ? el("div", {cls: "ins-action", text: (c[0] === "updates" ? "💡 " : "→ ") + x.action}) : null)); });
+    if (list.length > 6) col.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.insOpen = Object.assign({}, state.insOpen || {}); state.insOpen[c[0]] = !open; render(); }}, open ? "Show fewer" : "Show all " + list.length));
+    grid.appendChild(col); });
+  sec.appendChild(grid);
+  if ((D.errors || []).length) sec.appendChild(el("div", {cls: "small", style: "margin-top:8px;color:var(--muted)", text: "Couldn't check everything: " + D.errors.join("; ")}));
+  return sec;
+}
 function viewTrends(){
   var gran = state.trendGran || "week", T = trendData(gran, brandOK), rows = T.rows;
   var chips = el("div", {cls: "chips", role: "group", "aria-label": "Group by"}, [["day", "By day"], ["week", "By week"], ["month", "By month"]].map(function(gx){
@@ -4019,8 +4060,8 @@ function viewTrends(){
     barChart("QL rate by " + unit, items, [{k: "qlRate", label: "Qualified leads ÷ CRM leads", cls: "s3", fmt: fPct}], {max: 1, legend: true}),
     barChart("TAT by " + unit, items, [{k: "tat", label: "Overall TAT (avg)", cls: "s1", fmt: fMin}, {k: "whAvg", label: "Working-hrs TAT (avg)", cls: "s3", fmt: fMin}], {legend: true, mark: state.R.slaMin,
       legendExtra: [el("span", null, el("i", {style: "background:var(--bad);width:2px"}), "SLA " + state.R.slaMin + " min")]})));
-  var live = isGoogle() ? null : liveCplPanel();
-  return live ? el("div", null, live, sec) : sec;
+  var ins = isGoogle() ? null : insightsPanel(), live = isGoogle() ? null : liveCplPanel();
+  return ins || live ? el("div", null, ins, live, sec) : sec;
 }
 
 /* ================= premium overview: KPI cards, trend chart, donuts ================= */

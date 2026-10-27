@@ -83,6 +83,12 @@ Settings › **Alerts**. Private to one person (the shettyharikrishna login): on
 
 Numbers use the dashboard's definitions (Meta leads = lead / chat Results; excluded campaigns' leads left out; repeat TeleCRM leads left out).
 
+**Trends › Updates & issues** (recipient only, checked every 5 minutes):
+- 🔴 *Issues* — brand spending ₹500+ with 0 leads today; CPL up vs 7 days / above target; < 80% of today's Meta leads in TeleCRM; Meta sync or n8n TeleCRM feed late (75+ min); payment failed / ad rejected / limit reached / access changed (last 24 h); prepaid balance or spending limit gone in < 2 days.
+- 🟠 *Upcoming issues* — balance / spending limit runs out within 7 days (7-day spend rate); monthly lead target or budget off pace (Report targets, projected to month end, from the 3rd); big edits in the last 24 h (budget ±20%+, on, targeting, bidding) → CPL may swing for 2–3 days.
+- 🔵 *Updates* — the last 24 h of CPL updates and ad account changes, in plain language.
+Each item says what to do. Follows the brand selected at the top.
+
 **Trends › Live CPL updates** (same recipient-only rule): "CPL right now" per brand — spent and Meta leads today, CPL today vs 7-day average, vs yesterday and vs target, status (CPL up / down / above target / no leads yet / normal) and what to do — plus "Recent CPL updates", the same updates Telegram gets (one per brand, all comparisons in one line, with a remark). Refreshes every 5 minutes; CPL moves are checked every 30 minutes and recorded even when Telegram isn't connected or during quiet hours (they're just not sent then).
 
 **Ad account activity page** (sidebar › Setup, visible only to the alert recipient's login): every Meta ad account change of the last 1 / 7 / 30 / 90 days as a table — When · Who · Brand · Campaign · Ad set / Ad · What changed · Status (before → after) · Remarks: what happens next · Impact (High / Medium / Low) — with filters (brand, person, type, impact, search) and **Check Meta now**. Changes are collected every 5 minutes even without Telegram; the first run also loads the last 7 days.
