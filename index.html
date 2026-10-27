@@ -493,7 +493,7 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 #plat-select option{background:var(--panel);color:var(--ink)}
 .gbar .plat-pick{margin-right:8px}
 @media (max-width:760px){#plat-select{font-size:14px;max-width:30vw}}
-.gads-tbl td{vertical-align:middle}#gads-panel .auto-box select{max-width:320px}.gads-tbl select{max-width:180px}
+.gads-tbl td{vertical-align:middle}.set-body input[type=email],.group input[type=email]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit}#gads-panel .auto-box select{max-width:320px}.gads-tbl select{max-width:180px}
 .hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
 .hist-list{margin-top:8px}.hist-day{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px;font-weight:600}
 .hist-item{border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:8px;background:var(--panel)}
@@ -2836,7 +2836,7 @@ function leakGoMap(){ state.tab = "settings"; state.setTab = "brands"; render();
 var HIST_KEYS = {brands: "Brands", keywords: "Brand rules (campaign word → brand)", slaMin: "Speed-to-lead target (minutes)", diffAlert: "UI vs CRM difference alert", slaTarget: "Within-SLA target",
   platform: "Platform", report: "Reports", qlPos: "Qualified-lead statuses", qlNeg: "Not-qualified statuses", qlOverride: "Lead status overrides", excludedCampaigns: "Campaigns left out of Leads in UI",
   includedCampaigns: "Campaigns kept in Leads in UI", autoExcludeNonLead: "Leave out non-lead campaigns automatically", sourceMap: "Leads without a campaign", holidays: "Holidays",
-  cols: "Export column names", metaAccounts: "Meta ad accounts", metaAutoSync: "Meta auto-sync", metaAutoRange: "Meta auto-sync range", metaSources: "Lead sources counted as Meta", googleAccounts: "Google Ads accounts", googleAutoSync: "Google auto-sync", googleAutoRange: "Google auto-sync range",
+  cols: "Export column names", metaAccounts: "Meta ad accounts", metaAutoSync: "Meta auto-sync", metaAutoRange: "Meta auto-sync range", metaSources: "Lead sources counted as Meta", googleAccounts: "Google Ads accounts", googleAutoSync: "Google auto-sync", googleAutoRange: "Google auto-sync range", alerts: "Telegram alerts",
   dupExclude: "Leave out repeat leads", dupDays: "Repeat-lead window (days)", showOther: "Show brands not in the list", optSource: "Lead-source filter", optDates: "Report date override",
   optDedupe: "Remove duplicate rows", from: "Report date override · from", to: "Report date override · to"};
 var HIST_REP = {leaderMode: "Leader comes from", newStatuses: "New Lead % statuses", tatBasis: "TAT in reports uses", leaders: "Leaders", months: "Report targets", remarks: "Report remarks"};
@@ -2997,7 +2997,8 @@ function dupSection(){
 var PROV = {
   meta: {api: "meta", label: "Meta API (direct)", key: "metaAccounts", prefix: "Meta API · ", env: "META_ACCESS_TOKEN", what: "System User access token",
     help: "Meta Business Settings › Users › System users › your system user › Generate new token (tick ads_read; give the system user access to the ad accounts under Assigned assets)"},
-  google: {api: "google", label: "Google Ads API", key: "googleAccounts", prefix: "Google Ads API · "}
+  google: {api: "google", label: "Google Ads API", key: "googleAccounts", prefix: "Google Ads API · "},
+  alerts: {api: "alerts", label: "Alerts", key: "alertsNone"}
 };
 function provApi(pk, op, params){
   return sb.client.auth.getSession().then(function(r){
@@ -3145,6 +3146,75 @@ function gadsPanel(){
       .then(function(){ G.syncing = false; return dbRefreshLists().catch(function(){}); }).then(function(){ if (isGoogle() && state.source === "db") dbOpen(true).catch(function(){}); render(); }); }}, G.syncing ? "Syncing…" : "Sync now")));
   if (G.syncMsg) as.appendChild(el("div", {cls: "msg " + (G.syncMsg.kind === "err" ? "err" : G.syncMsg.kind === "warn" ? "warn" : "ok"), text: G.syncMsg.text}));
   box.appendChild(as);
+  return box;
+}
+/* ================= Settings › Alerts (Telegram) ================= */
+var ALERT_DEF = {activity: true, summary: true, cpl7: true, cplYday: true, cplTarget: true, pct: 20, minLeads: 3, quietFrom: 23, quietTo: 8, activityInQuiet: true, recipient: ""};
+function alertsApi(op, params){ return provApi("alerts", op, params); }
+function alertsPanel(){
+  var S = state.settings, A = state.alerts || (state.alerts = {}), C = Object.assign({}, ALERT_DEF, S.alerts || {}), box = el("div");
+  var save = function(k, v){ S.alerts = Object.assign({}, S.alerts || {}, (function(){ var o = {}; o[k] = v; return o; })()); provSave(); };
+  if (!sb.cfg || sb.status !== "ready"){ box.appendChild(el("div", {cls: "small", text: "Sign in to the team database to set up alerts."})); return box; }
+  if (!A.status && !A.loading){ A.loading = true;
+    alertsApi("status").then(function(d){ A.status = d; }).catch(function(e){ A.status = {err: e.message === "NOAPI" ? "Alerts are set up on the live dashboard (ebg-dashboard.vercel.app)." : e.message}; })
+      .then(function(){ A.loading = false; if (state.tab === "settings") render(); });
+    alertsApi("log", {n: 10}).then(function(d){ A.log = d.log || []; }).catch(function(){ A.log = null; }).then(function(){ if (state.tab === "settings") render(); }); }
+  var St = A.status, canEdit = sbCanWrite();
+  /* 1. Telegram */
+  var tgCard = el("div", {cls: "group"}, el("h3", {text: "Telegram"}));
+  if (!St) tgCard.appendChild(el("div", {cls: "small", text: "Checking…"}));
+  else if (St.err) tgCard.appendChild(el("div", {cls: "msg err", text: St.err}));
+  else if (St.setup) tgCard.appendChild(el("div", {cls: "banner warn", text: "Alerts aren't set up in the database yet: an admin runs supabase/alerts.sql once in Supabase › SQL Editor."}));
+  else if (!St.configured) tgCard.appendChild(el("div", {cls: "banner warn"}, el("div", null, el("b", {text: "Bot not added yet. "}),
+    "In Telegram, open @BotFather › /newbot › give it a name (e.g. EBG Alerts) › copy the token. Then Vercel › Settings › Environment Variables › TELEGRAM_BOT_TOKEN = the token › Save › Redeploy.")));
+  else {
+    if (St.linked) tgCard.appendChild(el("div", {cls: "wz-status"}, el("span", {cls: "pill good", text: "Connected"}),
+      el("span", {cls: "small", text: "Alerts go to " + St.linked.name + " (" + St.linked.email + ") via @" + St.bot + " · since " + new Date(St.linked.at).toLocaleDateString("en-IN", {day: "numeric", month: "short", year: "numeric"})})));
+    else tgCard.appendChild(el("div", {cls: "wz-status"}, el("span", {cls: "pill warn", text: "Not connected"}), el("span", {cls: "small", text: St.isRecipient ? "Connect your Telegram to start getting alerts." : "Only the alert recipient (" + (C.recipient || "the shettyharikrishna login") + ") can connect their Telegram, from their own dashboard login."})));
+    var acts = el("div", {cls: "row-add"});
+    if (St.isRecipient) acts.appendChild(el("button", {cls: "btn" + (St.linked ? " ghost" : ""), type: "button", disabled: A.linking ? true : null, onclick: function(){
+      A.linking = true; A.msg = null; render();
+      alertsApi("link-start").then(function(d){ A.linkUrl = d.url; window.open(d.url, "_blank", "noopener"); A.msg = {kind: "ok", text: "Telegram opened: press START in the chat with @" + d.bot + ". This page connects automatically."};
+        var tries = 0; (function poll(){ if (tries++ > 40){ A.linking = false; A.msg = {kind: "warn", text: "Didn't see START yet. Click Connect Telegram again."}; render(); return; }
+          alertsApi("link-check").then(function(r){ if (r.linked){ A.linking = false; A.status = null; A.msg = {kind: "ok", text: "Connected to " + r.name + ". A welcome message was sent."}; render(); } else setTimeout(poll, 3000); })
+            .catch(function(e){ A.linking = false; A.msg = {kind: "err", text: e.message}; render(); }); })(); render(); })
+        .catch(function(e){ A.linking = false; A.msg = {kind: "err", text: e.message}; render(); }); }}, A.linking ? "Waiting for START in Telegram…" : St.linked ? "Reconnect Telegram" : "Connect Telegram"));
+    if (A.linking && A.linkUrl) acts.appendChild(el("a", {href: A.linkUrl, target: "_blank", rel: "noopener", cls: "linkbtn", text: "Open Telegram again"}));
+    if (St.linked && (St.isRecipient || St.role === "admin")){
+      acts.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ alertsApi("test").then(function(){ toast("Test message sent to Telegram"); }).catch(function(e){ toast(e.message); }); }}, "Send test"));
+      acts.appendChild(el("button", {cls: "btn ghost", type: "button", disabled: A.running ? true : null, onclick: function(){ A.running = true; render();
+        alertsApi("run", {what: "summary"}).then(function(d){ toast(d.skipped || "Update sent to Telegram"); }).catch(function(e){ toast(e.message); }).then(function(){ A.running = false; A.log = undefined; A.status = A.status; render(); }); }}, A.running ? "Sending…" : "Send update now"));
+      acts.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ alertsApi("unlink").then(function(){ A.status = null; render(); toast("Telegram disconnected"); }); }}, "Disconnect")); }
+    tgCard.appendChild(acts);
+    if (A.msg) tgCard.appendChild(el("div", {cls: "msg " + (A.msg.kind === "err" ? "err" : A.msg.kind === "warn" ? "warn" : "ok"), text: A.msg.text}));
+  }
+  box.appendChild(tgCard);
+  /* 2. what to send */
+  var tog = function(k, label){ var i = el("input", {type: "checkbox", checked: C[k] ? true : null, disabled: canEdit ? null : true}); i.addEventListener("change", function(){ save(k, i.checked); });
+    return el("label", {cls: "toggle"}, i, el("span", {text: label})); };
+  var num = function(k, label, min, max, suffix){ var i = el("input", {type: "number", min: String(min), max: String(max), value: String(C[k]), disabled: canEdit ? null : true, style: "width:90px"});
+    i.addEventListener("change", function(){ var v = Math.max(min, Math.min(max, Number(i.value) || C[k])); i.value = v; save(k, v); }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), el("span", null, i, suffix ? " " + suffix : "")); };
+  var hours = function(k, label){ var s2 = el("select", {disabled: canEdit ? null : true}, Array.from({length: 24}, function(_, h){ return el("option", {value: String(h), selected: +C[k] === h ? true : null, text: (h % 12 || 12) + ":00 " + (h < 12 ? "am" : "pm")}); }));
+    s2.addEventListener("change", function(){ save(k, +s2.value); }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), s2); };
+  box.appendChild(el("div", {cls: "group"}, el("h3", {text: "What to send"}),
+    tog("activity", "Ad account changes, checked every 5 minutes: who changed what (budgets, status on/off, new or edited ads, targeting, bids…), from Meta's activity log"),
+    tog("summary", "Update every 30 minutes: live campaigns / ad sets / ads, today's spend, leads and CPL per brand, best and weakest brand today, month best / weakest by CPQL"),
+    el("div", {cls: "small", style: "margin:10px 0 4px;font-weight:600", text: "CPL alerts (sent once when a brand's CPL moves up or down, and when it's back to normal)"}),
+    tog("cpl7", "Today's CPL vs the brand's last 7 days"), tog("cplYday", "Today's CPL vs yesterday"), tog("cplTarget", "Today's CPL crosses the brand's target CPL (Settings › Report targets)"),
+    el("div", {cls: "rep-controls"}, num("pct", "Alert when CPL moves by", 5, 100, "%"), num("minLeads", "Only once a brand has at least", 1, 50, "leads today"))));
+  box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Quiet hours"}),
+    el("div", {cls: "small", text: "No updates or CPL alerts between these times (India time). Set both the same to never pause."}),
+    el("div", {cls: "rep-controls"}, hours("quietFrom", "From"), hours("quietTo", "To")),
+    tog("activityInQuiet", "Still send ad account changes during quiet hours (recommended: a change at night is worth knowing about)")));
+  if (St && St.role === "admin"){
+    var ri = el("input", {type: "email", value: C.recipient || "", placeholder: "shettyharikrishna@…", style: "max-width:320px"});
+    ri.addEventListener("change", function(){ save("recipient", ri.value.trim().toLowerCase()); A.status = null; render(); });
+    box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Who gets alerts"}), el("div", {cls: "small", text: "Only this dashboard login can connect a Telegram chat. Leave empty for the shettyharikrishna login."}), ri)); }
+  /* 3. recent */
+  if (A.log === undefined && !A.logLoading){ A.logLoading = true; alertsApi("log", {n: 10}).then(function(d){ A.log = d.log || []; }).catch(function(){ A.log = null; }).then(function(){ A.logLoading = false; if (state.tab === "settings") render(); }); }
+  if (A.log && A.log.length){ var ul = el("ul", {cls: "hist-lines"});
+    A.log.forEach(function(l){ var txt = String(l.text).replace(/<[^>]+>/g, "").replace(/\n+/g, " · "); ul.appendChild(el("li", null, el("span", {cls: "hist-old", style: "text-decoration:none", text: new Date(l.at).toLocaleString("en-IN", {day: "numeric", month: "short", hour: "numeric", minute: "2-digit"}) + " · " + l.kind + " · "}), el("span", {text: txt.length > 220 ? txt.slice(0, 217) + "…" : txt}))); });
+    box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Last alerts sent"}), ul)); }
   return box;
 }
 function provPanel(pk, compact){
@@ -3378,6 +3448,7 @@ var SET_TABS = [["connections", "Data connections", "Where the dashboard gets Me
   ["rules", "Lead rules", "Speed-to-lead targets, what counts as a qualified lead, and how repeat leads are handled."],
   ["hours", "Working hours & holidays", "Days that don't count towards working-hours TAT."],
   ["targets", "Report targets", "Monthly lead targets, target CPL and budgets per brand (set for each month), and leaders, used by the Reports page."],
+  ["alerts", "Alerts", "Telegram alerts for ad account changes, CPL moves and a 30-minute update, sent to one person."],
   ["advanced", "Advanced", "Rarely needed: report date overrides, lead-source filter and export column names."]];
 function setDraft(){ var S = state.settings;
   if (state.setDraft && state.setDraft.base !== S && !state.setDraft.dirty) state.setDraft = null;   /* settings reloaded (e.g. from the team database) */
@@ -3410,6 +3481,7 @@ function viewSettings(){
   var body = el("div", {cls: "set-body"}, el("p", {cls: "set-lead", text: info[2]}));
   var needsSave = false;
 
+  if (tab === "alerts"){ body.appendChild(alertsPanel()); }
   if (tab === "connections"){
     body.appendChild(connStatusCard()); body.appendChild(provPanel("meta", false)); body.appendChild(gadsPanel()); body.appendChild(crmPushPanel());
   }

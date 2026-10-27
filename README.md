@@ -65,6 +65,25 @@ Definitions (shown on the page under "How each number is calculated"):
 
 Targets are entered month by month in **Settings › Report targets**: pick the month, enter monthly lead targets, target CPL and monthly budgets (and leader targets), Save. "Copy from <last month>" starts a new month from the previous one; "Fill budgets from Meta" = today's daily Meta budget × days in the month.
 
+## Telegram alerts
+
+Settings › **Alerts**. Sent to one person only (the shettyharikrishna login, changeable by an admin), in a private Telegram chat:
+- **Ad account changes** — checked every 5 minutes from Meta's account activity log: who (person or app) changed what (budget, on/off, new or edited ads, targeting, bids…), on which campaign / ad set / ad, with old → new values when Meta gives them. Only new changes, never repeated.
+- **CPL alerts** — per brand, once today's CPL moves ±20% (adjustable) vs its last 7 days and/or vs yesterday, and when it crosses its target CPL (Report targets); again when it's back to normal. Only after a brand has 3+ leads today (adjustable).
+- **Update every 30 minutes** — live campaigns / ad sets / ads (total and per brand), today's spend, Meta leads, TeleCRM leads and CPL per brand with change vs 7 days, best and weakest brand today (CPL), brands spending with 0 leads, month best / weakest by CPQL.
+- Quiet hours (default 11 pm – 8 am IST) pause updates and CPL alerts; account changes still come through (optional).
+
+Numbers use the dashboard's definitions (Meta leads = lead / chat Results; excluded campaigns' leads left out; repeat TeleCRM leads left out).
+
+**Setup (10 minutes):**
+1. Telegram › **@BotFather** › `/newbot` › name it (e.g. *EBG Alerts*) › copy the token.
+2. Vercel › Settings › Environment Variables › `TELEGRAM_BOT_TOKEN` = token › Save › Redeploy.
+3. Supabase › SQL Editor › run `supabase/alerts.sql` once (tables + schedules: changes every 5 min, update at :05 and :35).
+4. Hari signs in to the dashboard › Settings › Alerts › **Connect Telegram** › press **START** in the bot chat. The dashboard connects by itself and sends a welcome message.
+5. **Send test** / **Send update now** to check.
+
+The Meta token needs access to the ad accounts' activity log (the same System User with *ads_read* works for most accounts; if an account shows "Couldn't read", give the system user that ad account under Assigned assets).
+
 ## Google Ads
 
 Header › **Platform: Meta Ads / Google Ads**. The Google view uses the same pages, reports and Excel exports, with:
