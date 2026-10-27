@@ -1294,7 +1294,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, imp: 0, clk: 0, brand: brandOf(camp)}); metaOrder.push(key); }
       if (c.adid >= 0){ var aidv = clean(r[c.adid]); if (aidv) String(aidv).split(/\s*,\s*/).forEach(function(x){ if (x && (!a.adId || (", " + a.adId + ", ").indexOf(", " + x + ", ") < 0)) a.adId = a.adId ? a.adId + ", " + x : x; }); }
       if (inc && rch !== null){ a.reach = (a.reach || 0) + rch; a.reachRows = (a.reachRows || 0) + 1; }
-      if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1; metaResults += ui; metaRowsIn++; if (ui > 0 && eD !== null && !(a.lastUi >= eD)) a.lastUi = eD; }
+      if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1; if (sp > 0) a.spendDays = (a.spendDays || 0) + (sD !== null && eD !== null && eD >= sD ? eD - sD + 1 : 1); metaResults += ui; metaRowsIn++; if (ui > 0 && eD !== null && !(a.lastUi >= eD)) a.lastUi = eD; }
       else if (part){ a.partial = true; partialRows++; }
     }
   }
@@ -2667,30 +2667,36 @@ function repCreativeTable(o){
   var P = o.params, R = o.R, label = repDateLabel(o.rg.from, o.rg.to), minImp = Math.max(0, +P.minImp || 0), N = Math.max(1, +P.topN || 10);
   var listed = state.settings.brands, okB = function(b){ return P.brands.length ? P.brands.indexOf(b) >= 0 : listed.indexOf(b) >= 0; };
   var base = (R.ads || []).filter(function(a){ return a.src === "M" && !a.partial && okB(a.brand) && isNum(a.imp) && a.imp > 0 && isNum(a.clk); });
-  var ads = base.filter(function(a){ return a.imp >= minImp; }).sort(function(a, b){ return (b.ctr - a.ctr) || (b.imp - a.imp); });
+  /* long period, big spenders only: an ad competes if it spent at least the minimum (Auto = top half by spend) and ran on enough days */
+  var periodDays = o.rg.to - o.rg.from + 1, minDays = Math.min(Math.max(1, isNum(+P.minDays) ? +P.minDays : 7), periodDays);
+  var withImp = base.filter(function(a){ return a.imp >= minImp; }), spends = withImp.map(function(a){ return a.spend || 0; }).sort(function(x, y){ return x - y; });
+  var autoSpend = spends.length ? spends[Math.floor((spends.length - 1) / 2)] : 0, minSpend = +P.minSpend > 0 ? +P.minSpend : autoSpend;
+  var totalSpend = withImp.reduce(function(s0, a){ return s0 + (a.spend || 0); }, 0);
+  var ads = withImp.filter(function(a){ return (a.spend || 0) >= minSpend && (a.spendDays || 0) >= minDays; }).sort(function(a, b){ return (b.ctr - a.ctr) || (b.spend - a.spend); });
   var med = function(arr){ arr = arr.filter(isNum).sort(function(x, y){ return x - y; }); if (!arr.length) return null; var m = Math.floor(arr.length / 2); return arr.length % 2 ? arr[m] : (arr[m - 1] + arr[m]) / 2; };
   var medCpl = med(ads.filter(function(a){ return a.ui > 0; }).map(function(a){ return a.spend / a.ui; })), medCtr = med(ads.map(function(a){ return a.ctr; }));
   var quality = function(a){ return a.crm >= 5 && isNum(a.qlRate) && a.qlRate < 0.1 ? " Lead quality is low (" + Math.round(a.qlRate * 100) + "% qualified) — check targeting / form questions." : ""; };
   var remark = function(a, top){ var cpl = a.ui > 0 ? a.spend / a.ui : null;
     if (top){ if (!a.ui) return "Grabs attention but no Meta leads yet — people click and don't submit: check the form / landing page." + quality(a);
-      if (isNum(medCpl) && cpl <= medCpl) return "Winner: high CTR and CPL at or below the median (" + fINR(medCpl) + ") — scale it and use it as the model for new creatives." + quality(a);
+      if (isNum(medCpl) && cpl <= medCpl) return "Proven winner: high CTR over " + (a.spendDays || 0) + " days on " + fINR(a.spend) + " spend, CPL at or below the median (" + fINR(medCpl) + ") — scale it and use it as the model for new creatives." + quality(a);
       return "Catches attention but leads cost more than the median (" + fINR(medCpl) + ") — keep the visual, test a shorter form or a clearer offer." + quality(a); }
     if (!a.ui) return a.spend > 0 ? "Low CTR and no leads — pause it or replace the creative (new hook / visual)." : "Low CTR, no spend or leads yet.";
     if (isNum(medCpl) && cpl <= medCpl) return "Low CTR but leads are cheap — keep it running; test a stronger hook or thumbnail to lift CTR." + quality(a);
-    return "Low CTR and costly leads — refresh the creative (new hook, visual or offer) or pause it." + quality(a); };
-  var row = function(a, i, grp, top){ return {group: grp, rank: i + 1, brand: a.brand, campaign: a.campaign, adset: a.adset, ad: a.ad, adId: a.adId || "", imp: a.imp, clk: a.clk, ctr: a.ctr,
+    return "Big spender (" + fINR(a.spend) + ") with low CTR and costly leads — refresh the creative (new hook, visual or offer) or pause it." + quality(a); };
+  var row = function(a, i, grp, top){ return {group: grp, rank: i + 1, brand: a.brand, campaign: a.campaign, adset: a.adset, ad: a.ad, adId: a.adId || "", days: a.spendDays || 0, share: totalSpend ? (a.spend || 0) / totalSpend : null, imp: a.imp, clk: a.clk, ctr: a.ctr,
     spend: a.spend, cpc: a.clk > 0 ? a.spend / a.clk : null, ui: a.ui, cpl: a.ui > 0 ? a.spend / a.ui : null, crm: a.crm, ql: a.ql, qlRate: a.crm ? a.ql / a.crm : null, cpql: a.ql > 0 ? a.spend / a.ql : null, remark: remark(a, top),
     _rk: "creative|" + label + "|" + a.key}; };
-  var topA = ads.slice(0, N), rest = ads.slice(topA.length), botA = rest.slice(-N).reverse();
+  /* fewer than 2×N ads qualify: split them in half so both lists are useful */
+  var nTop = ads.length < 2 * N ? Math.ceil(ads.length / 2) : N, topA = ads.slice(0, nTop), rest = ads.slice(topA.length), botA = rest.slice(-N).reverse();
   var gTop = "Top " + topA.length + " by CTR", gBot = "Bottom " + botA.length + " by CTR";
   var top = topA.map(function(a, i){ return row(a, i, gTop, true); }), bot = botA.map(function(a, i){ return row(a, i, gBot, false); });
   var cols = [repCol("group", "Group", "text"), repCol("rank", "Rank", "rint"), repCol("brand", "Brand", "text"), repCol("campaign", "Campaign", "text", null, {cls: "name"}), repCol("adset", "Ad set", "text"),
     repCol("ad", "Ad name", "text"), repCol("adId", "Ad ID", "text", null, {cls: "nowrap", get: function(r){ return r.adId || "—"; }}),
-    repCol("imp", "Impressions", "rint"), repCol("clk", "Link clicks", "rint"), repCol("ctr", "CTR", "rpct2", function(v){ return !isNum(v) || !isNum(medCtr) ? null : v >= medCtr * 1.2 ? "good" : v <= medCtr * 0.8 ? "bad" : null; }),
-    repCol("spend", "Spend", "rinr"), repCol("cpc", "CPC", "rinr"), repCol("ui", "Meta leads", "rint"), repCol("cpl", "CPL", "rinr"), repCol("crm", "CRM leads", "rint"), repCol("ql", "Qualified leads", "rint"),
+    repCol("days", "Days running", "rint"), repCol("spend", "Spend", "rinr"), repCol("share", "Share of spend", "rpct"), repCol("imp", "Impressions", "rint"), repCol("clk", "Link clicks", "rint"), repCol("ctr", "CTR", "rpct2", function(v){ return !isNum(v) || !isNum(medCtr) ? null : v >= medCtr * 1.2 ? "good" : v <= medCtr * 0.8 ? "bad" : null; }),
+    repCol("cpc", "CPC", "rinr"), repCol("ui", "Meta leads", "rint"), repCol("cpl", "CPL", "rinr"), repCol("crm", "CRM leads", "rint"), repCol("ql", "Qualified leads", "rint"),
     repCol("qlRate", "QL rate", "rpct"), repCol("cpql", "CPQL", "rinr"), repCol("remark", "Remarks: what to do", "text", null, {cls: "act-remark"})];
   return {cols: cols, rows: top.concat(bot), total: null, label: label, groups: [{title: gTop, rows: top}, {title: gBot, rows: bot}],
-    info: {compared: ads.length, small: base.length - ads.length, minImp: minImp, medCtr: medCtr, medCpl: medCpl, noCtr: !R.hasCtr, noIds: ads.length > 0 && !ads.some(function(a){ return a.adId; })}};
+    info: {compared: ads.length, small: base.length - ads.length, minImp: minImp, minSpend: minSpend, autoSpend: !(+P.minSpend > 0), minDays: minDays, periodDays: periodDays, medCtr: medCtr, medCpl: medCpl, noCtr: !R.hasCtr, noIds: ads.length > 0 && !ads.some(function(a){ return a.adId; })}};
 }
 function repBuild(o){ return o.type === "master" ? repMasterTable(o) : o.type === "creative" ? repCreativeTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
 function repTypeLabel(t){ return (REPORT_TYPES.filter(function(x){ return x[0] === t; })[0] || ["", ""])[1]; }
@@ -2716,7 +2722,8 @@ function viewReports(){
   var iso = function(d){ return isoDay(d); }, fromIso = function(v){ return v ? dayOf(Date.parse(v + "T00:00:00Z")) : null; };
   var dateIn = function(label, val, set){ var i = el("input", {type: "date", value: iso(val), max: iso(todayDay())}); i.addEventListener("change", function(){ var d = fromIso(i.value); if (isNum(d)){ set(d); render(); } }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), i); };
   var typeSel = el("select", {"aria-label": "Report type"}, REPORT_TYPES.map(function(t){ return el("option", {value: t[0], selected: P.type === t[0] ? true : null, text: t[1]}); }));
-  typeSel.addEventListener("change", function(){ P.type = typeSel.value; try { localStorage.setItem("ebg-rep-type", P.type); } catch (e) {} render(); });
+  typeSel.addEventListener("change", function(){ P.type = typeSel.value; try { localStorage.setItem("ebg-rep-type", P.type); } catch (e) {}
+    if (P.type === "creative" && P.to - P.from < 6){ P.to = Math.min(P.to, todayDay() - 1); P.from = P.to - 29; } render(); });
   var ctr = el("div", {cls: "rep-controls"}, el("label", {cls: "field rep-field rep-type"}, el("span", {cls: "small", text: "Report"}), typeSel));
   if (repIsRange(P.type)){ ctr.appendChild(dateIn("From", P.from, function(d){ P.from = d; })); ctr.appendChild(dateIn("To", P.to, function(d){ P.to = d; })); }
   else { ctr.appendChild(dateIn("Reporting date (cutoff)", P.cutoff, function(d){ P.cutoff = d; }));
@@ -2725,6 +2732,14 @@ function viewReports(){
   if (P.type === "creative"){ if (!isNum(P.minImp)) P.minImp = 1000; if (!isNum(P.topN)) P.topN = 10;
     var mi = el("input", {type: "number", min: "0", step: "100", value: String(P.minImp), style: "width:110px", "aria-label": "Minimum impressions"}); mi.addEventListener("change", function(){ P.minImp = Math.max(0, +mi.value || 0); render(); });
     var tn = el("select", {"aria-label": "How many top and bottom ads"}, [5, 10, 20, 50].map(function(n){ return el("option", {value: String(n), selected: P.topN === n ? true : null, text: "Top / bottom " + n}); })); tn.addEventListener("change", function(){ P.topN = +tn.value; render(); });
+    if (!isNum(P.minDays)) P.minDays = 7; if (!isNum(P.minSpend)) P.minSpend = 0;
+    var ms = el("input", {type: "number", min: "0", step: "500", value: P.minSpend ? String(P.minSpend) : "", placeholder: "Auto", style: "width:110px", "aria-label": "Minimum spend"}); ms.addEventListener("change", function(){ P.minSpend = Math.max(0, +ms.value || 0); render(); });
+    var md = el("input", {type: "number", min: "1", step: "1", value: String(P.minDays), style: "width:70px", "aria-label": "Minimum days running"}); md.addEventListener("change", function(){ P.minDays = Math.max(1, +md.value || 1); render(); });
+    var y0 = todayDay() - 1, quick = el("div", {cls: "seg", role: "group", "aria-label": "Period"}, [30, 60, 90].map(function(n){ var on = P.to === y0 && P.from === y0 - n + 1;
+      return el("button", {type: "button", cls: on ? "on" : null, "aria-pressed": on ? "true" : "false", onclick: function(){ P.to = y0; P.from = y0 - n + 1; render(); }}, "Last " + n + " days"); }));
+    ctr.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Period"}), quick));
+    ctr.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Only ads that spent at least"}), el("span", null, "₹ ", ms)));
+    ctr.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "and ran on at least"}), el("span", null, md, " days")));
     ctr.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Only ads with at least"}), el("span", null, mi, " impressions")));
     ctr.appendChild(el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: "Show"}), tn)); }
   if (repIsLeader(P.type)){ var known = RP.leaders.map(function(L){ return L.name; }); if (O && O.out && repIsLeader(O.out.type)) repBuild(O.out).leaders.forEach(function(n){ if (known.indexOf(n) < 0) known.push(n); });
@@ -2755,7 +2770,7 @@ function viewReports(){
     else if (T.groups){ var I = T.info;
       if (I.noCtr) sec.appendChild(el("div", {cls: "banner warn", text: "This Meta data has no Impressions / Link clicks, so CTR can't be worked out. The Meta API sync includes them; for uploaded files, export with those columns."}));
       if (I.noIds) sec.appendChild(el("div", {cls: "banner warn", text: "Ad IDs aren't in the data yet. After creative-report.sql is run, the next Meta sync (every 30 min) fills them in for the synced days; use Settings › Data connections › Sync now for older days."}));
-      sec.appendChild(el("p", {cls: "small", text: fInt(I.compared) + " ads with at least " + fInt(I.minImp) + " impressions compared" + (I.small ? " (" + fInt(I.small) + " smaller ads left out: too few impressions to judge CTR)" : "") + ". Median CTR " + (isNum(I.medCtr) ? (I.medCtr * 100).toFixed(2) + "%" : "—") + " · median CPL " + (isNum(I.medCpl) ? fINR(I.medCpl) : "—") + ". CTR ✓ = 20%+ above median, ✗ = 20%+ below. Copy an Ad ID and paste it into the Ads Manager search box to open the creative."}));
+      sec.appendChild(el("p", {cls: "small", text: fInt(I.compared) + " big-spending ads compared over " + I.periodDays + " day" + (I.periodDays === 1 ? "" : "s") + ": spent at least " + fINR(I.minSpend) + (I.autoSpend ? " (Auto = top half by spend)" : "") + ", ran on " + I.minDays + "+ days and had " + fInt(I.minImp) + "+ impressions" + (I.small ? " (" + fInt(I.small) + " smaller or short-running ads left out)" : "") + ". Median CTR " + (isNum(I.medCtr) ? (I.medCtr * 100).toFixed(2) + "%" : "—") + " · median CPL " + (isNum(I.medCpl) ? fINR(I.medCpl) : "—") + ". CTR ✓ = 20%+ above median, ✗ = 20%+ below. Copy an Ad ID and paste it into the Ads Manager search box to open the creative."}));
       T.groups.forEach(function(g){ sec.appendChild(el("h3", {cls: "rep-group-h", text: g.title})); sec.appendChild(g.rows.length ? el("div", {cls: "rep-table"}, table("rep-creative-" + g.title.split(" ")[0], T.cols.filter(function(c){ return c.k !== "group"; }), g.rows, {presorted: true})) : el("div", {cls: "empty", text: "No ads with enough impressions in this period."})); }); }
     else sec.appendChild(el("div", {cls: "rep-table"}, table("rep-" + built.type, T.cols, T.rows, {total: T.total, presorted: true, totalBottom: true})));
     sec.appendChild(repHowCalc(built.type));
@@ -2764,8 +2779,10 @@ function viewReports(){
 }
 function repHowCalc(type){
   if (type === "creative") return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}), el("table", {cls: "help-gloss"}, el("tbody", null, [
-    ["CTR", "Link clicks ÷ impressions, per ad, for the chosen dates. Ads with fewer impressions than the minimum are left out (a few lucky clicks would make their CTR look huge)."],
-    ["Top / bottom", "All remaining ads ranked by CTR; the highest N and the lowest N (lowest first). An ad is never in both lists."],
+    ["Who competes", "Only proven, big-spending ads over a long period: spent at least the minimum in the chosen dates (Auto = the top half of ads by spend), ran on at least the minimum number of days, and had enough impressions. Short tests and small ads are left out, so a lucky ad can't top the list."],
+    ["CTR", "Link clicks ÷ impressions over the whole period."],
+    ["Top / bottom", "The competing ads ranked by CTR: Top = highest CTR among the big spenders (proven winners); Bottom = lowest CTR among the big spenders (where most money is wasted). An ad is never in both lists."],
+    ["Days running / Share of spend", "Days in the period with spend, and the ad's share of all spend of the compared brands' ads."],
     ["Ad ID", "Meta's ID of the ad. Paste it into the Ads Manager search box to open the creative. Two IDs = two ads with the same name in that ad set."],
     ["Meta leads / CPL", "Meta Results (lead forms and WhatsApp chats) and spend ÷ Meta leads, as everywhere in the dashboard."],
     ["CRM leads / QL", "TeleCRM leads matched to this ad and how many are qualified; CPQL = spend ÷ qualified leads."],
