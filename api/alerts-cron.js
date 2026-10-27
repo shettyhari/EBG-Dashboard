@@ -1,9 +1,10 @@
 // Alerts schedule, called by Supabase pg_cron (x-cron-key, checked against Vault) or any scheduler with x-cron-secret = CRON_SECRET.
 //   POST /api/alerts-cron?mode=activity   every 5 minutes: Meta ad account changes (who changed what)
-//   POST /api/alerts-cron?mode=summary    every 30 minutes: update + CPL alerts
+//   POST /api/alerts-cron?mode=summary    every 30 minutes: CPL events (dashboard) + monitoring (alerts with open / resolved tracking, daily / weekly reports)
 const crypto = require("crypto");
 const A = require("./_alertlib");
 const T = require("./_tg");
+const M = require("./_monitor");
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
 function send(res, code, body) { res.statusCode = code; res.setHeader("content-type", "application/json; charset=utf-8"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(body)); }
 function same(a, b) { const x = crypto.createHash("sha256").update(String(a || "")).digest(), y = crypto.createHash("sha256").update(String(b || "")).digest(); return crypto.timingSafeEqual(x, y); }
@@ -23,6 +24,11 @@ module.exports = async function handler(req, res) {
     const st = await sbFetch("team_settings?id=eq.1&select=settings"), S = (st && st[0] && st[0].settings) || {};
     const mode = String((req.query && req.query.mode) || "summary");
     // without Telegram, changes and CPL moves are still recorded for the dashboard
-    return send(res, 200, mode === "activity" ? await A.runActivity(S, sbFetch) : await A.runSummary(S, sbFetch));
+    if (mode === "activity") return send(res, 200, await A.runActivity(S, sbFetch));
+    let mon, cpl;
+    try { mon = await M.run(S, sbFetch); cpl = await A.runSummary(S, sbFetch, { recordOnly: true }); }
+    catch (e) {   // monitoring failed (e.g. monitoring.sql not run yet): fall back to the old 30-minute update + CPL alerts so nothing goes silent
+      mon = { error: String((e && e.message) || e) }; try { cpl = await A.runSummary(S, sbFetch); } catch (x) { mon.fallbackError = x.message; } }
+    return send(res, 200, { monitor: mon, cpl });
   } catch (e) { return send(res, 502, { error: String((e && e.message) || e) }); }
 };

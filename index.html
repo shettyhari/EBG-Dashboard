@@ -505,6 +505,19 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 .zl-note{line-height:1.55}.zl-note+.zl-note{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}.zl-note .linkbtn{margin-right:12px}
 .lcpl{margin-bottom:18px}.lcpl-line{font-size:13.5px;margin:2px 0}.lcpl-remark{font-size:13.5px;color:var(--muted);line-height:1.5}
 .rep-group-h{margin:18px 0 8px;font-size:16px}
+.mon-stats{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;margin:2px 0 14px}.mon-stat{display:flex;flex-direction:column;gap:3px}
+.mon-subs{flex-wrap:wrap;margin-bottom:14px}.mon-h{margin:16px 0 8px;font-size:14px}
+.mon-card{border:1px solid var(--line);border-left:4px solid var(--warn);background:var(--panel);padding:10px 12px;margin:0 0 10px;display:flex;flex-direction:column;gap:5px;line-height:1.45}
+.mon-card.sev-critical,.mon-card.sev-high{border-left-color:var(--bad)}.mon-card.sev-low{border-left-color:var(--line)}.mon-card.is-resolved{border-left-color:var(--good);opacity:.9}
+.mon-card-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.mon-title{font-size:14px}.mon-action{font-weight:500}.mon-meta{color:var(--muted)}
+.mon-card textarea{width:100%;max-width:640px;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.mon-acts{margin:0}.mon-log{display:flex;flex-direction:column;border-top:1px solid var(--line-soft)}
+.mon-log-row{border-bottom:1px solid var(--line-soft);padding:6px 2px}.mon-log-row summary{display:flex;gap:10px;align-items:baseline;cursor:pointer;flex-wrap:wrap}
+.mon-log-first{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 260px}.mon-log-row.failed summary{color:var(--bad)}
+.mon-pre{white-space:pre-wrap;font:inherit;font-size:13px;background:var(--band);padding:10px;margin:8px 0 2px;max-width:720px}
+.mon-tg{background:var(--band);border:1px solid var(--line-soft);padding:12px 14px;max-width:560px;font-size:13.5px;line-height:1.5;margin-top:10px;overflow-wrap:anywhere}
+.mon-recon{padding:8px 10px;margin:10px 0;border:1px solid currentColor}.mon-recon.ok{color:var(--good);background:var(--good-bg)}.mon-recon.bad{color:var(--bad);background:var(--bad-bg)}
+.mon-th td,.mon-th th{padding:4px 8px}.mon-th td:first-child{min-width:260px}
 .act-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}.act-table td.act-remark{min-width:280px;white-space:normal;line-height:1.45}.act-table td{vertical-align:top}
 .hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
 .hist-list{margin-top:8px}.hist-day{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px;font-weight:600}
@@ -926,6 +939,7 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
       <button class="tab" role="tab" data-tab="ql" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span>QL statuses</span></button>
       <button class="tab" role="tab" data-tab="settings" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
       <button class="tab" role="tab" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3 2"/></svg><span>History</span></button>
+      <button class="tab" role="tab" data-tab="monitor" aria-selected="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span>Alerts &amp; Monitoring</span></button>
       <button class="tab" role="tab" data-tab="activity" aria-selected="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span>Ad account activity</span></button>
       <button class="tab" role="tab" data-tab="help" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.9"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/></svg><span>Help &amp; terms</span></button>
   </nav>
@@ -2331,6 +2345,7 @@ var PAGE_INFO = {
   overview: ["Overview", "Your results at a glance: money spent, leads received, lead quality and how fast leads were called."],
   trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
   leaks: ["Lead leaks", "Paid leads that never reached TeleCRM, WhatsApp leads without a campaign, and ad accounts that spend but aren't synced."],
+  monitor: ["Telegram Alerts & Monitoring", "Open and resolved issues, account changes, alert history, report preview, trends and thresholds. Visible only to you."],
   activity: ["Ad account activity", "Who changed what in the Meta ad accounts, in plain language, with what will happen next. Visible only to you."],
   history: ["History", "Who changed what, and when: settings, targets, remarks, saved data and team members, with the old and new value."],
   reports: ["Reports", "The EBG daily and MTD reports (brand-wise, master, leader-wise), ready to check and download as Excel."],
@@ -2350,7 +2365,7 @@ function pageTitle(){
   var info = PAGE_INFO[state.tab] || PAGE_INFO.overview, h = document.querySelector("header.top h1"), p = document.getElementById("period");
   if (h) h.textContent = info[0];
   if (p && state.R){ var pr = state.R.period;
-    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" || state.tab === "history" || state.tab === "activity" ? "" : "  ·  Dates: " + rangeText(false)) +
+    p.textContent = info[1] + (state.tab === "settings" || state.tab === "help" || state.tab === "reports" || state.tab === "leaks" || state.tab === "history" || state.tab === "activity" || state.tab === "monitor" ? "" : "  ·  Dates: " + rangeText(false)) +
       (isGoogle() && state.tab !== "settings" && state.tab !== "help" && state.tab !== "history" ? "  ·  Google Ads view: Leads in UI = Google conversions; Leads in CRM = TeleCRM leads whose UTM campaign is that Google campaign." : "");
     p.title = pr.metaStart !== null ? "Meta data available " + fDay(pr.metaStart) + " – " + fDay(pr.metaEnd) : "No Meta data in these dates yet"; }
 }
@@ -3399,8 +3414,8 @@ function alertsPanel(){
     s2.addEventListener("change", function(){ save(k, +s2.value); }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), s2); };
   box.appendChild(el("div", {cls: "group"}, el("h3", {text: "What to send"}),
     tog("activity", "Ad account changes, checked every 5 minutes: who changed what (budgets, status on/off, new or edited ads, targeting, bids…), from Meta's activity log"),
-    tog("summary", "Update every 30 minutes: live campaigns / ad sets / ads, today's spend, leads and CPL per brand, best and weakest brand today, month best / weakest by CPQL"),
-    el("div", {cls: "small", style: "margin:10px 0 4px;font-weight:600", text: "CPL alerts (sent once when a brand's CPL moves up or down, and when it's back to normal)"}),
+    tog("summary", "Performance report (every 30 minutes by default): totals = listed brands, spend, Meta / TeleCRM leads, QL, CPL, CPQL, CTR / CPC / CPM per brand, live campaigns, highlights and the top 3 actions. Schedule, morning recap, weekly report and alert thresholds: Alerts & Monitoring › Thresholds & schedule."),
+    el("div", {cls: "small", style: "margin:10px 0 4px;font-weight:600", text: "CPL moves (recorded for Trends › Live CPL updates). Rising CPL, lead drops, zero-lead spend, CRM gaps and account problems come as tracked alerts (Alerts & Monitoring); Telegram gets CPL improvements from here."}),
     tog("cpl7", "Today's CPL vs the brand's last 7 days"), tog("cplYday", "Today's CPL vs yesterday"), tog("cplTarget", "Today's CPL crosses the brand's target CPL (Settings › Report targets)"),
     el("div", {cls: "rep-controls"}, num("pct", "Alert when CPL moves by", 5, 100, "%"), num("minLeads", "Only once a brand has at least", 1, 50, "leads today"))));
   box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Quiet hours"}),
@@ -3428,7 +3443,7 @@ function actLoad(sync){
     .then(function(){ return alertsApi("activity", {days: A.days}); })
     .then(function(d){ A.rows = d.rows || []; A.at = Date.now(); A.status = "ready"; })
     .catch(function(e){ A.status = "error"; A.err = e.message === "NOAPI" ? "This page works on the live dashboard (ebg-dashboard.vercel.app)." : /meta_activity|schema cache|does not exist/i.test(e.message) ? "setup" : e.message; })
-    .then(function(){ if (state.tab === "activity") render(); });
+    .then(function(){ if (state.tab === "activity" || state.tab === "monitor") render(); });
 }
 function viewActivity(){
   var sec = el("section", {cls: "panel act-page"});
@@ -3472,6 +3487,213 @@ function viewActivity(){
     {k: "impact", label: "Impact", t: "text", get: function(r){ return (IMP[r.impact] || IMP.low)[1]; }, render: function(r){ var x = IMP[r.impact] || IMP.low; return el("span", {cls: "pill " + x[0], text: x[1]}); }}];
   sec.appendChild(el("div", {cls: "rep-table act-table"}, table("act", cols, list, {presorted: !state.sort.act})));
   sec.appendChild(el("p", {cls: "small", text: "Impact: High = changes delivery or results right away (on/off, budget ±20%+, targeting, bidding, rejected ads, payment problems). Medium = smaller budget moves, new ads, creative or schedule edits. Low = names, approvals, routine billing. Budgets shown in ₹ per day as Meta reports them."}));
+  return sec;
+}
+/* ================= Telegram Alerts & Monitoring (private to the alert recipient's login) ================= */
+var MON_SEV = {critical: ["bad", "Critical"], high: ["bad", "High"], medium: ["warn", "Medium"], low: ["mut", "Low"]};
+var MON_KIND = [["", "All types"], ["account", "Account status"], ["billing", "Billing / limits"], ["rejected", "Rejected ads"], ["sync", "Data feeds"], ["crm_sync", "Meta → TeleCRM"], ["zero_leads", "Spend, no leads"],
+  ["cpl_up", "CPL up"], ["lead_drop", "Lead drop"], ["quality", "Lead quality (QL / CPQL)"], ["delivery", "Delivery stopped"], ["spend", "Abnormal spend"], ["budget", "Budget pacing"], ["costs", "CPM / CPC / CTR"]];
+var MON_LOGKIND = [["", "All messages"], ["critical", "Critical alerts"], ["warning", "Performance alerts"], ["resolved", "Resolved"], ["activity", "Account changes"], ["summary", "30-minute reports"], ["recap", "Morning recaps"], ["weekly", "Weekly reports"], ["cpl", "CPL improvements"]];
+function monState(){ return state.mon || (state.mon = {sub: "open", days: 14, f: {brand: "", account: "", sev: "", kind: "", q: "", conf: ""}, h: {days: 30, kind: "", q: ""}}); }
+function monLoad(){ var M = monState(); M.status = "loading"; M.err = null; render();
+  alertsApi("mon", {days: M.days}).then(function(d){ M.d = d; M.status = "ready"; M.at = Date.now(); })
+    .catch(function(e){ M.status = "error"; M.err = e.message === "NOAPI" ? "This page works on the live dashboard (ebg-dashboard.vercel.app)." : e.message; })
+    .then(function(){ if (state.tab === "monitor") render(); }); }
+function monAgo(t){ if (!t) return "never"; var m = (Date.now() - Date.parse(t)) / 60000; return m < 1 ? "just now" : m < 60 ? Math.round(m) + " min ago" : m < 1440 ? (m / 60).toFixed(1) + " h ago" : Math.round(m / 1440) + " days ago"; }
+function monWhen(t){ if (!t) return "—"; var d = new Date(t); return d.toLocaleDateString("en-IN", {day: "numeric", month: "short"}) + ", " + d.toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}); }
+function monAck(key, body){ var p = Object.assign({key: key}, body || {}); return alertsApi("mon-ack", p).then(function(){ toast(body && body.resolve ? "Marked as resolved" : body && body.reopen ? "Reopened" : body && body.note !== undefined ? "Note saved" : "Acknowledged: no more reminders"); monLoad(); }).catch(function(e){ toast(e.message); }); }
+function monIssueCard(r){
+  var x = MON_SEV[r.severity] || MON_SEV.low, d = r.detail || {}, card = el("div", {cls: "mon-card sev-" + r.severity + (r.status === "resolved" ? " is-resolved" : "")});
+  card.appendChild(el("div", {cls: "mon-card-head"}, el("span", {cls: "pill " + x[0], text: x[1]}), r.confirmed === false ? el("span", {cls: "pill mut", text: "Suspected"}) : el("span", {cls: "pill mut", text: "Confirmed"}),
+    r.status === "resolved" ? el("span", {cls: "pill good", text: "Resolved " + monAgo(r.resolved_at)}) : r.ack_at ? el("span", {cls: "pill mut", text: "Acknowledged"}) : null,
+    el("b", {cls: "mon-title", text: r.title})));
+  var where = [r.brand && "Brand: " + r.brand, r.account && "Account: " + r.account, r.campaign && "Campaign: " + r.campaign].filter(Boolean).join(" · ");
+  if (where) card.appendChild(el("div", {cls: "small", text: where}));
+  if (d.current) card.appendChild(el("div", null, el("span", {text: "Now: "}), el("b", {text: d.current}), d.baseline ? el("span", {text: " · Usual: " + d.baseline}) : null,
+    d.change !== null && d.change !== undefined && isFinite(d.change) ? el("span", {cls: "small", text: " (" + (d.change > 0 ? "+" : "") + Math.round(d.change * 100) + "%)"}) : null));
+  if (d.impact) card.appendChild(el("div", null, el("span", {cls: "small", text: "Impact: "}), d.impact));
+  if (d.action) card.appendChild(el("div", {cls: "mon-action"}, "👉 " + d.action));
+  card.appendChild(el("div", {cls: "small mon-meta", text: "First seen " + monWhen(r.first_seen) + " · last seen " + monAgo(r.last_seen) + " · Telegram " + (r.notify_count ? r.notify_count + "× (last " + monAgo(r.last_notified) + ")" : "not sent (quiet hours or held)") + (r.ack_at ? " · acknowledged by " + r.ack_by + " " + monAgo(r.ack_at) : "")}));
+  var note = el("textarea", {rows: "2", placeholder: "Note (what was found / done)…", "aria-label": "Note"}); note.value = r.note || "";
+  var acts = el("div", {cls: "row-add mon-acts"});
+  if (r.status === "open"){
+    if (!r.ack_at) acts.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ monAck(r.key, {}); }}, "Acknowledge"));
+    acts.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ monAck(r.key, {resolve: 1, note: note.value}); }}, "Mark resolved")); }
+  else acts.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: function(){ monAck(r.key, {reopen: 1}); }}, "Reopen"));
+  acts.appendChild(el("button", {cls: "linkbtn", type: "button", onclick: function(){ monAck(r.key, {note: note.value}); }}, "Save note"));
+  card.appendChild(note); card.appendChild(acts);
+  return card;
+}
+function monIssues(M, rows, open){
+  var F = M.f, box = el("div");
+  var uniq = function(k){ var o = {}; rows.forEach(function(r){ if (r[k]) o[r[k]] = 1; }); return Object.keys(o).sort(); };
+  var sel = function(label, val, opts, set){ var s = el("select", {"aria-label": label}, opts.map(function(o){ return el("option", {value: o[0], selected: String(val) === String(o[0]) ? true : null, text: o[1]}); }));
+    s.addEventListener("change", function(){ set(s.value); }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), s); };
+  var q = el("input", {type: "search", cls: "search", placeholder: "Search issue, campaign, note…", value: F.q, "aria-label": "Search issues"});
+  q.addEventListener("input", function(){ F.q = q.value; clearTimeout(monIssues._t); monIssues._t = setTimeout(function(){ render(); var e = document.querySelector(".mon-page input[type=search]"); if (e){ e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }, 250); });
+  var ctl = el("div", {cls: "rep-controls"},
+    sel("Brand", F.brand, [["", "All brands"]].concat(uniq("brand").map(function(b){ return [b, b]; })), function(v){ F.brand = v; render(); }),
+    sel("Account", F.account, [["", "All accounts"]].concat(uniq("account").map(function(b){ return [b, b]; })), function(v){ F.account = v; render(); }),
+    sel("Severity", F.sev, [["", "Any severity"], ["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]], function(v){ F.sev = v; render(); }),
+    sel("Type", F.kind, MON_KIND, function(v){ F.kind = v; render(); }),
+    sel("Certainty", F.conf, [["", "Confirmed + suspected"], ["1", "Confirmed only"], ["0", "Suspected only"]], function(v){ F.conf = v; render(); }));
+  if (!open) ctl.appendChild(sel("Period", M.days, [[1, "Last 24 hours"], [7, "Last 7 days"], [14, "Last 14 days"], [30, "Last 30 days"], [90, "Last 90 days"]], function(v){ M.days = +v; monLoad(); }));
+  ctl.appendChild(el("label", {cls: "field rep-field hist-q"}, el("span", {cls: "small", text: "Search"}), q));
+  box.appendChild(ctl);
+  var ql = F.q.trim().toLowerCase(), list = rows.filter(function(r){ if (F.brand && r.brand !== F.brand) return false; if (F.account && r.account !== F.account) return false; if (F.sev && r.severity !== F.sev) return false;
+    if (F.kind && r.kind !== F.kind) return false; if (F.conf && String(r.confirmed === false ? 0 : 1) !== F.conf) return false;
+    return !ql || [r.title, r.brand, r.account, r.campaign, r.note, (r.detail || {}).current, (r.detail || {}).impact].join(" ").toLowerCase().indexOf(ql) >= 0; });
+  var rank = {critical: 0, high: 1, medium: 2, low: 3};
+  list.sort(function(a, b){ return open ? (rank[a.severity] - rank[b.severity]) || (a.last_seen < b.last_seen ? 1 : -1) : (String(a.resolved_at || a.last_seen) < String(b.resolved_at || b.last_seen) ? 1 : -1); });
+  if (!list.length){ box.appendChild(el("div", {cls: "empty", text: rows.length ? "No issues match these filters." : open ? "No open issues. ✅ The checks run every 30 minutes." : "Nothing resolved in this period."})); return box; }
+  if (open){ var crit = list.filter(function(r){ return r.severity === "critical"; }), warn = list.filter(function(r){ return r.severity !== "critical"; });
+    if (crit.length){ box.appendChild(el("h3", {cls: "mon-h", text: "Critical (" + crit.length + ")"})); crit.forEach(function(r){ box.appendChild(monIssueCard(r)); }); }
+    if (warn.length){ box.appendChild(el("h3", {cls: "mon-h", text: "Performance warnings (" + warn.length + ")"})); warn.forEach(function(r){ box.appendChild(monIssueCard(r)); }); } }
+  else list.forEach(function(r){ box.appendChild(monIssueCard(r)); });
+  return box;
+}
+function monHistory(M){
+  var H = M.h, box = el("div");
+  if (!H.rows && !H.loading){ H.loading = true; alertsApi("mon-history", {days: H.days, kind: H.kind, q: H.q}).then(function(d){ H.rows = d.rows || []; H.err = null; }).catch(function(e){ H.err = e.message; H.rows = []; }).then(function(){ H.loading = false; if (state.tab === "monitor") render(); }); }
+  var reload = function(){ H.rows = null; render(); };
+  var sel = function(label, val, opts, set){ var s = el("select", {"aria-label": label}, opts.map(function(o){ return el("option", {value: o[0], selected: String(val) === String(o[0]) ? true : null, text: o[1]}); }));
+    s.addEventListener("change", function(){ set(s.value); }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), s); };
+  var q = el("input", {type: "search", cls: "search", placeholder: "Brand, campaign, account, words…", value: H.q, "aria-label": "Search history"});
+  q.addEventListener("change", function(){ H.q = q.value; reload(); });
+  box.appendChild(el("div", {cls: "rep-controls"}, sel("Period", H.days, [[1, "Last 24 hours"], [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"], [180, "Last 180 days"]], function(v){ H.days = +v; reload(); }),
+    sel("Type", H.kind, MON_LOGKIND, function(v){ H.kind = v; reload(); }), el("label", {cls: "field rep-field hist-q"}, el("span", {cls: "small", text: "Search (press Enter)"}), q)));
+  if (H.err) box.appendChild(el("div", {cls: "msg err", text: H.err}));
+  if (!H.rows){ box.appendChild(el("div", {cls: "empty", text: "Loading…"})); return box; }
+  if (!H.rows.length){ box.appendChild(el("div", {cls: "empty", text: "No Telegram messages in this period."})); return box; }
+  var ul = el("div", {cls: "mon-log"});
+  H.rows.forEach(function(r){ var failed = /-failed$/.test(r.kind);
+    ul.appendChild(el("details", {cls: "mon-log-row" + (failed ? " failed" : "")}, el("summary", null, el("span", {cls: "small nowrap", text: monWhen(r.at)}), el("span", {cls: "pill " + (failed ? "bad" : /critical/.test(r.kind) ? "bad" : /warning/.test(r.kind) ? "warn" : /resolved/.test(r.kind) ? "good" : "mut"), text: failed ? r.kind.replace(/-failed$/, "") + " · not delivered (retrying)" : r.kind}),
+      el("span", {cls: "mon-log-first", text: String(r.text).replace(/<[^>]+>/g, "").split("\n").filter(Boolean).slice(0, 2).join(" · ")})),
+      el("pre", {cls: "mon-pre", text: String(r.text).replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")}))); });
+  box.appendChild(ul);
+  return box;
+}
+function monPreview(M){
+  var P = M.prev || (M.prev = {}), box = el("div");
+  box.appendChild(el("div", {cls: "small", text: "Exactly what Telegram would get right now. Nothing is sent from here; the checks and reports run on their own every 30 minutes."}));
+  box.appendChild(el("div", {cls: "row-add"}, el("button", {cls: "btn", type: "button", disabled: P.loading ? true : null, onclick: function(){ P.loading = true; P.err = null; render();
+    alertsApi("mon-preview").then(function(d){ P.d = d; }).catch(function(e){ P.err = e.message; }).then(function(){ P.loading = false; render(); }); }}, P.loading ? "Building…" : P.d ? "Refresh preview" : "Build preview"),
+    M.d && M.d.telegram && M.d.telegram.linked ? el("button", {cls: "btn ghost", type: "button", disabled: P.sending ? true : null, onclick: function(){ P.sending = true; render();
+      alertsApi("run", {what: "summary"}).then(function(d){ toast(d.skipped || ("Sent: " + ((d.sent || []).join(", ") || "nothing new"))); M.h.rows = null; }).catch(function(e){ toast(e.message); }).then(function(){ P.sending = false; monLoad(); }); }}, P.sending ? "Sending…" : "Send report now") : null,
+    M.d && M.d.telegram && M.d.telegram.linked ? el("button", {cls: "btn ghost", type: "button", onclick: function(){ alertsApi("run", {what: "weekly"}).then(function(){ toast("Weekly report sent"); }).catch(function(e){ toast(e.message); }); }}, "Send weekly report now") : null));
+  if (P.err) box.appendChild(el("div", {cls: "msg err", text: P.err}));
+  if (P.d){ var R = P.d.recon || {};
+    box.appendChild(el("div", {cls: "mon-recon " + (R.ok ? "ok" : "bad")}, el("b", {text: R.ok ? "✅ Totals check passed: " : "⚠️ Totals check failed: "}),
+      "listed brands " + FMT.rinr(R.brandSum) + " = total " + FMT.rinr(R.total) + (R.outside ? " · outside the listed brands " + FMT.rinr(R.outside) + " (" + (P.d.outside || []).join(", ") + ") shown separately, not added" : " · nothing outside the listed brands") + " · all spend today " + FMT.rinr(R.all) + "."));
+    if ((P.d.errors || []).length) box.appendChild(el("div", {cls: "banner warn", text: "Couldn't read everything: " + P.d.errors.join(" · ")}));
+    var tabs = [["text", "Report now"], ["recap", "Morning recap (yesterday)"], ["weekly", "Weekly report"]]; P.which = P.which || "text";
+    box.appendChild(el("div", {cls: "seg", role: "group", "aria-label": "Message"}, tabs.map(function(t){ return el("button", {type: "button", "aria-pressed": P.which === t[0] ? "true" : "false", onclick: function(){ P.which = t[0]; render(); }}, t[1]); })));
+    box.appendChild(monTgNode(P.d[P.which])); }
+  return box;
+}
+function monTgNode(html){ var box = el("div", {cls: "mon-tg"});
+  String(html || "").split("\n").forEach(function(line){ var div = el("div"), stack = [div], re = /<(\/?)(b|i)>/g, last = 0, m;
+    var txt = function(t){ if (t) stack[stack.length - 1].appendChild(document.createTextNode(t.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"))); };
+    while ((m = re.exec(line))){ txt(line.slice(last, m.index)); last = re.lastIndex;
+      if (!m[1]){ var n = el(m[2]); stack[stack.length - 1].appendChild(n); stack.push(n); } else if (stack.length > 1) stack.pop(); }
+    txt(line.slice(last)); if (!div.childNodes.length) div.appendChild(el("br")); box.appendChild(div); });
+  return box; }
+function monTrends(M){
+  var W = M.tr || (M.tr = {}), box = el("div");
+  if (!W.d && !W.loading){ W.loading = true; alertsApi("mon-trends").then(function(d){ W.d = d; }).catch(function(e){ W.err = e.message; }).then(function(){ W.loading = false; if (state.tab === "monitor") render(); }); }
+  if (W.err){ box.appendChild(el("div", {cls: "msg err", text: W.err})); return box; }
+  if (!W.d){ box.appendChild(el("div", {cls: "empty", text: "Loading…"})); return box; }
+  var wk = W.d.weekly, sg = function(v){ return isNum(v) ? (v > 0 ? "+" : "") + Math.round(v * 100) + "%" : "—"; };
+  box.appendChild(el("div", {cls: "small", text: "Last full week " + wk.from + " → " + wk.to + " vs " + wk.prevFrom + " → " + wk.prevTo + ". Month " + wk.month + " vs Settings › Report targets: budget and lead pacing only where a target is set (nothing is assumed for the others). Same definitions as the dashboard; excluded campaigns' results left out."}));
+  var LBL = {Improving: "good", Deteriorating: "bad", Overspending: "warn", Underspending: "warn", "Lower-quality leads": "bad"};
+  var cols = [
+    {k: "brand", label: "Brand", t: "text", cls: "name"},
+    {k: "labels", label: "Status", t: "text", get: function(r){ return r.labels.join(", "); }, render: function(r){ return r.labels.length ? el("span", null, r.labels.map(function(l){ return el("span", {cls: "pill " + (LBL[l] || "mut"), text: l}); })) : el("span", {cls: "small", text: "Steady"}); }},
+    {k: "ws", label: "Week spend", t: "rinr", get: function(r){ return r.week.spend; }},
+    {k: "wl", label: "Meta leads", t: "rint", get: function(r){ return r.week.leads; }},
+    {k: "lc", label: "Leads Δ", t: "text", get: function(r){ return sg(r.leadC); }},
+    {k: "wc", label: "TeleCRM", t: "rint", get: function(r){ return r.week.crm; }},
+    {k: "wq", label: "QL", t: "rint", get: function(r){ return r.week.ql; }},
+    {k: "qr", label: "QL rate", t: "rpct", get: function(r){ return r.week.qlRate; }},
+    {k: "cpl", label: "CPL", t: "rinr", get: function(r){ return r.week.cpl; }},
+    {k: "cplC", label: "CPL Δ", t: "text", get: function(r){ return sg(r.cplC); }, flag: function(r){ return isNum(r.cplC) ? (r.cplC >= 0.1 ? "bad" : r.cplC <= -0.1 ? "good" : null) : null; }},
+    {k: "cpql", label: "CPQL", t: "rinr", get: function(r){ return r.week.cpql; }},
+    {k: "cpqlC", label: "CPQL Δ", t: "text", get: function(r){ return sg(r.cpqlC); }, flag: function(r){ return isNum(r.cpqlC) ? (r.cpqlC >= 0.1 ? "bad" : r.cpqlC <= -0.1 ? "good" : null) : null; }},
+    {k: "ctr", label: "CTR", t: "rpct2", get: function(r){ return r.week.ctr; }},
+    {k: "cpc", label: "CPC", t: "rinr", get: function(r){ return r.week.cpc; }},
+    {k: "cpm", label: "CPM", t: "rinr", get: function(r){ return r.week.cpm; }},
+    {k: "ms", label: "MTD spend", t: "rinr", get: function(r){ return r.mtd.spend; }},
+    {k: "bud", label: "Month budget", t: "rinr", get: function(r){ return r.budget; }},
+    {k: "util", label: "Budget used", t: "rpct", get: function(r){ return r.util; }},
+    {k: "pace", label: "Spend vs plan", t: "rpct", get: function(r){ return r.budget && r.expSpend ? r.mtd.spend / r.expSpend : null; }, flag: function(r){ var p = r.budget && r.expSpend ? r.mtd.spend / r.expSpend : null; return isNum(p) ? (p > 1.1 || p < 0.85 ? "warn" : null) : null; }},
+    {k: "ml", label: "MTD leads", t: "rint", get: function(r){ return r.mtd.leads; }},
+    {k: "lt", label: "Lead target", t: "rint", get: function(r){ return r.leadsTarget; }},
+    {k: "lp", label: "Leads vs expected", t: "rpct", get: function(r){ return r.leadPace; }, flag: function(r){ return isNum(r.leadPace) ? (r.leadPace < 0.9 ? "bad" : r.leadPace >= 1 ? "good" : null) : null; }}];
+  box.appendChild(el("div", {cls: "rep-table"}, table("monTrends", cols, wk.rows, {stickyFirst: true, empty: "No spend in these weeks."})));
+  box.appendChild(el("p", {cls: "small", text: "Frequency isn't shown: Meta's reach can't be added up across days and ads, so a correct weekly frequency needs a separate reach query (not part of the current sync). Leads vs expected = MTD Meta leads ÷ (monthly lead target × share of the month gone)."}));
+  return box;
+}
+function monSettings(M){
+  var S = state.settings, AL = S.alerts || {}, D = (M.d && M.d.defaults) || {}, canEdit = sbCanWrite(), box = el("div");
+  if (!D.th){ box.appendChild(el("div", {cls: "empty", text: "Loading…"})); return box; }
+  var saveAl = function(patch){ S.alerts = Object.assign({}, S.alerts || {}, patch); provSave(); render(); };
+  var th = Object.assign({}, D.th, AL.th || {}), sc = Object.assign({}, D.sched, AL.sched || {}), TB = AL.thBrand || {};
+  var numIn = function(val, ph, on){ var i = el("input", {type: "number", min: "0", step: "any", value: val === undefined || val === null ? "" : String(val), placeholder: ph || "", disabled: canEdit ? null : true, style: "width:84px"});
+    i.addEventListener("change", function(){ on(i.value === "" ? null : Number(i.value)); }); return i; };
+  box.appendChild(el("div", {cls: "small", text: "Global thresholds apply to every brand; a brand value overrides it (leave empty to use the global one). Changes apply from the next 30-minute check." + (canEdit ? "" : " Only admins / editors can change these.")}));
+  var keys = Object.keys(D.th), brands = (S.brands || []).slice();
+  var thead = el("thead", null, el("tr", null, el("th", {text: "Alert when"}), el("th", {cls: "r", text: "Global"}), brands.map(function(b){ return el("th", {cls: "r", text: b}); })));
+  var tb = el("tbody"); keys.forEach(function(k){
+    tb.appendChild(el("tr", null, el("td", {text: (D.labels || {})[k] || k}),
+      el("td", {cls: "r"}, numIn(th[k], String(D.th[k]), function(v){ var o = Object.assign({}, AL.th || {}); if (v === null) delete o[k]; else o[k] = v; saveAl({th: o}); })),
+      brands.map(function(b){ var bv = (TB[b] || {})[k]; return el("td", {cls: "r"}, numIn(bv, String(th[k]), function(v){ var all = Object.assign({}, AL.thBrand || {}), o = Object.assign({}, all[b] || {}); if (v === null) delete o[k]; else o[k] = v; all[b] = o; saveAl({thBrand: all}); })); }))); });
+  box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Alert thresholds"}), el("div", {cls: "tbl-wrap"}, el("table", {cls: "sticky-1 mon-th"}, thead, tb))));
+  var hourSel = function(val, on){ var s = el("select", {disabled: canEdit ? null : true}, [el("option", {value: "-1", selected: +val < 0 ? true : null, text: "Off"})].concat(Array.from({length: 24}, function(_, h){ return el("option", {value: String(h), selected: +val === h ? true : null, text: (h % 12 || 12) + ":00 " + (h < 12 ? "am" : "pm")}); })));
+    s.addEventListener("change", function(){ on(+s.value); }); return s; };
+  var setSc = function(k, v){ var o = Object.assign({}, AL.sched || {}); o[k] = v; saveAl({sched: o}); };
+  var f = function(label, ctl){ return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), ctl); };
+  var every = el("select", {disabled: canEdit ? null : true}, [[0, "Off"], [30, "Every 30 minutes"], [60, "Every hour"], [120, "Every 2 hours"], [240, "Every 4 hours"]].map(function(o){ return el("option", {value: String(o[0]), selected: +sc.every === o[0] ? true : null, text: o[1]}); }));
+  every.addEventListener("change", function(){ setSc("every", +every.value); });
+  var wd = el("select", {disabled: canEdit ? null : true}, [[0, "Off"], [1, "Monday"], [2, "Tuesday"], [3, "Wednesday"], [4, "Thursday"], [5, "Friday"], [6, "Saturday"], [7, "Sunday"]].map(function(o){ return el("option", {value: String(o[0]), selected: (sc.weeklyOn ? +sc.weeklyDay : 0) === o[0] ? true : null, text: o[1]}); }));
+  wd.addEventListener("change", function(){ var o = Object.assign({}, AL.sched || {}); o.weeklyOn = +wd.value > 0; if (+wd.value > 0) o.weeklyDay = +wd.value; saveAl({sched: o}); });
+  var chMin = el("select", {disabled: canEdit ? null : true}, [["high", "High impact only"], ["medium", "Medium and high"], ["low", "Every change"]].map(function(o){ return el("option", {value: o[0], selected: sc.changeMin === o[0] ? true : null, text: o[1]}); }));
+  chMin.addEventListener("change", function(){ setSc("changeMin", chMin.value); });
+  box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Reports and reminders"}),
+    el("div", {cls: "rep-controls"}, f("Performance report", every), f("Morning recap (yesterday)", hourSel(sc.recapHour, function(v){ setSc("recapHour", v); })), f("Weekly report on", wd), f("Weekly report at", hourSel(sc.weeklyHour, function(v){ setSc("weeklyHour", v); })), f("Account changes to send", chMin)),
+    el("div", {cls: "rep-controls"}, f("Remind open critical every (hours)", numIn(sc.remindCritical, "2", function(v){ setSc("remindCritical", v === null ? D.sched.remindCritical : v); })),
+      f("Remind open high every (hours)", numIn(sc.remindHigh, "6", function(v){ setSc("remindHigh", v === null ? D.sched.remindHigh : v); })), f("Remind open medium every (hours)", numIn(sc.remindMedium, "24", function(v){ setSc("remindMedium", v === null ? D.sched.remindMedium : v); }))),
+    el("div", {cls: "small", text: "An open issue is sent once, then again only if it gets worse, its number changes by 25% or more, or the reminder interval passes (0 = never remind). Acknowledging stops reminders. An issue closes when two checks in a row no longer see it, and a ✅ Resolved message is sent. Quiet hours (Settings › Alerts) hold everything except critical alerts."})));
+  return box;
+}
+function viewMonitor(){
+  var sec = el("section", {cls: "panel mon-page"});
+  if (!alertsAllowed()){ sec.appendChild(el("div", {cls: "empty", text: "This page is private."})); return sec; }
+  var M = monState(); if (!M.status) monLoad();
+  if (M.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: M.err})); sec.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: monLoad}, "Try again")); return sec; }
+  if (!M.d){ sec.appendChild(el("div", {cls: "empty", text: "Loading…"})); return sec; }
+  var d = M.d, fe = d.feeds || {}, issues = d.issues || [], open = issues.filter(function(r){ return r.status === "open"; }), resolved = issues.filter(function(r){ return r.status === "resolved"; });
+  if (d.setup) sec.appendChild(el("div", {cls: "banner warn", text: "One step left: an admin runs supabase/monitoring.sql once in Supabase › SQL Editor (adds the issue list; changes nothing existing). Until then alerts fall back to the old 30-minute update."}));
+  var st = function(label, ok, txt){ return el("div", {cls: "mon-stat"}, el("span", {cls: "small", text: label}), el("span", {cls: "pill " + (ok === null ? "mut" : ok ? "good" : "bad"), text: txt})); };
+  var crit = open.filter(function(r){ return r.severity === "critical"; }).length;
+  sec.appendChild(el("div", {cls: "mon-stats"},
+    st("Critical", crit ? false : true, crit ? crit + " open" : "None"),
+    st("Warnings", open.length - crit ? null : true, (open.length - crit) + " open"),
+    st("Meta sync", fe.meta ? fe.meta.age < 75 && !fe.meta.err : false, fe.meta ? monAgo(fe.meta.at) + (fe.meta.err ? " · some accounts failed" : "") : "never"),
+    st("Last TeleCRM lead", fe.crm ? fe.crm.age < 180 : null, fe.crm ? monAgo(fe.crm.at) : "none yet"),
+    st("Telegram", d.telegram && d.telegram.linked ? (d.outbox ? false : true) : false, d.telegram && d.telegram.linked ? (d.outbox ? d.outbox + " waiting to retry" : "Connected") : d.telegram && d.telegram.configured ? "Not connected" : "Bot token missing"),
+    st("Last report", d.reports && d.reports.last ? true : null, d.reports && d.reports.last ? monAgo(d.reports.last) : "not yet"),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ M.h.rows = null; M.tr = null; monLoad(); }}, "Refresh")));
+  var subs = [["open", "Open issues (" + open.length + ")"], ["resolved", "Resolved (" + resolved.length + ")"], ["changes", "Account changes"], ["history", "Alert history"], ["preview", "Report preview"], ["trends", "Weekly & month trends"], ["settings", "Thresholds & schedule"]];
+  sec.appendChild(el("div", {cls: "seg mon-subs", role: "group", "aria-label": "Section"}, subs.map(function(s){ return el("button", {type: "button", "aria-pressed": M.sub === s[0] ? "true" : "false", onclick: function(){ M.sub = s[0]; render(); }}, s[1]); })));
+  var body = el("div", {cls: "mon-body"});
+  if (M.sub === "open") body.appendChild(monIssues(M, open, true));
+  else if (M.sub === "resolved") body.appendChild(monIssues(M, resolved, false));
+  else if (M.sub === "changes"){ body.appendChild(el("div", {cls: "small", style: "margin-bottom:8px", text: "Every change in the connected Meta ad accounts (checked every 5 minutes), in plain language. Telegram gets the ones at or above the level chosen in Thresholds & schedule."})); body.appendChild(viewActivity()); }
+  else if (M.sub === "history") body.appendChild(monHistory(M));
+  else if (M.sub === "preview") body.appendChild(monPreview(M));
+  else if (M.sub === "trends") body.appendChild(monTrends(M));
+  else body.appendChild(monSettings(M));
+  sec.appendChild(body);
   return sec;
 }
 function provPanel(pk, compact){
@@ -4643,7 +4865,8 @@ function render(){
   CUR = state.R.currency || "₹";
   if (isGoogle() && (state.tab === "adsets" || state.tab === "ads")) state.tab = "campaigns";   /* Google data is campaign-level */
   var actBtn = document.querySelector('.tab[data-tab="activity"]'); if (actBtn) actBtn.hidden = !alertsAllowed();
-  if (state.tab === "activity" && !alertsAllowed()) state.tab = "overview";
+  var monBtn = document.querySelector('.tab[data-tab="monitor"]'); if (monBtn) monBtn.hidden = !alertsAllowed();
+  if ((state.tab === "activity" || state.tab === "monitor") && !alertsAllowed()) state.tab = "overview";
   renderHeader();
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"), y = window.scrollY; v.textContent = ""; DRAWS = [];
@@ -4653,7 +4876,7 @@ function render(){
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
   var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks, forms: viewForms,
-             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, history: viewHistory, activity: viewActivity, help: viewHelp};
+             tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, history: viewHistory, activity: viewActivity, monitor: viewMonitor, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   pageTitle();
   DRAWS.forEach(function(f){ try { f(true); } catch (e) { console.error(e); } });

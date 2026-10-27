@@ -1,5 +1,6 @@
 // Alerts (Settings › Alerts): connect the one person who gets Telegram alerts, send a test, send an update now, list recent alerts.
-//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity | log | activity&days=7 | activity-sync | cpl | insights
+//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity|weekly | log | activity&days=7 | activity-sync | cpl | insights
+//   Alerts & Monitoring: mon | mon-history | mon-preview | mon-trends | mon-ack&key=…&note=…&resolve=1|reopen=1
 // Vercel env: TELEGRAM_BOT_TOKEN, SUPABASE_SERVICE_ROLE_KEY (and META_ACCESS_TOKEN for the Meta parts).
 const crypto = require("crypto");
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
@@ -56,6 +57,38 @@ module.exports = async function handler(req, res) {
     }
     if (op === "activity-sync") { if (!process.env.META_ACCESS_TOKEN) return send(res, 400, { error: "META_ACCESS_TOKEN is not set in Vercel." });
       return send(res, 200, await A.runActivity(S, sbFetch, { force: true, storeOnly: true })); }
+    /* ---- Alerts & Monitoring page ---- */
+    if (op === "mon") {   // open issues + recently resolved, feed status, settings defaults
+      const M = require("./_monitor"), days = Math.max(1, Math.min(90, +req.query.days || 14)), since = new Date(Date.now() - days * 864e5).toISOString();
+      let issues = [], setup = false;
+      try { issues = await sbFetch("alert_issues?select=*&or=(status.eq.open,last_seen.gte." + encodeURIComponent(since) + ")&order=last_seen.desc&limit=2000") || []; }
+      catch (e) { if (/alert_issues|schema cache|does not exist/i.test(e.message)) setup = true; else throw e; }
+      const ups = await sbFetch("uploads?select=meta_files,crm_file,uploaded_at&order=uploaded_at.desc&limit=60") || [];
+      const feeds = M.feeds({ uploads: ups }), chat = await A.chatOf(sbFetch).catch(() => null), outbox = (await A.getState(sbFetch, "outbox").catch(() => null)) || [], reports = (await A.getState(sbFetch, "reports").catch(() => null)) || {};
+      return send(res, 200, { setup, issues, feeds, telegram: { configured: T.configured(), linked: !!chat }, outbox: outbox.length, reports, defaults: { th: M.TH, labels: M.TH_LABEL, sched: M.SCHED } });
+    }
+    if (op === "mon-history") {   // everything sent / recorded, newest first, with filters
+      const days = Math.max(1, Math.min(180, +req.query.days || 30)), since = new Date(Date.now() - days * 864e5).toISOString(), q = String(req.query.q || "").trim(), kind = String(req.query.kind || "").replace(/[^a-z\-]/g, "");
+      let path = "alert_log?select=id,at,kind,text&at=gte." + encodeURIComponent(since) + "&kind=neq.cpl-event&order=id.desc&limit=" + Math.min(1000, +req.query.n || 300);
+      if (kind) path += "&kind=eq." + kind;
+      if (q) path += "&text=ilike." + encodeURIComponent("*" + q.replace(/[*,()]/g, " ") + "*");
+      return send(res, 200, { rows: await sbFetch(path) || [] });
+    }
+    if (op === "mon-ack") {   // acknowledge (stops reminders), add a note, or close an issue by hand
+      const b = Object.assign({}, req.query || {}, (req.body && typeof req.body === "object") ? req.body : {}), key = String(b.key || "");
+      if (!key) return send(res, 400, { error: "Missing issue." });
+      const patch = { ack_by: me.email, ack_at: new Date().toISOString() };
+      if (b.note !== undefined) patch.note = String(b.note).slice(0, 2000);
+      if (b.resolve && b.resolve !== "0") { patch.status = "resolved"; patch.resolved_at = new Date().toISOString(); }
+      if (b.reopen && b.reopen !== "0") { patch.status = "open"; patch.resolved_at = null; patch.ack_by = null; patch.ack_at = null; }
+      await sbFetch("alert_issues?key=eq." + encodeURIComponent(key), { method: "PATCH", headers: { prefer: "return=minimal" }, body: JSON.stringify(patch) });
+      return send(res, 200, { ok: true });
+    }
+    if (op === "mon-preview" || op === "mon-trends") {   // the report as it would be sent now (nothing is sent or tracked) / weekly + month view
+      const M = require("./_monitor"), D = await M.loadData(S, sbFetch, { noMeta: op === "mon-trends" }), Mx = M.metrics(D), found = M.detect(D, Mx);
+      if (op === "mon-trends") return send(res, 200, { weekly: M.weekly(D), errors: D.errors, today: D.today });
+      return send(res, 200, { text: M.reportText(D, Mx, found), recap: M.reportText(D, Mx, found, { yesterday: true }), weekly: M.weeklyText(M.weekly(D)), issues: found, recon: Mx.recon, outside: Mx.outsideNames, errors: D.errors.concat(D.live.errors || [], D.health.errors || []) });
+    }
     if (!T.configured()) return send(res, 400, { error: "TELEGRAM_BOT_TOKEN is not set in Vercel yet." });
     if (op === "link-start") {
       if (!rec) return send(res, 403, { error: "Only the alert recipient can connect their Telegram." });
@@ -73,7 +106,7 @@ module.exports = async function handler(req, res) {
       const who = [hit.from && hit.from.first_name, hit.from && hit.from.last_name].filter(Boolean).join(" ") || (hit.from && hit.from.username) || "Telegram user";
       await A.setState(sbFetch, "telegram", { chat_id: hit.chat.id, name: who, email: me.email, at: new Date().toISOString() });
       await A.setState(sbFetch, "link", null);
-      await T.send(hit.chat.id, "✅ <b>EBG alerts connected</b> for " + T.esc(me.email) + ".\nYou'll get: Meta ad account changes (who changed what), CPL up / down alerts, and an update every 30 minutes.");
+      await T.send(hit.chat.id, "✅ <b>EBG alerts connected</b> for " + T.esc(me.email) + ".\nYou'll get: critical account alerts straight away, performance alerts (tracked until resolved), Meta ad account changes, the performance report every 30 minutes, a morning recap and a weekly report.");
       return send(res, 200, { linked: true, name: who });
     }
     if (op === "unlink") { if (!rec) return send(res, 403, { error: "Only the recipient or an admin can disconnect." }); await A.setState(sbFetch, "telegram", null); return send(res, 200, { ok: true }); }
@@ -81,7 +114,10 @@ module.exports = async function handler(req, res) {
       const ok = await A.deliver(sbFetch, "test", "👋 Test from the EBG dashboard (" + T.esc(me.email) + "). Alerts are working."); return send(res, ok ? 200 : 400, ok ? { ok } : { error: "Telegram isn't connected yet." }); }
     if (op === "run") { if (!rec) return send(res, 403, { error: "Not allowed." });
       const what = String(req.query.what || "summary");
-      return send(res, 200, what === "activity" ? await A.runActivity(S, sbFetch, { force: true }) : await A.runSummary(S, sbFetch, { force: true })); }
+      if (what === "activity") return send(res, 200, await A.runActivity(S, sbFetch, { force: true }));
+      if (what === "weekly") { const M = require("./_monitor"), D = await M.loadData(S, sbFetch, { noMeta: true }); const ok = await A.deliver(sbFetch, "weekly", M.weeklyText(M.weekly(D))); return send(res, 200, { sent: ok ? ["weekly"] : [] }); }
+      try { return send(res, 200, await require("./_monitor").run(S, sbFetch, { force: true })); }
+      catch (e) { return send(res, 200, Object.assign({ monitorError: e.message }, await A.runSummary(S, sbFetch, { force: true }))); } }
     return send(res, 400, { error: "Unknown op" });
   } catch (e) { return send(res, 502, { error: String((e && e.message) || e) }); }
 };

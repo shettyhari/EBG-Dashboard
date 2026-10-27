@@ -17,7 +17,7 @@ const addDays = (iso, d) => new Date(Date.parse(iso + "T00:00:00Z") + d * 864e5)
 const inr = (v) => "₹" + Math.round(Number(v) || 0).toLocaleString("en-IN");
 const int = (v) => Math.round(Number(v) || 0).toLocaleString("en-IN");
 const pct = (v) => (v > 0 ? "+" : "") + Math.round(v * 100) + "%";
-const timeIst = (iso) => { const t = Date.parse(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2")); if (!isFinite(t)) return ""; const d = new Date(istMs(t)); let h = d.getUTCHours(), m = d.getUTCMinutes(); const ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12; return h + ":" + String(m).padStart(2, "0") + " " + ap; };
+const timeIst = (iso) => { const t = Date.parse(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2")); if (!isFinite(t)) return ""; const d = new Date(istMs(t)); let h = d.getUTCHours(), m = d.getUTCMinutes(); const ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12; return d.getUTCDate() + " " + ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()] + ", " + h + ":" + String(m).padStart(2, "0") + " " + ap; };
 function inQuiet(c) { const h = istHour(), a = +c.quietFrom, b = +c.quietTo; if (a === b) return false; return a < b ? h >= a && h < b : h >= a || h < b; }
 
 /* small key/value state (service role only) */
@@ -47,14 +47,14 @@ async function runActivity(S, sbFetch, opt) {
   if (!events.length || opt.storeOnly) return { events: events.length, errors };
   if (inQuiet(c) && !c.activityInQuiet && !opt.force) return { events: events.length, errors, telegram: "quiet hours" };
   if (!T.configured() || !(await chatOf(sbFetch))) return { events: events.length, errors, telegram: "not connected" };
-  const lines = ["🔔 <b>Ad account changes</b> (" + events.length + ")"];
-  events.slice(0, 25).forEach((e) => { const d = ACT.describe(e), where = [e.campaign, e.adset && d.level !== "adset" ? e.adset : (d.level === "adset" ? e.adset || e.object_name : ""), e.ad].filter(Boolean);
-    lines.push("", IMPACT[d.impact] + " <b>" + T.esc(d.what) + "</b>" + (d.status ? " · " + T.esc(d.status) : ""),
-      "👤 " + T.esc(e.actor_name || e.application_name || "Meta (automatic)") + " · " + timeIst(e.event_time) + (e.brand ? " · " + T.esc(e.brand) : ""),
-      "📍 " + T.esc(where.length ? where.join(" › ") : (e.object_name || e.account_name)),
-      "💡 " + T.esc(d.remark)); });
-  if (events.length > 25) lines.push("", "… and " + (events.length - 25) + " more on the dashboard › Ad account activity");
-  if (errors.length) lines.push("", "⚠️ Couldn't read: " + T.esc(errors.join("; ")));
+  // "META ACCOUNT CHANGE DETECTED" per change at or above the chosen impact (Alerts & Monitoring › Schedule); problems (rejected, payment, stopped) always
+  const minLvl = ACT.LEVEL_IMPACT[((S.alerts || {}).sched || {}).changeMin || "medium"], urgent = /^(rejected|payfail|stopped|access)$/;
+  const pick = events.filter((e) => { const d = ACT.describe(e); return urgent.test(d.category) || ACT.LEVEL_IMPACT[d.impact] <= (minLvl === undefined ? 1 : minLvl); }), small = events.length - pick.length;
+  if (!pick.length) return { events: events.length, errors, telegram: "only small changes (" + small + ")" };
+  const blocks = pick.slice(0, 12).map((e) => ACT.changeBlock(e, T.esc, timeIst));
+  const lines = [blocks.join("\n\n— — —\n\n")];
+  if (pick.length > 12) lines.push("", "… and " + (pick.length - 12) + " more changes on the dashboard › Ad account activity");
+  if (small > 0) lines.push("", "<i>" + small + " smaller change" + (small > 1 ? "s" : "") + " (renames, approvals, etc.) not sent — see Ad account activity.</i>");
   await deliver(sbFetch, "activity", lines.join("\n"));
   return { events: events.length, errors };
 }
@@ -131,9 +131,11 @@ async function runSummary(S, sbFetch, opt) {
     Object.keys(moved).forEach((b) => events.push(cplStory(cplChecks(S, N, c).filter((x) => x.b === b), N, chg)));
     await setState(sbFetch, key, st);
     for (const e of events) await logSent(sbFetch, "cpl-event", JSON.stringify(e));
-    if (events.length && chat && !quiet) { await T.send(chat.chat_id, events.map(storyText).join("\n\n")); await logSent(sbFetch, "cpl", events.map(storyText).join("\n\n")); sent.push("cpl:" + events.length); }
+    const tgEv = opt.recordOnly ? events.filter((e) => e.band === "low") : events;   // with the monitor on, rising CPL comes as a tracked alert; only improvements are sent here
+    if (tgEv.length && chat && !quiet) { await T.send(chat.chat_id, tgEv.map(storyText).join("\n\n")); await logSent(sbFetch, "cpl", tgEv.map(storyText).join("\n\n")); sent.push("cpl:" + tgEv.length); }
     else if (events.length) sent.push("cpl recorded:" + events.length);
   }
+  if (opt.recordOnly) return { sent };
   if (!chat) return { sent, skipped: "Telegram isn't connected (Settings › Alerts)." };
   if (quiet) return { sent, skipped: "Quiet hours." };
   if (c.summary || opt.force) {

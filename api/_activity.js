@@ -118,7 +118,30 @@ function describe(e) {
   let status = before || after ? (before || "—") + " → " + (after || "—") : "";
   if (cat === "targeting" || cat === "audience") { const tt = targetingText(pick(x.old_value).v, pick(x.new_value).v); status = tt || (status.length > 70 || /[{\[]/.test(status) ? "changed" : status); }
   else if (/[{\[]/.test(status)) status = "changed";
-  return { category: cat, level: lvl, what, before, after, status, remark, impact };
+  const diff = money && isFinite(on) && isFinite(nn) ? nn - on : null;
+  return { category: cat, level: lvl, what, before, after, status, remark, impact, change: ch, diff, money };
+}
+/* one change as the Telegram "META ACCOUNT CHANGE DETECTED" block. Only what Meta's activity log gives: no invented values or people. */
+const LEVEL_IMPACT = { high: 0, medium: 1, low: 2 };
+function changeBlock(e, esc, when) {
+  const d = describe(e), L = ["📝 <b>META ACCOUNT CHANGE DETECTED</b>", ""];
+  L.push("Brand: " + esc(e.brand || "Not mapped"), "Ad Account: " + esc(e.account_name || e.account_id || "—"));
+  if (e.campaign) L.push("Campaign: " + esc(e.campaign));
+  if (e.adset && d.level !== "campaign") L.push("Ad set: " + esc(e.adset));
+  if (e.ad) L.push("Ad: " + esc(e.ad));
+  if (!e.campaign && !e.adset && !e.ad && e.object_name) L.push((LEVEL[d.level] ? LEVEL[d.level].charAt(0).toUpperCase() + LEVEL[d.level].slice(1) : "Item") + ": " + esc(e.object_name));
+  L.push("Change: " + esc(d.what.replace(/ \([+-]?\d+%\)$/, "")));
+  if (d.category === "targeting" || d.category === "audience") { if (d.status && d.status !== "changed") L.push("", "What changed: " + esc(d.status)); else L.push("", "Previous / new: not given in detail by Meta (open Activity history in Ads Manager)"); }
+  else if (d.before || d.after) {
+    const per = d.category === "budget" ? (/lifetime/i.test(e.event_type) ? " (lifetime)" : "/day") : "";
+    L.push("", "Previous: " + esc(d.before ? d.before + per : "not given by Meta"), "New: " + esc(d.after ? d.after + per : "not given by Meta"));
+    if (d.change !== null && d.change !== undefined) L.push("Change: " + (d.change > 0 ? "+" : "") + Math.round(d.change * 100) + "%");
+  }
+  L.push("", "Changed at: " + when(e.event_time) + " IST", "Changed by: " + esc(e.actor_name || (e.application_name ? e.application_name + " (app)" : "Not given by Meta (automatic or system change)")));
+  let imp = d.remark;
+  if (d.category === "budget" && d.diff !== null) imp = "Budget " + (d.diff > 0 ? "increased" : "decreased") + " by " + inr(Math.abs(d.diff)) + ". " + d.remark;
+  L.push("", "Impact: " + esc(imp), "", "Action: " + esc(d.category === "rejected" || d.category === "payfail" || d.category === "stopped" ? "Fix it now (see impact)." : d.category === "rename" || d.category === "approved" || d.category === "delivery" || d.category === "learning" ? "No action needed." : "Verify whether this change was planned."));
+  return L.join("\n");
 }
 
 /* ---------- names of the campaign / ad set an object belongs to (looked up once, when stored) ---------- */
@@ -168,4 +191,4 @@ async function fetchAndStore(S, sbFetch, opt) {
   fresh.sort((x, y) => (x.event_time < y.event_time ? -1 : 1));
   return { fresh, errors };
 }
-module.exports = { describe, category, fetchAndStore, enrich, valText };
+module.exports = { describe, category, fetchAndStore, enrich, valText, changeBlock, LEVEL_IMPACT };
