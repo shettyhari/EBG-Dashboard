@@ -3212,13 +3212,17 @@ var PROV = {
   google: {api: "google", label: "Google Ads API", key: "googleAccounts", prefix: "Google Ads API · "},
   alerts: {api: "alerts", label: "Alerts", key: "alertsNone"}
 };
-function provApi(pk, op, params){
-  return sb.client.auth.getSession().then(function(r){
-    var tok = r && r.data && r.data.session && r.data.session.access_token; if (!tok) throw new Error("Sign in first");
+function provApi(pk, op, params, retried){
+  /* a sign-in left open for hours can hold an expired token: on "session" refuse, refresh it once and retry */
+  return (retried ? sb.client.auth.refreshSession() : sb.client.auth.getSession()).then(function(r){
+    var tok = r && r.data && r.data.session && r.data.session.access_token; if (!tok) throw new Error("Your sign-in has expired: sign out and sign in again.");
     var q = Object.keys(params || {}).map(function(k){ return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); }).join("&");
     return fetch("/api/" + PROV[pk].api + "?op=" + op + (q ? "&" + q : ""), {headers: {authorization: "Bearer " + tok}}); })
     .then(function(res){ return res.text().then(function(t){ var b; try { b = JSON.parse(t); } catch (e) { b = null; }
-      if (!b) throw new Error(res.status === 404 ? "NOAPI" : "Unexpected answer (" + res.status + ")"); if (!res.ok) throw new Error(b.error || ("Error " + res.status)); return b; }); });
+      if (!b) throw new Error(res.status === 404 ? "NOAPI" : "Unexpected answer (" + res.status + ")");
+      if (res.status === 401 && b.code === "session" && !retried) return {__retry: true};
+      if (!res.ok) throw new Error(b.error || ("Error " + res.status)); return b; }); })
+    .then(function(b){ return b && b.__retry ? provApi(pk, op, params, true) : b; });
 }
 function provSave(){ storeSettings(true); if (sb.cfg && sb.status === "ready" && sbCanWrite()) dbPushSettings().catch(function(e){ toast("Not shared with the team: " + (e.message || e)); }); }
 function provAccounts(pk){ var S = state.settings, v = S[PROV[pk].key]; return Array.isArray(v) ? v : []; }
@@ -3853,8 +3857,9 @@ function connStatusCard(){
   /* Meta */
   var accs = (S.metaAccounts || []).filter(function(a){ return a.on !== false; }), auto = ups.filter(function(u){ return (u.meta_files || []).indexOf("Meta API · auto-sync") >= 0; })[0];
   var m = {name: "Meta Ads · API sync", target: "meta-panel", lines: [], kind: "off", state: "Off", main: ""};
-  var tokenOk = W.status ? !!W.status.configured : null;
-  if (tokenOk === false){ m.kind = "err"; m.state = "Not connected"; m.main = "No Meta token in Vercel yet."; }
+  var tokenOk = W.status && W.status.configured !== undefined ? !!W.status.configured : null;   // unknown when the check itself failed
+  if (W.status && W.status.error && W.status.error !== "NOAPI"){ m.kind = "err"; m.state = "Check failed"; m.main = "Couldn't check the Meta connection: " + W.status.error; }
+  else if (tokenOk === false){ m.kind = "err"; m.state = "Not connected"; m.main = "No Meta token in Vercel yet."; }
   else if (!S.metaAutoSync){ m.kind = "off"; m.state = "Auto-sync off"; m.main = auto ? "Last synced " + ago(auto.uploaded_at) + " · turn on auto-sync below" : "Turn on auto-sync below to pull Meta data every 30 minutes."; }
   else if (auto){ var age = (Date.now() - Date.parse(auto.uploaded_at)) / 60000; m.kind = age > 50 ? "late" : "ok"; m.state = age > 50 ? "Late" : "Live"; m.main = "Last sync " + ago(auto.uploaded_at) + " (" + when(auto.uploaded_at) + ")"; }
   else { m.kind = "late"; m.state = "Waiting"; m.main = "Waiting for the first automatic run."; }

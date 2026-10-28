@@ -23,9 +23,9 @@ function send(res, code, body) {
 }
 async function whoIs(req) {
   const auth = String(req.headers.authorization || "");
-  if (!/^Bearer\s+\S+/.test(auth)) return null;
+  if (!/^Bearer\s+\S+/.test(auth)) return { reason: "no-session" };
   const u = await fetch(SB_URL + "/auth/v1/user", { headers: { apikey: SB_ANON, authorization: auth } });
-  if (!u.ok) return null;
+  if (!u.ok) return { reason: "session", status: u.status };   // expired / invalid sign-in token, or the API key Vercel uses is rejected
   const user = await u.json(), email = String(user.email || "").toLowerCase();
   if (!email) return null;
   const r = await fetch(SB_URL + "/rest/v1/team_members?select=role&email=eq." + encodeURIComponent(email), { headers: { apikey: SB_ANON, authorization: auth } });
@@ -38,7 +38,8 @@ module.exports = async function handler(req, res) {
     const op = String((req.query && req.query.op) || "status");
     const tok = process.env.META_ACCESS_TOKEN || "";
     const me = await whoIs(req);
-    if (!me || !me.role) return send(res, 401, { error: "Sign in with a team account first." });
+    if (!me || me.reason) return send(res, 401, { code: "session", error: "Your sign-in wasn't accepted by the server (" + ((me && me.status) || "no session") + "). Sign out and sign in again; if it keeps happening, check SUPABASE_ANON_KEY in Vercel." });
+    if (!me.role) return send(res, 403, { code: "not-team", error: me.email + " isn't on the team list yet (Settings › Team)." });
     if (op === "status") return send(res, 200, { configured: !!tok, last4: tok ? tok.slice(-4) : null, role: me.role, version: VER, cronReady: !!process.env.SUPABASE_SERVICE_ROLE_KEY });
     if (!tok) return send(res, 400, { error: "META_ACCESS_TOKEN is not set in Vercel yet." });
     if (op === "coverage") {

@@ -10,9 +10,9 @@ const A = require("./_alertlib");
 function send(res, code, body) { res.statusCode = code; res.setHeader("content-type", "application/json; charset=utf-8"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(body)); }
 async function whoIs(req) {
   const auth = String(req.headers.authorization || "");
-  if (!/^Bearer\s+\S+/.test(auth)) return null;
+  if (!/^Bearer\s+\S+/.test(auth)) return { reason: "no-session" };
   const u = await fetch(SB_URL + "/auth/v1/user", { headers: { apikey: SB_ANON, authorization: auth } });
-  if (!u.ok) return null;
+  if (!u.ok) return { reason: "session", status: u.status };   // expired / invalid sign-in token, or the API key Vercel uses is rejected
   const user = await u.json(), email = String(user.email || "").toLowerCase();
   if (!email) return null;
   const r = await fetch(SB_URL + "/rest/v1/team_members?select=role&email=eq." + encodeURIComponent(email), { headers: { apikey: SB_ANON, authorization: auth } });
@@ -31,7 +31,8 @@ module.exports = async function handler(req, res) {
   try {
     const op = String((req.query && req.query.op) || "status");
     const me = await whoIs(req);
-    if (!me || !me.role) return send(res, 401, { error: "Sign in with a team account first." });
+    if (!me || me.reason) return send(res, 401, { code: "session", error: "Your sign-in wasn't accepted by the server (" + ((me && me.status) || "no session") + "). Sign out and sign in again; if it keeps happening, check SUPABASE_ANON_KEY in Vercel." });
+    if (!me.role) return send(res, 403, { code: "not-team", error: me.email + " isn't on the team list yet (Settings › Team)." });
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return send(res, 400, { error: "SUPABASE_SERVICE_ROLE_KEY is not set in Vercel." });
     const st = await sbFetch("team_settings?id=eq.1&select=settings"), S = (st && st[0] && st[0].settings) || {};
     const rec = isRecipient(S, me.email);
