@@ -62,6 +62,7 @@ global.fetch = async (url, opt) => {
   if (url.indexOf("api.telegram.org") >= 0) { if (tgFail) return { ok: false, status: 502, json: async () => ({ ok: false, description: "Bad Gateway" }) }; sent.push(JSON.parse(opt.body).text); return ok({ ok: true, result: {} }); }
   if (url.indexOf("graph.facebook.com") >= 0) {
     if (metaFail) return { ok: false, status: 400, json: async () => ({ error: { message: "Invalid OAuth access token", code: 190 } }) };
+    if (url.indexOf("/insights?level=account") >= 0) { const m = /act_(\d+)\//.exec(url); return ok({ data: [{ spend: String((global.__acctSpend || {})[m[1]] || 0), reach: "12345" }] }); }
     if (url.indexOf("/me/adaccounts") >= 0) return ok({ data: [{ id: "act_1", name: "Acc One", account_status: 1 }, { id: "act_2", name: "Acc Two", account_status: 3 }] });
     if (url.indexOf("DISAPPROVED") >= 0) return ok({ data: url.indexOf("act_1/") >= 0 ? [{ id: "9", name: "Natuf Reel 3", effective_status: "DISAPPROVED", campaign: { name: "Natuf | Leads" } }] : [] });
     if (url.indexOf("/ads?") >= 0) return ok({ data: url.indexOf("act_1/") >= 0 ? [{ id: "1", adset_id: "s1", campaign_id: "c1", campaign: { name: "Natuf | Leads" } }, { id: "2", adset_id: "s2", campaign_id: "c2", campaign: { name: "Appa | WA" } }] : [] });
@@ -187,6 +188,68 @@ test("META ACCOUNT CHANGE DETECTED: real previous / new values, % and ₹ differ
   assert.ok(/Changed by: Not given by Meta/.test(t));
   const t2 = ACT.changeBlock({ event_type: "update_ad_set_target_spec", account_name: "A", campaign: "C", event_time: "2026-10-27T05:30:00Z", actor_name: "Ravi", extra: null }, T.esc, () => "x");
   assert.ok(/not given in detail by Meta/.test(t2) && /Changed by: Ravi/.test(t2) && t2.indexOf("Previous: ₹") < 0);
+});
+
+/* ---------- 7. full brand-wise reports (api/_reports.js) ---------- */
+const Rp = require("../api/_reports");
+const tagless = (s) => s.replace(/<[^>]+>/g, "");
+function brandBlocks(parts) { return parts.join("\n").split("\n").filter((l) => l.indexOf("🏢 ") === 0).map((l) => tagless(l).slice(3)); }
+test("daily report: every configured brand once (even with no activity), overall = sum of brands, blended CPL from totals, N/A not 0", async () => {
+  const fx = fixture(), db = fakeDb(fx), S = settings({ brands: ["Natuf", "Carlton", "Appa", "Tarzan"] }), D = await prepared(S, db), found = M.detect(D, M.metrics(D));
+  const rep = await M.fullDaily(D, found, D.yday), txt = rep.parts.join("\n");
+  assert.deepStrictEqual(brandBlocks(rep.parts).sort(), ["Appa", "Carlton", "Natuf", "Tarzan"]);
+  assert.ok(!rep.partial && /complete day/.test(txt));
+  // yesterday: Natuf 5000/50, Carlton 2000/5, Appa 1500/10, Tarzan nothing → 8500 spend, 65 leads, blended CPL 131 (not the average of brand CPLs)
+  assert.strictEqual(rep.total.spend, 8500); assert.strictEqual(rep.total.leads, 65); assert.ok(/Blended CPL: ₹131\b/.test(txt));
+  assert.ok(/Totals check: ✅ overall = sum of the 4 brand blocks/.test(txt));
+  const tz = tagless(txt.split("🏢 <b>Tarzan</b>")[1].split("━━")[0]);
+  assert.ok(/CPL: N\/A/.test(tz) && /CPQL: N\/A/.test(tz) && /CTR: N\/A/.test(tz) && /Spend: ₹0/.test(tz) && /No active campaigns · no spend/.test(tz) && /Attention: None/.test(tz), tz);
+  const ca = tagless(txt.split("🏢 <b>Carlton</b>")[1].split("━━")[0]);
+  assert.ok(/Meta Leads: 5\n/.test(ca) && /TeleCRM Leads: 1\n/.test(ca) && /CPL: ₹400/.test(ca) && /Attention: .*(Leads|CPL|TeleCRM)/.test(ca), ca);
+  rep.parts.forEach((p, i) => { assert.ok(p.length <= 4096, "part " + (i + 1) + " is " + p.length); assert.ok(p.indexOf(rep.id) >= 0); assert.ok(p.indexOf("Date: ") >= 0); });
+  assert.ok(rep.parts[0].indexOf("OVERALL PERFORMANCE") >= 0 && rep.parts[0].indexOf("🏢") < 0, "overall summary alone in part 1");
+});
+test("today's daily report is labelled partial; impressions unavailable shows N/A, not 0", async () => {
+  const fx = fixture(), db = fakeDb(fx), S = settings(), D = await prepared(S, db); D.v2 = false;
+  const rep = await M.fullDaily(D, M.detect(D, M.metrics(D)), D.today), txt = tagless(rep.parts.join("\n"));
+  assert.ok(rep.partial && /PARTIAL DAY/.test(txt) && /\(partial\)/.test(txt));
+  assert.ok(/Impressions: N\/A/.test(txt) && !/Impressions: 0\b/.test(txt));
+});
+test("many brands: split at brand boundaries into numbered parts, same ID, nothing lost or repeated, each part under Telegram's limit", async () => {
+  const fx = fixture(), names = []; for (let i = 1; i <= 24; i++) names.push("Brand " + i);
+  names.forEach((b, i) => { for (let o = -14; o <= 0; o++) fx.brand.push({ brand: b, day: istDay(o), spend: 1000 + i * 50, leads: 8 + (i % 5), impressions: 40000, clicks: 400, crm: 7, ql: 3, rows_n: 1 }); });
+  const db = fakeDb(fx), S = settings({ brands: ["Natuf", "Carlton", "Appa"].concat(names) }), D = await prepared(S, db), found = M.detect(D, M.metrics(D));
+  for (const rep of [await M.fullDaily(D, found, D.yday), await M.fullWeekly(D, found)]) {
+    assert.ok(rep.parts.length >= 3, rep.parts.length + " parts");
+    const seen = brandBlocks(rep.parts); assert.strictEqual(seen.length, 27); assert.strictEqual(new Set(seen).size, 27);
+    rep.parts.forEach((p, i) => { assert.ok(p.length <= 4096); assert.ok(p.indexOf("Part " + (i + 1) + "/" + rep.parts.length) >= 0); assert.ok(p.indexOf(rep.id) >= 0);
+      const blocks = p.split("🏢 ").length - 1, lines = p.split("━━━━━━━━━━━━━━━━").length - 1; assert.strictEqual(blocks, lines, "a brand block was cut in part " + (i + 1)); });
+  }
+});
+test("weekly report: Mon–Sun vs previous week, ratios from weekly totals, small samples not judged, budgets only where set", async () => {
+  const fx = fixture(), db = fakeDb(fx), mk = istDay(0).slice(0, 7), S = settings({ brands: ["Natuf", "Carlton", "Appa", "Tarzan"], report: { months: { [mk]: { brands: { Natuf: { budget: 150000 } } } } } });
+  const D = await prepared(S, db), rep = await M.fullWeekly(D, M.detect(D, M.metrics(D))), txt = tagless(rep.parts.join("\n")), wb = Rp.weekBounds(D.today);
+  assert.strictEqual(new Date(wb.from + "T00:00:00Z").getUTCDay(), 1); assert.strictEqual(new Date(wb.to + "T00:00:00Z").getUTCDay(), 0);
+  assert.deepStrictEqual(brandBlocks(rep.parts).sort(), ["Appa", "Carlton", "Natuf", "Tarzan"]);
+  const na = txt.split("🏢 Natuf")[1].split("━━")[0];
+  ["Spend: ₹35,000", "Previous week: ₹35,000", "Spend Change: 0%", "Meta Leads: 350", "TeleCRM Leads: 336", "Qualified Leads: 140", "CPL: ₹100", "Previous CPL: ₹100", "CPL Change: 0%", "CPQL: ₹250", "CPQL Change: 0%",
+    "CTR: 1.00%", "CPC: ₹10", "CPM: ₹100", "Average Daily Spend: ₹5,000", "Average Daily Leads: 50", "Qualified Lead Rate: 42%", "Status: Steady", "budget ("].forEach((s) => assert.ok(na.indexOf(s) >= 0, "Natuf missing " + s + "\n" + na));
+  const ap = txt.split("🏢 Appa")[1].split("━━")[0];
+  assert.ok(/Not enough data to judge/.test(ap) && /Month budget: not set/.test(ap) && /Previous CPL: N\/A/.test(ap), ap);
+  assert.ok(/No activity/.test(txt.split("🏢 Tarzan")[1].split("━━")[0]));
+  assert.ok(/Budget \(month to date, 1 brand with a budget\)/.test(txt) && /Improving: 0 · 📉 Deteriorating: 0/.test(txt));
+  assert.ok(/WEEKLY MANAGEMENT SUMMARY/.test(txt) && /PRIORITIES FOR NEXT WEEK/.test(txt) && /Best Lead Quality: Carlton — QL rate 42%/.test(txt) && !/CPL up \+100%/.test(txt.split('PRIORITIES FOR NEXT WEEK')[1]));
+  assert.strictEqual(rep.total.cpl, rep.total.spend / rep.total.leads);
+});
+test("reach only where it can't double-count: one dedicated ad account whose spend equals the brand's", async () => {
+  const fx = fixture(), db = fakeDb(fx), S = settings(); S.metaAccounts[1].brand = "Carlton";   // act_2 belongs to Carlton only
+  const D = await prepared(S, db), found = M.detect(D, M.metrics(D));
+  global.__acctSpend = { 2: 2000 }; let txt = tagless((await M.fullDaily(D, found, D.yday)).parts.join("\n"));
+  assert.ok(/Carlton[\s\S]*?Reach: 12,345/.test(txt.split("🏢 Natuf")[0] + txt.split("🏢 Carlton")[1].split("━━")[0]) || /Reach: 12,345/.test(txt.split("🏢 Carlton")[1].split("━━")[0]));
+  assert.ok(/Reach: N\/A \(shared ad account\)/.test(txt.split("🏢 Natuf")[1].split("━━")[0]));
+  global.__acctSpend = { 2: 2600 }; txt = tagless((await M.fullDaily(D, found, D.yday)).parts.join("\n"));
+  assert.ok(/Reach: N\/A \(account also runs other campaigns\)/.test(txt.split("🏢 Carlton")[1].split("━━")[0]));
+  global.__acctSpend = {};
 });
 
 (async () => {

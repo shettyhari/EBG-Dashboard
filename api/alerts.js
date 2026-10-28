@@ -1,5 +1,5 @@
 // Alerts (Settings › Alerts): connect the one person who gets Telegram alerts, send a test, send an update now, list recent alerts.
-//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity|weekly | log | activity&days=7 | activity-sync | cpl | insights
+//   GET /api/alerts?op=status | link-start | link-check | unlink | test | run&what=summary|activity|daily|daily-yesterday|weekly | log | activity&days=7 | activity-sync | cpl | insights
 //   Alerts & Monitoring: mon | mon-history | mon-preview | mon-trends | mon-ack&key=…&note=…&resolve=1|reopen=1
 // Vercel env: TELEGRAM_BOT_TOKEN, SUPABASE_SERVICE_ROLE_KEY (and META_ACCESS_TOKEN for the Meta parts).
 const crypto = require("crypto");
@@ -87,7 +87,9 @@ module.exports = async function handler(req, res) {
     if (op === "mon-preview" || op === "mon-trends") {   // the report as it would be sent now (nothing is sent or tracked) / weekly + month view
       const M = require("./_monitor"), D = await M.loadData(S, sbFetch, { noMeta: op === "mon-trends" }), Mx = M.metrics(D), found = M.detect(D, Mx);
       if (op === "mon-trends") return send(res, 200, { weekly: M.weekly(D), errors: D.errors, today: D.today });
-      return send(res, 200, { text: M.reportText(D, Mx, found), recap: M.reportText(D, Mx, found, { yesterday: true }), weekly: M.weeklyText(M.weekly(D)), issues: found, recon: Mx.recon, outside: Mx.outsideNames, errors: D.errors.concat(D.live.errors || [], D.health.errors || []) });
+      const [dToday, dYday, wk] = await Promise.all([M.fullDaily(D, found, D.today), M.fullDaily(D, found, D.yday), M.fullWeekly(D, found)]);
+      return send(res, 200, { text: M.reportText(D, Mx, found), dailyToday: dToday.parts, dailyYday: dYday.parts, weeklyParts: wk.parts, ids: { today: dToday.id, yday: dYday.id, weekly: wk.id },
+        issues: found, recon: Mx.recon, outside: Mx.outsideNames, errors: D.errors.concat(D.live.errors || [], D.health.errors || []) });
     }
     if (!T.configured()) return send(res, 400, { error: "TELEGRAM_BOT_TOKEN is not set in Vercel yet." });
     if (op === "link-start") {
@@ -115,7 +117,12 @@ module.exports = async function handler(req, res) {
     if (op === "run") { if (!rec) return send(res, 403, { error: "Not allowed." });
       const what = String(req.query.what || "summary");
       if (what === "activity") return send(res, 200, await A.runActivity(S, sbFetch, { force: true }));
-      if (what === "weekly") { const M = require("./_monitor"), D = await M.loadData(S, sbFetch, { noMeta: true }); const ok = await A.deliver(sbFetch, "weekly", M.weeklyText(M.weekly(D))); return send(res, 200, { sent: ok ? ["weekly"] : [] }); }
+      if (what === "weekly" || what === "daily" || what === "daily-yesterday") {   // full brand-wise report now, in numbered parts
+        const M = require("./_monitor"), chat = await A.chatOf(sbFetch); if (!chat) return send(res, 400, { error: "Telegram isn't connected yet." });
+        const D = await M.loadData(S, sbFetch), found = M.detect(D, M.metrics(D));
+        const rep = what === "weekly" ? await M.fullWeekly(D, found) : await M.fullDaily(D, found, what === "daily" ? D.today : D.yday);
+        const ok = await M.sendParts(sbFetch, chat.chat_id, what === "weekly" ? "weekly" : "daily", rep);
+        return send(res, 200, { sent: [what + ":" + rep.parts.length + " parts"], id: rep.id, delivered: ok }); }
       try { return send(res, 200, await require("./_monitor").run(S, sbFetch, { force: true })); }
       catch (e) { return send(res, 200, Object.assign({ monitorError: e.message }, await A.runSummary(S, sbFetch, { force: true }))); } }
     return send(res, 400, { error: "Unknown op" });

@@ -8,13 +8,14 @@
 const T = require("./_tg");
 const A = require("./_alertlib");
 const ACT = require("./_activity");
+const R = require("./_reports");
 const { all, graph, VER } = require("./_metalib");
 const GRAPH = "https://graph.facebook.com/" + VER;
 
 /* ---------- settings ---------- */
 const TH = { cplUp: 30, leadDrop: 40, zeroLeadSpend: 1500, cpqlUp: 40, qlRateDrop: 30, syncMin: 80, stopSpendMin: 1000, budgetDev: 30, abnormalSpend: 60,
   cpmUp: 40, cpcUp: 40, ctrDrop: 30, minSpend: 1000, minLeads: 5, minImpr: 5000, minCrm: 20 };
-const SCHED = { every: 30, recapHour: 9, weeklyOn: true, weeklyDay: 1, weeklyHour: 10, remindCritical: 2, remindHigh: 6, remindMedium: 24, changeMin: "medium" };
+const SCHED = { every: 30, recapHour: 9, todayHour: -1, weeklyOn: true, weeklyDay: 1, weeklyHour: 10, remindCritical: 2, remindHigh: 6, remindMedium: 24, changeMin: "medium" };
 const TH_LABEL = { cplUp: "CPL up by (%)", leadDrop: "Lead volume down by (%)", zeroLeadSpend: "Campaign spend with 0 leads (₹)", cpqlUp: "CPQL up by (%)", qlRateDrop: "QL rate down by (%)",
   syncMin: "Meta leads reaching TeleCRM below (%)", stopSpendMin: "Campaign stopped: usual daily spend at least (₹)", budgetDev: "Spend off budget by (%)", abnormalSpend: "Spending faster than usual by (%)",
   cpmUp: "CPM up by (%)", cpcUp: "CPC up by (%)", ctrDrop: "CTR down by (%)", minSpend: "Minimum spend to judge (₹)", minLeads: "Minimum leads to judge", minImpr: "Minimum impressions to judge", minCrm: "Minimum CRM leads to judge quality" };
@@ -333,6 +334,20 @@ async function sendSafe(sbFetch, chatId, kind, html) {
   catch (e) { const box = (await A.getState(sbFetch, "outbox")) || []; box.push({ kind, html, at: new Date().toISOString() }); await A.setState(sbFetch, "outbox", box.slice(-30)); await logRow(sbFetch, kind + "-failed", html); return false; }
 }
 async function logRow(sbFetch, kind, text) { try { await sbFetch("alert_log", { method: "POST", headers: { prefer: "return=minimal" }, body: JSON.stringify([{ kind, text: String(text).slice(0, 8000) }]) }); } catch (e) {} }
+/* full brand-wise reports (api/_reports.js), with reach where it can be counted without double-counting */
+function spendMap(D, from, to) { const o = {}; D.brandRows.forEach((r) => { if (r.day >= from && r.day <= to) o[r.brand] = (o[r.brand] || 0) + (+r.spend || 0); }); return o; }
+function withFeeds(D) { const F = feeds(D); D.feedsInfo = { meta: F.meta, crm: F.crm, metaErr: F.meta && F.meta.err ? F.meta.err : "" }; return D; }
+async function fullDaily(D, found, day) {
+  withFeeds(D); let reach = {};
+  if (!D.live.skipped) { try { reach = await R.reachFor(D.S, D.listed, { day: [day, day] }, { day: spendMap(D, day, day) }); } catch (e) { reach = {}; } }
+  return R.daily(D, found, { day, reach });
+}
+async function fullWeekly(D, found) {
+  withFeeds(D); const wb = R.weekBounds(D.today); let reach = {};
+  if (!D.live.skipped) { try { reach = await R.reachFor(D.S, D.listed, { week: [wb.from, wb.to] }, { week: spendMap(D, wb.from, wb.to) }); } catch (e) { reach = {}; } }
+  return R.weeklyFull(D, found, { reach });
+}
+async function sendParts(sbFetch, chatId, kind, rep) { let okAll = true; for (const p of rep.parts) okAll = (await sendSafe(sbFetch, chatId, kind, p)) && okAll; return okAll; }
 async function run(S, sbFetch, opt) {
   opt = opt || {}; const sc = sched(S), out = { sent: [] };
   if (!A.cfgOf(S).summary) sc.every = 0;   // the 30-minute report can be switched off (Settings › Alerts); alerts and the morning recap still go
@@ -352,11 +367,12 @@ async function run(S, sbFetch, opt) {
     const st = (await A.getState(sbFetch, "reports")) || {}, nowMs = Date.now(), changed = {};
     const h = D.hour, dayKey = D.today, wk = weekly(D), wkKey = wk.from;
     if (opt.force || (sc.every > 0 && (!st.last || nowMs - Date.parse(st.last) >= (sc.every - 3) * 60000))) { await sendSafe(sbFetch, chat.chat_id, "summary", reportText(D, Mx, found)); changed.last = new Date().toISOString(); out.sent.push("report"); }
-    if (sc.recapHour >= 0 && h >= sc.recapHour && st.recap !== dayKey && !opt.force) { await sendSafe(sbFetch, chat.chat_id, "recap", reportText(D, Mx, found, { yesterday: true })); changed.recap = dayKey; out.sent.push("recap"); }
+    if (sc.recapHour >= 0 && h >= sc.recapHour && st.recap !== dayKey && !opt.force) { const rep = await fullDaily(D, found, D.yday); await sendParts(sbFetch, chat.chat_id, "daily", rep); changed.recap = dayKey; out.sent.push("daily:" + rep.parts.length); }
+    if (sc.todayHour >= 0 && h >= sc.todayHour && st.todayFull !== dayKey && !opt.force) { const rep = await fullDaily(D, found, D.today); await sendParts(sbFetch, chat.chat_id, "daily", rep); changed.todayFull = dayKey; out.sent.push("daily-today:" + rep.parts.length); }
     const dow = (new Date(Date.parse(dayKey + "T00:00:00Z")).getUTCDay() + 6) % 7 + 1;
-    if (sc.weeklyOn && dow === +sc.weeklyDay && h >= sc.weeklyHour && st.weekly !== wkKey && !opt.force) { await sendSafe(sbFetch, chat.chat_id, "weekly", weeklyText(wk)); changed.weekly = wkKey; out.sent.push("weekly"); }
+    if (sc.weeklyOn && dow === +sc.weeklyDay && h >= sc.weeklyHour && st.weekly !== wkKey && !opt.force) { const rep = await fullWeekly(D, found); await sendParts(sbFetch, chat.chat_id, "weekly", rep); changed.weekly = wkKey; out.sent.push("weekly:" + rep.parts.length); }
     if (Object.keys(changed).length) await A.setState(sbFetch, "reports", Object.assign({}, st, changed));
   }
   return out;
 }
-module.exports = { TH, SCHED, TH_LABEL, thOf, sched, loadData, metrics, feeds, detect, trackIssues, reportText, weekly, weeklyText, run, issueBlock, kpi, sumWin };
+module.exports = { fullDaily, fullWeekly, sendParts, TH, SCHED, TH_LABEL, thOf, sched, loadData, metrics, feeds, detect, trackIssues, reportText, weekly, weeklyText, run, issueBlock, kpi, sumWin };

@@ -3493,7 +3493,7 @@ function viewActivity(){
 var MON_SEV = {critical: ["bad", "Critical"], high: ["bad", "High"], medium: ["warn", "Medium"], low: ["mut", "Low"]};
 var MON_KIND = [["", "All types"], ["account", "Account status"], ["billing", "Billing / limits"], ["rejected", "Rejected ads"], ["sync", "Data feeds"], ["crm_sync", "Meta → TeleCRM"], ["zero_leads", "Spend, no leads"],
   ["cpl_up", "CPL up"], ["lead_drop", "Lead drop"], ["quality", "Lead quality (QL / CPQL)"], ["delivery", "Delivery stopped"], ["spend", "Abnormal spend"], ["budget", "Budget pacing"], ["costs", "CPM / CPC / CTR"]];
-var MON_LOGKIND = [["", "All messages"], ["critical", "Critical alerts"], ["warning", "Performance alerts"], ["resolved", "Resolved"], ["activity", "Account changes"], ["summary", "30-minute reports"], ["recap", "Morning recaps"], ["weekly", "Weekly reports"], ["cpl", "CPL improvements"]];
+var MON_LOGKIND = [["", "All messages"], ["critical", "Critical alerts"], ["warning", "Performance alerts"], ["resolved", "Resolved"], ["activity", "Account changes"], ["summary", "30-minute reports"], ["daily", "Daily reports"], ["recap", "Morning recaps (old)"], ["weekly", "Weekly reports"], ["cpl", "CPL improvements"]];
 function monState(){ return state.mon || (state.mon = {sub: "open", days: 14, f: {brand: "", account: "", sev: "", kind: "", q: "", conf: ""}, h: {days: 30, kind: "", q: ""}}); }
 function monLoad(){ var M = monState(); M.status = "loading"; M.err = null; render();
   alertsApi("mon", {days: M.days}).then(function(d){ M.d = d; M.status = "ready"; M.at = Date.now(); })
@@ -3580,15 +3580,18 @@ function monPreview(M){
     alertsApi("mon-preview").then(function(d){ P.d = d; }).catch(function(e){ P.err = e.message; }).then(function(){ P.loading = false; render(); }); }}, P.loading ? "Building…" : P.d ? "Refresh preview" : "Build preview"),
     M.d && M.d.telegram && M.d.telegram.linked ? el("button", {cls: "btn ghost", type: "button", disabled: P.sending ? true : null, onclick: function(){ P.sending = true; render();
       alertsApi("run", {what: "summary"}).then(function(d){ toast(d.skipped || ("Sent: " + ((d.sent || []).join(", ") || "nothing new"))); M.h.rows = null; }).catch(function(e){ toast(e.message); }).then(function(){ P.sending = false; monLoad(); }); }}, P.sending ? "Sending…" : "Send report now") : null,
-    M.d && M.d.telegram && M.d.telegram.linked ? el("button", {cls: "btn ghost", type: "button", onclick: function(){ alertsApi("run", {what: "weekly"}).then(function(){ toast("Weekly report sent"); }).catch(function(e){ toast(e.message); }); }}, "Send weekly report now") : null));
+    M.d && M.d.telegram && M.d.telegram.linked ? [["daily", "Send daily (today)"], ["daily-yesterday", "Send daily (yesterday)"], ["weekly", "Send weekly"]].map(function(w){ return el("button", {cls: "btn ghost", type: "button", disabled: P.sending ? true : null, onclick: function(){ P.sending = true; render();
+      alertsApi("run", {what: w[0]}).then(function(d){ toast((d.sent || []).join(", ") + (d.delivered === false ? " · some parts will be retried" : " sent")); M.h.rows = null; }).catch(function(e){ toast(e.message); }).then(function(){ P.sending = false; render(); }); }}, w[1]); }) : null));
   if (P.err) box.appendChild(el("div", {cls: "msg err", text: P.err}));
   if (P.d){ var R = P.d.recon || {};
     box.appendChild(el("div", {cls: "mon-recon " + (R.ok ? "ok" : "bad")}, el("b", {text: R.ok ? "✅ Totals check passed: " : "⚠️ Totals check failed: "}),
       "listed brands " + FMT.rinr(R.brandSum) + " = total " + FMT.rinr(R.total) + (R.outside ? " · outside the listed brands " + FMT.rinr(R.outside) + " (" + (P.d.outside || []).join(", ") + ") shown separately, not added" : " · nothing outside the listed brands") + " · all spend today " + FMT.rinr(R.all) + "."));
     if ((P.d.errors || []).length) box.appendChild(el("div", {cls: "banner warn", text: "Couldn't read everything: " + P.d.errors.join(" · ")}));
-    var tabs = [["text", "Report now"], ["recap", "Morning recap (yesterday)"], ["weekly", "Weekly report"]]; P.which = P.which || "text";
+    var tabs = [["dailyYday", "Daily report (yesterday)"], ["dailyToday", "Daily report (today, partial)"], ["weeklyParts", "Weekly report"], ["text", "30-minute update"]]; P.which = P.which || "dailyYday";
     box.appendChild(el("div", {cls: "seg", role: "group", "aria-label": "Message"}, tabs.map(function(t){ return el("button", {type: "button", "aria-pressed": P.which === t[0] ? "true" : "false", onclick: function(){ P.which = t[0]; render(); }}, t[1]); })));
-    box.appendChild(monTgNode(P.d[P.which])); }
+    var msg = P.d[P.which], list = Array.isArray(msg) ? msg : [msg];
+    if (Array.isArray(msg)) box.appendChild(el("div", {cls: "small", style: "margin-top:8px", text: list.length + " Telegram message" + (list.length > 1 ? "s" : "") + " · longest " + Math.max.apply(null, list.map(function(x){ return String(x).length; })).toLocaleString("en-IN") + " characters (limit 4,096)"}));
+    list.forEach(function(x){ box.appendChild(monTgNode(x)); }); }
   return box;
 }
 function monTgNode(html){ var box = el("div", {cls: "mon-tg"});
@@ -3659,7 +3662,7 @@ function monSettings(M){
   var chMin = el("select", {disabled: canEdit ? null : true}, [["high", "High impact only"], ["medium", "Medium and high"], ["low", "Every change"]].map(function(o){ return el("option", {value: o[0], selected: sc.changeMin === o[0] ? true : null, text: o[1]}); }));
   chMin.addEventListener("change", function(){ setSc("changeMin", chMin.value); });
   box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Reports and reminders"}),
-    el("div", {cls: "rep-controls"}, f("Performance report", every), f("Morning recap (yesterday)", hourSel(sc.recapHour, function(v){ setSc("recapHour", v); })), f("Weekly report on", wd), f("Weekly report at", hourSel(sc.weeklyHour, function(v){ setSc("weeklyHour", v); })), f("Account changes to send", chMin)),
+    el("div", {cls: "rep-controls"}, f("Performance report", every), f("Full daily report — yesterday (complete) at", hourSel(sc.recapHour, function(v){ setSc("recapHour", v); })), f("Full daily report — today (partial) at", hourSel(sc.todayHour === undefined ? -1 : sc.todayHour, function(v){ setSc("todayHour", v); })), f("Weekly report on", wd), f("Weekly report at", hourSel(sc.weeklyHour, function(v){ setSc("weeklyHour", v); })), f("Account changes to send", chMin)),
     el("div", {cls: "rep-controls"}, f("Remind open critical every (hours)", numIn(sc.remindCritical, "2", function(v){ setSc("remindCritical", v === null ? D.sched.remindCritical : v); })),
       f("Remind open high every (hours)", numIn(sc.remindHigh, "6", function(v){ setSc("remindHigh", v === null ? D.sched.remindHigh : v); })), f("Remind open medium every (hours)", numIn(sc.remindMedium, "24", function(v){ setSc("remindMedium", v === null ? D.sched.remindMedium : v); }))),
     el("div", {cls: "small", text: "An open issue is sent once, then again only if it gets worse, its number changes by 25% or more, or the reminder interval passes (0 = never remind). Acknowledging stops reminders. An issue closes when two checks in a row no longer see it, and a ✅ Resolved message is sent. Quiet hours (Settings › Alerts) hold everything except critical alerts."})));
