@@ -104,6 +104,8 @@ Each item says what to do. Follows the brand selected at the top.
 
 **Trends › Live CPL updates** (same recipient-only rule): "CPL right now" per brand — spent and Meta leads today, CPL today vs 7-day average, vs yesterday and vs target, status (CPL up / down / above target / no leads yet / normal) and what to do — plus "Recent CPL updates", the same updates Telegram gets (one per brand, all comparisons in one line, with a remark). Refreshes every 5 minutes; CPL moves are checked every 30 minutes and recorded even when Telegram isn't connected or during quiet hours (they're just not sent then).
 
+**Deleted / archived items:** a change that deletes or archives a campaign, ad set or ad is shown as **Deleted** / **Archived** (red tag) in Ad account activity and Telegram, never as "paused". For deleted ads Meta can no longer look up, the campaign and ad set come from the dashboard's own synced rows (by Ad ID). After `supabase/object-status.sql` is run, the Meta auto-sync also stores Meta's DELETED / ARCHIVED campaigns, ad sets and ads about once an hour, and Campaigns / Ad sets / Ads show the same tag next to the name (their past spend and leads still count). An item restored in Meta loses the tag on the next refresh.
+
 **Ad account activity page** (sidebar › Setup, visible only to the alert recipient's login): every Meta ad account change of the last 1 / 7 / 30 / 90 days as a table — When · Who · Brand · Campaign · Ad set / Ad · What changed · Status (before → after) · Remarks: what happens next · Impact (High / Medium / Low) — with filters (brand, person, type, impact, search) and **Check Meta now**. Changes are collected every 5 minutes even without Telegram; the first run also loads the last 7 days.
 
 **Setup (10 minutes):**

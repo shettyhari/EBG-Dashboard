@@ -64,6 +64,8 @@ global.fetch = async (url, opt) => {
     if (metaFail) return { ok: false, status: 400, json: async () => ({ error: { message: "Invalid OAuth access token", code: 190 } }) };
     if (url.indexOf("/insights?level=account") >= 0) { const m = /act_(\d+)\//.exec(url); return ok({ data: [{ spend: String((global.__acctSpend || {})[m[1]] || 0), reach: "12345" }] }); }
     if (url.indexOf("/me/adaccounts") >= 0) return ok({ data: [{ id: "act_1", name: "Acc One", account_status: 1 }, { id: "act_2", name: "Acc Two", account_status: 3 }] });
+    if (url.indexOf("ARCHIVED") >= 0) { if (url.indexOf("act_1/campaigns") >= 0) return ok({ data: [{ id: "c9", name: "Old campaign", effective_status: "DELETED" }] });
+      if (url.indexOf("act_1/ads?") >= 0) return ok({ data: [{ id: "a7", name: "Video 2", effective_status: "ARCHIVED", campaign: { name: "Natuf | Leads" }, adset: { name: "Broad" } }] }); return ok({ data: [] }); }
     if (url.indexOf("DISAPPROVED") >= 0) return ok({ data: url.indexOf("act_1/") >= 0 ? [{ id: "9", name: "Natuf Reel 3", effective_status: "DISAPPROVED", campaign: { name: "Natuf | Leads" } }] : [] });
     if (url.indexOf("/ads?") >= 0) return ok({ data: url.indexOf("act_1/") >= 0 ? [{ id: "1", adset_id: "s1", campaign_id: "c1", campaign: { name: "Natuf | Leads" } }, { id: "2", adset_id: "s2", campaign_id: "c2", campaign: { name: "Appa | WA" } }] : [] });
   }
@@ -228,6 +230,9 @@ test("many brands: split at brand boundaries into numbered parts, same ID, nothi
 });
 test("weekly report: Mon–Sun vs previous week, ratios from weekly totals, small samples not judged, budgets only where set", async () => {
   const fx = fixture(), db = fakeDb(fx), mk = istDay(0).slice(0, 7), S = settings({ brands: ["Natuf", "Carlton", "Appa", "Tarzan"], report: { months: { [mk]: { brands: { Natuf: { budget: 150000 } } } } } });
+  // Appa: 3 days of small spend inside the last complete week, whatever today's weekday is
+  const wb0 = Rp.weekBounds(istDay(0)); fx.brand = fx.brand.filter((r) => r.brand !== "Appa");
+  [0, 1, 2].forEach((i) => fx.brand.push({ brand: "Appa", day: new Date(Date.parse(wb0.from + "T00:00:00Z") + i * 864e5).toISOString().slice(0, 10), spend: 1500, leads: 3, impressions: 10000, clicks: 100, crm: 0, ql: 0, rows_n: 1 }));
   const D = await prepared(S, db), rep = await M.fullWeekly(D, M.detect(D, M.metrics(D))), txt = tagless(rep.parts.join("\n")), wb = Rp.weekBounds(D.today);
   assert.strictEqual(new Date(wb.from + "T00:00:00Z").getUTCDay(), 1); assert.strictEqual(new Date(wb.to + "T00:00:00Z").getUTCDay(), 0);
   assert.deepStrictEqual(brandBlocks(rep.parts).sort(), ["Appa", "Carlton", "Natuf", "Tarzan"]);
@@ -250,6 +255,23 @@ test("reach only where it can't double-count: one dedicated ad account whose spe
   global.__acctSpend = { 2: 2600 }; txt = tagless((await M.fullDaily(D, found, D.yday)).parts.join("\n"));
   assert.ok(/Reach: N\/A \(account also runs other campaigns\)/.test(txt.split("🏢 Carlton")[1].split("━━")[0]));
   global.__acctSpend = {};
+});
+
+/* ---------- 8. deleted / archived objects and change history ---------- */
+test("deleted / archived: sync stores Meta's DELETED / ARCHIVED items, clears restored ones; history says Deleted, not paused", async () => {
+  const OBJ = require("../api/_objstatus"), store = [], deletes = [];
+  const sbf = async (path, opt) => { opt = opt || {}; if (path.indexOf("alert_state") === 0) return opt.method ? null : [];
+    if (path.indexOf("meta_object_status?on_conflict") === 0) { store.push.apply(store, JSON.parse(opt.body)); return null; }
+    if (opt.method === "DELETE") { deletes.push(path); return null; } throw new Error("unexpected " + path); };
+  const r = await OBJ.refresh([{ id: "1", name: "Acc One" }, { id: "2", name: "Acc Two" }], sbf, { force: true });
+  assert.strictEqual(r.accounts, 2); assert.strictEqual(r.objects, 2);
+  assert.deepStrictEqual(store.map((x) => [x.level, x.status, x.campaign, x.adset, x.ad]), [["campaign", "DELETED", "Old campaign", "", ""], ["ad", "ARCHIVED", "Natuf | Leads", "Broad", "Video 2"]]);
+  assert.strictEqual(deletes.length, 2, "restored items cleared per account");
+  const d = ACT.describe({ event_type: "update_ad_set_run_status", extra_data: JSON.stringify({ old_value: "Active", new_value: "Deleted" }), object_type: "AD_SET" });
+  assert.strictEqual(d.category, "deleted"); assert.ok(/^Deleted/.test(d.what) && d.status === "Active → Deleted");
+  const p = ACT.describe({ event_type: "update_ad_set_run_status", extra_data: JSON.stringify({ old_value: "Active", new_value: "Paused" }), object_type: "AD_SET" });
+  assert.strictEqual(p.category, "status"); assert.ok(/Turned OFF/.test(p.what));
+  assert.strictEqual(ACT.describe({ event_type: "update_campaign_run_status", extra: JSON.stringify({ old_value: "Paused", new_value: "Archived" }) }).category, "archived");
 });
 
 (async () => {

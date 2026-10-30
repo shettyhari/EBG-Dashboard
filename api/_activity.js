@@ -35,6 +35,8 @@ function category(t) {
   if (/limit_reached|budget_spent|campaign_ended|ad_set_ended|_ended$/.test(t)) return "stopped";
   if (/spend_cap|spend_limit|spending_limit/.test(t)) return "cap";
   if (/budget/.test(t)) return "budget";
+  if (/(^|_)delete(d)?(_|$)|deletion/.test(t)) return "deleted";
+  if (/(^|_)archive(d)?(_|$)/.test(t)) return "archived";
   if (/run_status|stop_delivery|update_status/.test(t)) return "status";
   if (/^create_|_created$|add_ad$/.test(t)) return "created";
   if (/target|placement|age|gender|geo/.test(t)) return "targeting";
@@ -72,12 +74,15 @@ function targetingText(o, n) {
   return out.slice(0, 5).join(" · ") + (out.length > 5 ? " · +" + (out.length - 5) + " more" : "");
 }
 function describe(e) {
-  const cat = category(e.event_type), lvl = levelOf(e), L = LEVEL[lvl] || "item", x = parseExtra(e.extra_data != null ? e.extra_data : e.extra) || {};
+  let cat = category(e.event_type); const lvl = levelOf(e), L = LEVEL[lvl] || "item", x = parseExtra(e.extra_data != null ? e.extra_data : e.extra) || {};
   const money = MONEY.test(String(e.event_type || ""));
   const ov = "old_value" in x ? pick(x.old_value).v : undefined, nv = "new_value" in x ? pick(x.new_value).v : undefined;
   const before = valText(ov, money), after = valText(nv, money);
   const on = Number(ov) / 100, nn = Number(nv) / 100, ch = money && isFinite(on) && isFinite(nn) && on > 0 ? nn / on - 1 : null;
   let what = e.translated_event_type || String(e.event_type || "").replace(/_/g, " "), remark = "Check Ads Manager › Activity history for the full detail.", impact = "low";
+  // a status change to Deleted / Archived is a deletion, not a pause (Meta logs both as a run-status change)
+  if (cat === "status" || cat === "other") { const tt = (after + " " + (e.translated_event_type || e.translated || "")).toLowerCase();
+    if (/delet/.test(tt)) cat = "deleted"; else if (/archiv/.test(tt)) cat = "archived"; }
   switch (cat) {
     case "budget":
       what = (ch === null ? "Budget changed" : ch > 0 ? "Budget increased" : "Budget decreased") + (ch !== null ? " (" + (ch > 0 ? "+" : "") + Math.round(ch * 100) + "%)" : "");
@@ -93,6 +98,15 @@ function describe(e) {
       remark = off ? "Stops spending now: no new leads from this " + L + " until it's switched on again. Leads already received are not affected."
         : onn ? "Starts spending within minutes (after review if it was edited). The first 2–3 days can have uneven CPL while it warms up." : "Delivery of this " + L + " changes from now; check it's running as intended.";
       impact = "high"; break; }
+    case "deleted":
+      what = "Deleted (" + L + " removed)";
+      remark = "Deleted in Ads Manager: it stops spending now and can't be switched back on (it would have to be re-created). " +
+        (lvl === "campaign" ? "All its ad sets and ads stop too. " : lvl === "adset" ? "All its ads stop too. " : "") + "Past spend and leads stay in the dashboard.";
+      impact = "high"; break;
+    case "archived":
+      what = "Archived (" + L + " stopped and archived)";
+      remark = "Archived in Ads Manager: it stops spending now. It can be restored from the archive, but it won't run again until someone does. Past spend and leads stay in the dashboard.";
+      impact = "high"; break;
     case "created":
       what = "New " + L + " created";
       remark = lvl === "ad" ? "Goes to Meta review (usually under 24 hours), then starts delivering. Early CPL is unstable for the first few days."
@@ -116,7 +130,8 @@ function describe(e) {
     case "delivery": what = "Started delivering"; remark = "First impressions served — spend and leads start from now."; impact = "low"; break;
   }
   let status = before || after ? (before || "—") + " → " + (after || "—") : "";
-  if (cat === "targeting" || cat === "audience") { const tt = targetingText(pick(x.old_value).v, pick(x.new_value).v); status = tt || (status.length > 70 || /[{\[]/.test(status) ? "changed" : status); }
+  if (cat === "deleted" || cat === "archived") status = (before ? before + " → " : "") + (cat === "deleted" ? "Deleted" : "Archived");
+  else if (cat === "targeting" || cat === "audience") { const tt = targetingText(pick(x.old_value).v, pick(x.new_value).v); status = tt || (status.length > 70 || /[{\[]/.test(status) ? "changed" : status); }
   else if (/[{\[]/.test(status)) status = "changed";
   const diff = money && isFinite(on) && isFinite(nn) ? nn - on : null;
   return { category: cat, level: lvl, what, before, after, status, remark, impact, change: ch, diff, money };
@@ -155,6 +170,13 @@ async function enrich(objectId) {
   }
   return null;
 }
+/* deleted objects can't be read from Meta any more: for an ad, find its campaign / ad set in the dashboard's synced rows */
+async function fromRows(sbFetch, objectId) {
+  if (!/^\d{5,25}$/.test(String(objectId))) return null;
+  try { const r = await sbFetch("meta_ad_rows?select=campaign,adset,ad&ad_id=eq." + encodeURIComponent(objectId) + "&order=day.desc&limit=1");
+    return r && r[0] ? { level: "ad", campaign: r[0].campaign, adset: r[0].adset, ad: r[0].ad } : null; }
+  catch (e) { return null; }   // ad_id column missing (creative-report.sql not run)
+}
 /* fetch new events for every synced account and store them; first time per account: the last `backfillDays` days */
 async function fetchAndStore(S, sbFetch, opt) {
   opt = opt || {};
@@ -179,7 +201,7 @@ async function fetchAndStore(S, sbFetch, opt) {
       // campaign / ad set names (few objects per run; cached per object within the run)
       const cache = {};
       for (const r of rows.slice(0, 60)) { if (!r.object_id || /ACCOUNT/i.test(r.object_type)) continue;
-        if (!(r.object_id in cache)) cache[r.object_id] = await enrich(r.object_id);
+        if (!(r.object_id in cache)) cache[r.object_id] = (await enrich(r.object_id)) || (await fromRows(sbFetch, r.object_id));
         const n = cache[r.object_id]; if (n){ r.level = n.level; r.campaign = n.campaign || ""; r.adset = n.adset || ""; r.ad = n.ad || ""; } }
       rows.forEach((r) => { r.brand = brandOf(a, r.campaign || r.object_name); if (!r.campaign && /campaign_group|CAMPAIGN_GROUP/.test(r.event_type + r.object_type)) r.campaign = r.object_name; });
       if (rows.length) await sbFetch("meta_activity?on_conflict=ev_key", { method: "POST", headers: { prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(rows.map((r) => { const o = Object.assign({}, r); delete o.first_load; return o; })) });

@@ -8,6 +8,7 @@
 // continuing where the last run stopped, so a long range is fully refreshed within a few runs.
 const crypto = require("crypto");
 const { accountRows } = require("./_metalib");
+const OBJ = require("./_objstatus");
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
 const AUTO_FILE = "Meta API · auto-sync";
 
@@ -155,7 +156,10 @@ module.exports = async function handler(req, res) {
     await sbFetch("uploads?id=eq." + uid, { method: "PATCH", body: JSON.stringify({ uploaded_at: new Date().toISOString(), meta_files: Array.from(files), meta_rows: total,
       date_from: R.from, date_to: R.to,
       crm_file: (errors.length ? "Last run errors: " + errors.join(" | ") : "Auto-sync: " + note).slice(0, 900) }) });
-    return send(res, errors.length && !done.length ? 502 : 200, { from: R.from, to: R.to, accounts: accounts.length, pieces: queue.length, done: done.length, left, rows: rowsSaved, errors, ms: Date.now() - t0 });
+    // deleted / archived campaigns, ad sets, ads (about once an hour, only with time to spare)
+    let objStatus = { skipped: "no time left this run" };
+    if (Date.now() - t0 < BUDGET_MS - 15000) { try { objStatus = await OBJ.refresh(accounts, sbFetch, { deadline: t0 + BUDGET_MS }); } catch (e) { objStatus = { error: e.message }; } }
+    return send(res, errors.length && !done.length ? 502 : 200, { from: R.from, to: R.to, accounts: accounts.length, pieces: queue.length, done: done.length, left, rows: rowsSaved, errors, objStatus, ms: Date.now() - t0 });
   } catch (e) {
     return send(res, 502, { error: String((e && e.message) || e) });
   }

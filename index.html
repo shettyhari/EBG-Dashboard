@@ -518,6 +518,7 @@ body.plat-google .tab[data-tab="adsets"],body.plat-google .tab[data-tab="ads"]{d
 .mon-tg{background:var(--band);border:1px solid var(--line-soft);padding:12px 14px;max-width:560px;font-size:13.5px;line-height:1.5;margin-top:10px;overflow-wrap:anywhere}
 .mon-recon{padding:8px 10px;margin:10px 0;border:1px solid currentColor}.mon-recon.ok{color:var(--good);background:var(--good-bg)}.mon-recon.bad{color:var(--bad);background:var(--bad-bg)}
 .mon-th td,.mon-th th{padding:4px 8px}.mon-th td:first-child{min-width:260px}
+.obj-st{margin-left:6px;font-size:10.5px;padding:1px 6px;vertical-align:1px}
 .act-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}.act-table td.act-remark{min-width:280px;white-space:normal;line-height:1.45}.act-table td{vertical-align:top}
 .hist-controls .hist-q{flex:1 1 240px}.hist-controls .hist-q input{width:100%}
 .hist-list{margin-top:8px}.hist-day{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 6px;font-weight:600}
@@ -1835,6 +1836,31 @@ function treeRows(id, cols, campRows, all){
   });
   return out;
 }
+/* deleted / archived campaigns, ad sets, ads (meta_object_status, kept up to date by the Meta auto-sync about hourly) */
+function objStatusLoad(){
+  var O = state.objSt || (state.objSt = {});
+  if (O.loading || (O.at && Date.now() - O.at < 10 * 60000) || !(sb.client && sb.status === "ready")) return;
+  O.loading = true;
+  sb.client.from("meta_object_status").select("object_id,level,status,campaign,adset,ad").limit(20000).then(function(r){
+    O.loading = false; O.at = Date.now(); if (r.error){ O.err = r.error.message; return; }
+    var m = {camp: {}, set: {}, ad: {}, id: {}}; (r.data || []).forEach(function(x){ var st = /ARCHIV/i.test(x.status) ? "Archived" : "Deleted";
+      if (x.level === "campaign") m.camp[campKey(x.campaign)] = st;
+      else if (x.level === "adset") m.set[(campKey(x.campaign) + "|" + campKey(x.adset))] = st;
+      else { m.ad[(campKey(x.campaign) + "|" + campKey(x.adset) + "|" + campKey(x.ad))] = st; m.id[String(x.object_id)] = st; } });
+    O.map = m; O.n = (r.data || []).length; render(); }, function(){ O.loading = false; O.at = Date.now(); });
+}
+/* "Deleted" / "Archived" for a row (ads by Ad ID when known, else by name; a campaign's state also covers its ad sets and ads) */
+function objStatusOf(lvl, r){
+  var m = state.objSt && state.objSt.map; if (!m || !r || !r.campaign) return null;
+  var c = campKey(r.campaign), st = m.camp[c] || null;
+  if (lvl >= 2 && r.adset) st = st || m.set[c + "|" + campKey(r.adset)] || null;
+  if (lvl >= 3){ var ids = String(r.adId || "").split(/\s*,\s*/).filter(Boolean), own = null;
+    if (ids.length) own = ids.every(function(i){ return m.id[i]; }) ? m.id[ids[0]] : null;   /* an ad id still live → not deleted */
+    else if (r.ad) own = m.ad[c + "|" + campKey(r.adset || "") + "|" + campKey(r.ad)] || null;
+    st = st || own; }
+  return st;
+}
+function objPill(st){ return st ? el("span", {cls: "pill bad obj-st", title: st === "Deleted" ? "Deleted in Meta Ads Manager — can't run again. Past spend and leads still count." : "Archived in Meta Ads Manager — not running. Past spend and leads still count.", text: st}) : null; }
 function treeNameCol(){
   return {k: "tree", label: "Campaign / Ad set / Ad", t: "text", cls: "name tree-name", lock: true,
     get: function(r){ return r._lvl === 3 ? r.ad : r._lvl === 2 ? r.adset : r.campaign; },
@@ -1846,6 +1872,7 @@ function treeNameCol(){
       else box.appendChild(el("span", {cls: "tree-tog none", "aria-hidden": "true"}));
       box.appendChild(el("span", {cls: "tree-lvl", text: ["", "Campaign", "Ad set", "Ad"][r._lvl]}));
       box.appendChild(el("span", {text: name}));
+      var ost = objStatusOf(r._lvl, r); if (ost) box.appendChild(objPill(ost));
       return box; }};
 }
 function campaignTreeCols(){
@@ -2086,6 +2113,9 @@ function viewLevel(level){
   if (level === "campaign") lead.push({k: "nAdsets", label: "Ad sets", t: "int"}, {k: "nAds", label: "Ads", t: "int"});
   if (level === "adset") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "nAds", label: "Ads", t: "int"});
   if (level === "ad") lead.push({k: "adset", label: "Ad set name", t: "text", cls: "name"}, {k: "ad", label: "Ad name", t: "text", cls: "name"});
+  /* Deleted / Archived tag on the row's own name */
+  var own = lead.filter(function(c){ return c.k === (level === "campaign" ? "campaign" : level === "adset" ? "adset" : "ad"); })[0], lvlN = level === "campaign" ? 1 : level === "adset" ? 2 : 3;
+  if (own) own.render = function(r){ var st = objStatusOf(lvlN, r); return el("span", null, r[own.k] || "", st ? " " : null, objPill(st)); };
   var editable = !!state.raw;
   if (level === "campaign") lead.unshift({k: "inc", label: "Count Meta leads", t: "text", nosort: true, cls: "inc", get: function(){ return ""; }, totalText: "", render: function(r){
     if (r.nocamp || !editable) return document.createTextNode(r.nocamp ? "" : "✓");
@@ -3438,8 +3468,8 @@ function alertsPanel(){
   return box;
 }
 /* ================= Ad account activity (who changed what), private to the alert recipient's login ================= */
-var ACT_TYPES = [["", "All changes"], ["budget", "Budget"], ["status", "On / off"], ["created", "New"], ["targeting", "Targeting / audience"], ["bidding", "Bidding"], ["creative", "Creative"], ["approved", "Review"], ["billing", "Billing / limits"], ["other", "Other"]];
-var ACT_TYPE_OF = {audience: "targeting", rejected: "approved", payfail: "billing", cap: "billing", stopped: "billing", schedule: "other", rename: "other", access: "other", learning: "other", delivery: "other"};
+var ACT_TYPES = [["", "All changes"], ["budget", "Budget"], ["status", "On / off"], ["deleted", "Deleted / archived"], ["created", "New"], ["targeting", "Targeting / audience"], ["bidding", "Bidding"], ["creative", "Creative"], ["approved", "Review"], ["billing", "Billing / limits"], ["other", "Other"]];
+var ACT_TYPE_OF = {archived: "deleted", audience: "targeting", rejected: "approved", payfail: "billing", cap: "billing", stopped: "billing", schedule: "other", rename: "other", access: "other", learning: "other", delivery: "other"};
 function actLoad(sync){
   var A = state.act || (state.act = {days: 7, f: {brand: "", who: "", impact: "", type: "", q: ""}});
   A.status = sync ? "syncing" : "loading"; A.err = null; render();
@@ -3485,7 +3515,8 @@ function viewActivity(){
     {k: "brand", label: "Brand", t: "text", render: function(r){ return el("span", null, r.brand || "—", el("div", {cls: "small", text: r.account})); }},
     {k: "campaign", label: "Campaign", t: "text", cls: "name", get: function(r){ return r.campaign || (r.level === "campaign" ? r.object : "") || "—"; }},
     {k: "adset", label: "Ad set / Ad", t: "text", get: function(r){ return [r.adset || (r.level === "adset" ? r.object : ""), r.ad || (r.level === "ad" ? r.object : "")].filter(Boolean).join(" › ") || (r.level === "account" || r.level === "campaign" || !r.object || r.object === r.campaign ? "—" : r.object); }},
-    {k: "what", label: "What changed", t: "text", render: function(r){ return el("b", {text: r.what}); }},
+    {k: "what", label: "What changed", t: "text", render: function(r){ var gone = r.category === "deleted" || r.category === "archived";
+      return el("span", null, gone ? el("span", {cls: "pill bad", style: "margin-right:6px", text: r.category === "deleted" ? "Deleted" : "Archived"}) : null, el("b", {text: r.what})); }},
     {k: "status", label: "Status (before → after)", t: "text", get: function(r){ return r.status || "—"; }},
     {k: "remark", label: "Remarks: what happens next", t: "text", cls: "act-remark"},
     {k: "impact", label: "Impact", t: "text", get: function(r){ return (IMP[r.impact] || IMP.low)[1]; }, render: function(r){ var x = IMP[r.impact] || IMP.low; return el("span", {cls: "pill " + x[0], text: x[1]}); }}];
@@ -4872,6 +4903,7 @@ function render(){
   if (!state.R){ renderEmpty(); if (state.tab === "help"){ var hv = document.getElementById("view"); hv.textContent = ""; hv.appendChild(viewHelp()); var h1 = document.querySelector("header.top h1"); if (h1) h1.textContent = "Help & terms"; } return; }
   CUR = state.R.currency || "₹";
   if (isGoogle() && (state.tab === "adsets" || state.tab === "ads")) state.tab = "campaigns";   /* Google data is campaign-level */
+  if (state.tab === "campaigns" || state.tab === "adsets" || state.tab === "ads") objStatusLoad();
   var actBtn = document.querySelector('.tab[data-tab="activity"]'); if (actBtn) actBtn.hidden = !alertsAllowed();
   var monBtn = document.querySelector('.tab[data-tab="monitor"]'); if (monBtn) monBtn.hidden = !alertsAllowed();
   if ((state.tab === "activity" || state.tab === "monitor") && !alertsAllowed()) state.tab = "overview";

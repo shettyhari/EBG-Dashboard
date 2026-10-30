@@ -44,10 +44,10 @@ Read this first. It carries the decisions and rules agreed while building this p
 
 ## SQL files run so far
 Run and verified: `schema.sql`, `meta-autosync-scheduler.sql`, `change-history.sql`, `alerts.sql`, `user-prefs.sql`, `creative-report.sql`.
-Not run yet: **`monitoring.sql`** (issue list + `mon_brand_daily` / `mon_campaign_daily`; until then alerts fall back to the old 30-min update and impressions/clicks show N/A), `google-ads.sql` (only if Google Ads is set up).
+Not run yet: **`object-status.sql`** (deleted / archived tags on Campaigns / Ad sets / Ads), **`monitoring.sql`** (issue list + `mon_brand_daily` / `mon_campaign_daily`; until then alerts fall back to the old 30-min update and impressions/clicks show N/A), `google-ads.sql` (only if Google Ads is set up).
 
 ## Pending (user side)
-- Run `supabase/monitoring.sql`.
+- Run `supabase/monitoring.sql` and `supabase/object-status.sql`.
 - Telegram: create the bot in BotFather, set `TELEGRAM_BOT_TOKEN` in Vercel, then Hari connects it in Settings › Alerts.
 - Meta: "Sync now" for older dates (to backfill Ad IDs and the Traffic-campaign lead fix); assign Facebook Pages to the system user so lead form names show.
 - Google Ads setup (optional).
