@@ -2545,10 +2545,10 @@ function reconSection(){
 }
 
 /* ================= Reports: EBG daily / MTD templates ================= */
-var REPORT_TYPES = [["brand_day", "FTD Brand-wise report"], ["leader_day", "FTD Leader-wise report"], ["brand_mtd", "MTD Brand-wise report"],
+var REPORT_TYPES = [["daily", "Daily report · clicks, impressions, CTR, leads, QL, CPL, CPQL, spend"], ["brand_day", "FTD Brand-wise report"], ["leader_day", "FTD Leader-wise report"], ["brand_mtd", "MTD Brand-wise report"],
   ["leader_mtd", "MTD Leader-wise report"], ["master", "Master report · FTD + MTD (platform, CRM, budget)"], ["creative", "Creative analysis · top & bottom ads by CTR"]];
 /* FTD reports take a day (or a From–To range); MTD and master take a reporting date */
-function repIsRange(t){ return t === "brand_day" || t === "leader_day" || t === "creative"; }
+function repIsRange(t){ return t === "daily" || t === "brand_day" || t === "leader_day" || t === "creative"; }
 function repIsLeader(t){ return t === "leader_day" || t === "leader_mtd"; }
 function repState(){ if (!state.rep){ var y = todayDay() - 1, t = null, av = state.R && state.R.avail;
   /* default = latest complete day that has data (never today, which is still running) */
@@ -2614,6 +2614,23 @@ function repGenerate(){
 function repBrands(P){ var all = state.settings.brands.slice(); return P.brands.length ? all.filter(function(b){ return P.brands.indexOf(b) >= 0; }) : all; }
 function repHasMeta(R, brand){ return R.ads.some(function(a){ return a.brand === brand && a.src === "M"; }); }
 function repBrandRow(R){ var m = {}; R.brandRows.forEach(function(b){ m[b.brand] = b; }); return m; }
+/* ---------- Daily report: Brand · Clicks · Imp · CTR · Leads · QL · CPL · CPQL · Amount Spent ----------
+   Leads = Meta leads (the dashboard's definition); QL = qualified TeleCRM leads; CTR = link clicks ÷ impressions; CPL = spend ÷ leads; CPQL = spend ÷ QL.
+   Every selected brand gets a row; Meta figures are "—" (not 0) for a brand without Meta data in the period. The total row recalculates the ratios from totals. */
+function repDailyTable(o){
+  var P = o.params, R = o.R, label = repDateLabel(o.rg.from, o.rg.to), br = repBrandRow(R), rows = [], picked = [];
+  repBrands(P).forEach(function(b){ var a = br[b], has = !!a && repHasMeta(R, b);
+    if (a) picked.push({a: a, has: has});
+    rows.push({name: b, _rk: "daily|" + label + "|" + b, clk: has ? a.clk : null, imp: has ? a.imp : null, ctr: has ? a.ctr : null, leads: has ? a.ui : null,
+      ql: a ? a.ql : 0, cpl: has ? a.cpl : null, cpql: a && has ? a.cpql : null, spend: has ? a.spend : null}); });
+  var metaPicked = picked.filter(function(x){ return x.has; }).map(function(x){ return x.a; }), M = sumRows(metaPicked), anyMeta = metaPicked.length > 0;
+  var qlAll = picked.reduce(function(s0, x){ return s0 + (x.a.ql || 0); }, 0), qlMeta = metaPicked.reduce(function(s0, a){ return s0 + (a.ql || 0); }, 0);
+  var total = {_total: true, name: "Total", clk: anyMeta ? M.clk : null, imp: anyMeta ? M.imp : null, ctr: anyMeta && M.imp > 0 ? M.clk / M.imp : null, leads: anyMeta ? M.ui : null, ql: qlAll,
+    cpl: anyMeta && M.ui > 0 ? M.spend / M.ui : null, cpql: anyMeta && qlMeta > 0 ? M.spend / qlMeta : null, spend: anyMeta ? M.spend : null};
+  var cols = [repCol("name", "Brand", "text", null, {cls: "name"}), repCol("clk", "Clicks", "rint"), repCol("imp", "Imp", "rint"), repCol("ctr", "CTR", "rpct2"),
+    repCol("leads", "Leads", "rint"), repCol("ql", "QL", "rint"), repCol("cpl", "CPL", "rinr"), repCol("cpql", "CPQL", "rinr"), repCol("spend", "Amount Spent", "rinr")];
+  return {cols: cols, rows: rows, total: total, label: label};
+}
 /* ---------- template 1 + 3: brand-wise performance ---------- */
 function repBrandTable(o){
   var P = o.params, R = o.R, days = o.rg.to - o.rg.from + 1, label = repDateLabel(o.rg.from, o.rg.to), br = repBrandRow(R), rows = [], picked = [];
@@ -2744,7 +2761,7 @@ function repCreativeTable(o){
   return {cols: cols, rows: top.concat(bot), total: null, label: label, groups: [{title: gTop, rows: top}, {title: gBot, rows: bot}],
     info: {compared: ads.length, small: base.length - ads.length, minImp: minImp, minSpend: minSpend, autoSpend: !(+P.minSpend > 0), minDays: minDays, periodDays: periodDays, medCtr: medCtr, medCpl: medCpl, noCtr: !R.hasCtr, noIds: ads.length > 0 && !ads.some(function(a){ return a.adId; })}};
 }
-function repBuild(o){ return o.type === "master" ? repMasterTable(o) : o.type === "creative" ? repCreativeTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
+function repBuild(o){ return o.type === "daily" ? repDailyTable(o) : o.type === "master" ? repMasterTable(o) : o.type === "creative" ? repCreativeTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
 function repTypeLabel(t){ return (REPORT_TYPES.filter(function(x){ return x[0] === t; })[0] || ["", ""])[1]; }
 /* a multi-select dropdown (empty = all) */
 function repPicker(label, options, selected, onApply, key){
@@ -2801,7 +2818,7 @@ function viewReports(){
   var goTargets = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; setDraft().repMonth = tMon; render(); }}, "Set " + monLabel(tMon) + " targets");
   if (repIsLeader(P.type)){ var noL = !RP.leaders.some(function(L){ return isNum(repLeaderTgt(L.name, bRg.from, bRg.to)); });
     if (noL) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No leader targets set for " + monLabel(tMon) + "; the target columns show “—”. "}), goTargets)); }
-  else if (missing.length && P.type !== "creative") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
+  else if (missing.length && P.type !== "creative" && P.type !== "daily") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
   if (!O){ sec.appendChild(el("div", {cls: "empty", text: "Pick the report and dates, then click Generate."})); }
   else if (O.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Loading the data and calculating… (a month of data can take a few seconds)"})); }
   else if (O.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't build the report: " + O.err})); }
@@ -2824,6 +2841,14 @@ function viewReports(){
   return sec;
 }
 function repHowCalc(type){
+  if (type === "daily") return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}), el("table", {cls: "help-gloss"}, el("tbody", null, [
+    ["Clicks / Imp", "Meta link clicks and impressions of the brand's campaigns in the period."],
+    ["CTR", "Clicks ÷ impressions."],
+    ["Leads", "Meta leads (lead forms and WhatsApp chats started), the same as Leads in UI. Campaigns whose results aren't leads are left out; their spend still counts."],
+    ["QL", "Qualified TeleCRM leads created in the period (QL statuses in Settings; repeat leads left out if that setting is on)."],
+    ["CPL / CPQL", "Amount spent ÷ leads, and amount spent ÷ QL."],
+    ["Amount Spent", "Meta spend in the period."],
+    ["Total", "Sums of the brands; CTR, CPL and CPQL recalculated from the totals (not averages of brand figures). \"—\" = no Meta data for that brand in the period."]].map(function(x){ return el("tr", null, el("td", {cls: "nowrap"}, el("b", {text: x[0]})), el("td", {text: x[1]})); }))));
   if (type === "creative") return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}), el("table", {cls: "help-gloss"}, el("tbody", null, [
     ["Who competes", "Only proven, big-spending ads over a long period: spent at least the minimum in the chosen dates (Auto = the top half of ads by spend), ran on at least the minimum number of days, and had enough impressions. Short tests and small ads are left out, so a lucky ad can't top the list."],
     ["CTR", "Link clicks ÷ impressions over the whole period."],
@@ -2855,7 +2880,7 @@ function repExport(o){
   var T = repBuild(o), cols = T.cols.map(function(c){ var x = Object.assign({}, c); delete x.render; if (c.k === "remarks") x.w = 30; if (c.k === "name") x.w = 24; return x; });
   var title = (o.platform === "Google Ads" ? "Google Ads · " : "") + repTypeLabel(o.type), when = o.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(o.rg.from, o.rg.to) : T.label;
   var un = o.params.brands.length ? null : repUnmapped(o);
-  var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + " · ✓/!/✗ colours: green on or above target, amber close, red off target" + (un ? " · Note: " + repUnmappedText(un) : ""), cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
+  var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + (o.type === "daily" ? " · CTR = clicks ÷ impressions · CPL = spend ÷ Meta leads · CPQL = spend ÷ QL" : " · ✓/!/✗ colours: green on or above target, amber close, red off target") + (un ? " · Note: " + repUnmappedText(un) : ""), cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
   var specs = T.groups ? T.groups.map(function(g){ return {name: g.title.slice(0, 31), title: title + " · " + g.title, note: when + " · ads with at least " + fInt(T.info.minImp) + " impressions · CTR = link clicks ÷ impressions · search the Ad ID in Ads Manager to open the creative", cols: cols.filter(function(c){ return c.k !== "group"; }), rows: g.rows, total: null, freeze: 2, keepBlank: true}; }) : [spec];
   var sub = "EBG Group · " + when + " · Generated " + new Date().toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
   var fname = "EBG " + title.replace(/[·\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + " " + (repIsRange(o.type) ? isoDay(o.rg.from) + (o.rg.to !== o.rg.from ? " to " + isoDay(o.rg.to) : "") : isoDay(o.rg.to)) + ".xlsx";
