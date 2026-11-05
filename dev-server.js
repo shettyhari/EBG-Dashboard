@@ -55,6 +55,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
+        delete require.cache[require.resolve(apiPath)];
         const handler = require(apiPath);
         return await handler(req, res);
       } catch (err) {

@@ -3411,7 +3411,12 @@ var PROV = {
   alerts: {api: "alerts", label: "Alerts", key: "alertsNone"},
   ai: {api: "ai", label: "Ask AI", key: "ai"}
 };
+function isLocalHost(){
+  var h = (typeof location !== "undefined" && location.hostname) || "";
+  return h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h === "";
+}
 function aiApi(op, body, params, retried){
+  var isLocal = isLocalHost();
   var authP = (sb && sb.client && sb.client.auth) ?
     (retried ? sb.client.auth.refreshSession() : sb.client.auth.getSession()) :
     Promise.resolve(null);
@@ -3420,7 +3425,12 @@ function aiApi(op, body, params, retried){
     var q = Object.keys(params || {}).map(function(k){ return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); }).join("&");
     var url = "/api/ai?op=" + encodeURIComponent(op || "status") + (q ? "&" + q : "");
     var headers = { "content-type": "application/json" };
-    if (tok) headers.authorization = "Bearer " + tok;
+    if (tok) {
+      headers.authorization = "Bearer " + tok;
+    } else if (isLocal) {
+      headers.authorization = "Bearer local-dev-token";
+      headers["x-local-dev"] = "1";
+    }
     var opt = { headers: headers };
     if (body) { opt.method = "POST"; opt.body = JSON.stringify(body); }
     else { opt.method = "GET"; }
@@ -3429,7 +3439,7 @@ function aiApi(op, body, params, retried){
     return res.text().then(function(t){
       var b = null; try { b = JSON.parse(t); } catch (e) {}
       if (!b) throw new Error(res.status === 404 ? "NOAPI" : "Unexpected response (" + res.status + ")");
-      if (res.status === 401 && b.code === "session" && !retried && sb && sb.client) {
+      if (res.status === 401 && b.code === "session" && !retried && sb && sb.client && !isLocal) {
         return { __retry: true };
       }
       if (!res.ok) throw new Error(b.error || ("Error " + res.status));
@@ -4213,6 +4223,7 @@ var AI_PROVIDERS = [
 ];
 
 function aiSettingsAllowed(){
+  if (isLocalHost()) return true;
   return (sb.status === "ready" && sb.role === "admin") || (!sb.cfg && !sb.status);
 }
 
@@ -4221,8 +4232,9 @@ function aiSettingsPanel(){
   var AI = S.ai || (S.ai = {provider: "gemini", model: "gemini-1.5-flash", apiKey: "", customUrl: "", systemPrompt: "", temperature: 0.3});
   var box = el("div", {cls: "set-ai-panel"});
 
-  var isAdmin = (sb.status === "ready" && sb.role === "admin") || (!sb.cfg && !sb.status);
-  if (sb.status === "ready" && sb.role !== "admin"){
+  var isLocal = isLocalHost();
+  var isAdmin = isLocal || (sb.status === "ready" && sb.role === "admin") || (!sb.cfg && !sb.status);
+  if (!isLocal && sb.status === "ready" && sb.role !== "admin"){
     box.appendChild(el("div", {cls: "banner warn"},
       el("strong", {text: "Admin Access Required"}),
       el("p", {style: "margin:6px 0 0", text: "API key settings and LLM model configuration are restricted to dashboard administrators only. Your signed-in role is “" + (sb.role || "viewer") + "”. Please ask an admin to configure the API key."})));

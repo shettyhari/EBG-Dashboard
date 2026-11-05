@@ -499,8 +499,107 @@ async function runTests() {
     global.fetch = originalFetch;
   }
 
+  // Test 8: op=test with whitespace/quotes and masked key fallback
+  console.log('Test 8: Test connection sanitizes API key quotes/spaces and handles masked keys');
+  {
+    let testedUrl = '';
+    const originalFetch = global.fetch;
+    global.fetch = async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/auth/v1/user')) {
+        return { ok: true, status: 200, json: async () => ({ id: 'admin-1', email: 'admin@example.com' }) };
+      }
+      if (urlStr.includes('/rest/v1/team_members')) {
+        return { ok: true, status: 200, json: async () => [{ email: 'admin@example.com', role: 'admin' }] };
+      }
+      if (urlStr.includes('/rest/v1/ai_settings')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify([{ provider: 'gemini', model: 'gemini-1.5-flash', api_key: 'AIzaSySavedKeyReal' }]),
+          json: async () => [{ provider: 'gemini', model: 'gemini-1.5-flash', api_key: 'AIzaSySavedKeyReal' }]
+        };
+      }
+      if (urlStr.includes('generativelanguage.googleapis.com')) {
+        testedUrl = urlStr;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ candidates: [{ content: { parts: [{ text: 'API connection successful' }] } }] })
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+
+    const fakeAdminPayload = { sub: 'a1', email: 'admin@example.com', aud: 'authenticated', role: 'authenticated' };
+    const fakeAdminJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + Buffer.from(JSON.stringify(fakeAdminPayload)).toString('base64url') + '.sig';
+
+    // 8a: Test with spaces and quotes in key: `  "AIzaSyCleanMeKey"  `
+    {
+      const { req, res } = createMockReqRes({
+        method: 'POST',
+        headers: { 'authorization': 'Bearer ' + fakeAdminJwt },
+        body: {
+          op: 'test',
+          provider: 'gemini',
+          model: 'gemini-1.5-flash',
+          apiKey: '  "AIzaSyCleanMeKey"  '
+        }
+      });
+      await aiHandler(req, res);
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(res.body.ok, true);
+      assert(testedUrl.includes('key=AIzaSyCleanMeKey'), 'URL key query should be cleaned of quotes and spaces');
+      assert(!testedUrl.includes('%20'), 'Should not have encoded whitespace');
+      assert(!testedUrl.includes('%22'), 'Should not have encoded quotes');
+    }
+
+    // 8b: Test with masked key `••••••••` falls back to existing key `AIzaSySavedKeyReal`
+    {
+      const { req, res } = createMockReqRes({
+        method: 'POST',
+        headers: { 'authorization': 'Bearer ' + fakeAdminJwt },
+        body: {
+          op: 'test',
+          provider: 'gemini',
+          model: 'gemini-1.5-flash',
+          apiKey: '••••••••'
+        }
+      });
+      await aiHandler(req, res);
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(res.body.ok, true);
+      assert(testedUrl.includes('key=AIzaSySavedKeyReal'), 'Should fall back to stored real key when masked');
+    }
+
+    // 8c: Test with local-dev-token bypass
+    {
+      const { req, res } = createMockReqRes({
+        method: 'POST',
+        headers: {
+          'host': 'localhost:3000',
+          'authorization': 'Bearer local-dev-token',
+          'x-local-dev': '1'
+        },
+        body: {
+          op: 'test',
+          provider: 'gemini',
+          model: 'gemini-1.5-flash',
+          apiKey: 'AIzaSyLocalTest'
+        }
+      });
+      await aiHandler(req, res);
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(res.body.ok, true);
+      assert(testedUrl.includes('key=AIzaSyLocalTest'));
+    }
+
+    console.log('✓ API key test sanitization, masked key fallback, and local dev bypass verified');
+    global.fetch = originalFetch;
+  }
+
   console.log('\n=======================================');
-  console.log('ALL 7 AI API INTEGRATION TESTS PASSED!');
+  console.log('ALL 8 AI API INTEGRATION TESTS PASSED!');
   console.log('=======================================');
 }
 

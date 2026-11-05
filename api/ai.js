@@ -25,6 +25,22 @@ function maskKey(key) {
   return s.slice(0, 4) + "••••••••" + s.slice(-4);
 }
 
+function cleanKey(raw) {
+  if (!raw) return "";
+  return String(raw).trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+}
+
+function isMasked(key) {
+  return /[•\*]{3,}/.test(String(key || ""));
+}
+
+function isLocalRequest(req) {
+  const host = String((req && req.headers && (req.headers["x-forwarded-host"] || req.headers.host)) || "").toLowerCase();
+  return host.includes("localhost") || host.includes("127.0.0.1") || host.startsWith("::1");
+}
+
+let localDevConfig = global.__ebgLocalDevConfig || null;
+
 async function readJsonBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string") {
@@ -46,17 +62,42 @@ async function readJsonBody(req) {
 }
 
 async function whoIs(req) {
-  const auth = String(req.headers.authorization || "");
-  if (!/^Bearer\s+\S+/.test(auth)) return { reason: "no-session" };
-  const u = await fetch(SB_URL + "/auth/v1/user", { headers: { apikey: SB_ANON, authorization: auth } });
-  if (!u.ok) return { reason: "session", status: u.status };
-  const user = await u.json(), email = String(user.email || "").toLowerCase();
-  if (!email) return null;
-  const r = await fetch(SB_URL + "/rest/v1/team_members?select=role&email=eq." + encodeURIComponent(email), {
-    headers: { apikey: SB_ANON, authorization: auth }
-  });
-  const rows = r.ok ? await r.json() : [];
-  return { email, role: rows[0] ? rows[0].role : null, token: auth.replace(/^Bearer\s+/, "") };
+  const isLocal = isLocalRequest(req);
+  const auth = String((req && req.headers && req.headers.authorization) || "");
+
+  // Local development bypass if explicit local dev token / header or local without session
+  if (isLocal && (auth.includes("local-dev-token") || (req && req.headers && req.headers["x-local-dev"] === "1"))) {
+    return { email: "local-admin@localhost", role: "admin", isLocal: true, token: "" };
+  }
+
+  if (!/^Bearer\s+\S+/.test(auth)) {
+    return { reason: "no-session" };
+  }
+
+  try {
+    const u = await fetch(SB_URL + "/auth/v1/user", { headers: { apikey: SB_ANON, authorization: auth } });
+    if (!u.ok) {
+      if (isLocal) {
+        return { email: "local-admin@localhost", role: "admin", isLocal: true, token: "" };
+      }
+      return { reason: "session", status: u.status };
+    }
+    const user = await u.json(), email = String(user.email || "").toLowerCase();
+    if (!email) {
+      return isLocal ? { email: "local-admin@localhost", role: "admin", isLocal: true, token: "" } : null;
+    }
+    const r = await fetch(SB_URL + "/rest/v1/team_members?select=role&email=eq." + encodeURIComponent(email), {
+      headers: { apikey: SB_ANON, authorization: auth }
+    });
+    const rows = r.ok ? await r.json() : [];
+    const role = rows[0] ? rows[0].role : (isLocal ? "admin" : null);
+    return { email, role, isLocal, token: auth.replace(/^Bearer\s+/, "") };
+  } catch (err) {
+    if (isLocal) {
+      return { email: "local-admin@localhost", role: "admin", isLocal: true, token: "" };
+    }
+    return { reason: "session", status: 500 };
+  }
 }
 
 function makeSbFetch(userToken) {
@@ -119,13 +160,20 @@ async function loadStoredAiSettings(sbFetch) {
           customUrl: S.ai.customUrl || "",
           systemPrompt: S.ai.systemPrompt || "",
           temperature: typeof S.ai.temperature === "number" ? S.ai.temperature : 0.3,
-          enabled: S.ai.enabled !== false
+          enabled: S.ai.enabled !== false,
+          updatedBy: S.ai.updated_by,
+          updatedAt: S.ai.updated_at
         }, stored || {});
       }
     } catch (e) {}
   }
 
-  // 3. Fallback to environment variables
+  // 3. Fallback to local dev memory config if Supabase had no key
+  if ((!stored || !stored.apiKey) && localDevConfig) {
+    stored = Object.assign({}, stored || {}, localDevConfig);
+  }
+
+  // 4. Fallback to environment variables
   if (!stored || !stored.apiKey) {
     const envKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || "";
     let envProv = "gemini", envModel = "gemini-1.5-flash";
@@ -154,7 +202,7 @@ async function loadStoredAiSettings(sbFetch) {
   };
 }
 
-async function saveStoredAiSettings(sbFetch, cfg, meEmail) {
+async function saveStoredAiSettings(sbFetch, cfg, meEmail, isLocal) {
   const payload = {
     id: 1,
     provider: String(cfg.provider || "gemini").trim().toLowerCase(),
@@ -168,6 +216,20 @@ async function saveStoredAiSettings(sbFetch, cfg, meEmail) {
     updated_at: new Date().toISOString()
   };
 
+  if (isLocal) {
+    global.__ebgLocalDevConfig = localDevConfig = {
+      provider: payload.provider,
+      model: payload.model,
+      apiKey: payload.api_key,
+      customUrl: payload.custom_url,
+      systemPrompt: payload.system_prompt,
+      temperature: payload.temperature,
+      enabled: payload.enabled,
+      updatedBy: meEmail,
+      updatedAt: payload.updated_at
+    };
+  }
+
   let savedInTable = false;
   // 1. Try upserting into public.ai_settings
   try {
@@ -178,7 +240,7 @@ async function saveStoredAiSettings(sbFetch, cfg, meEmail) {
     });
     savedInTable = true;
   } catch (e) {
-    // If table doesn't exist, ignore and persist in team_settings below
+    // Table might not exist or RLS blocks
   }
 
   // 2. Also sync into team_settings.settings.ai for seamless portability
@@ -202,7 +264,7 @@ async function saveStoredAiSettings(sbFetch, cfg, meEmail) {
       body: JSON.stringify({ settings: S, updated_by: meEmail, updated_at: payload.updated_at })
     });
   } catch (e) {
-    if (!savedInTable) throw e;
+    if (!savedInTable && !isLocal) throw e;
   }
 
   return payload;
@@ -211,9 +273,11 @@ async function saveStoredAiSettings(sbFetch, cfg, meEmail) {
 // ---------------- LLM Provider API Calls ----------------
 
 async function callGemini(model, apiKey, systemPrompt, userMessage, history, temperature) {
-  if (!apiKey) throw new Error("Gemini API key is missing. Add your Gemini API key in Settings › Ask AI Settings.");
-  const m = model || "gemini-1.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const key = cleanKey(apiKey);
+  if (!key) throw new Error("Gemini API key is missing. Add your Gemini API key in Settings › Ask AI Settings.");
+  let m = String(model || "gemini-1.5-flash").trim().replace(/^models\//i, "");
+  if (!m) m = "gemini-1.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
 
   const contents = [];
   // Add recent history if available
@@ -234,8 +298,8 @@ async function callGemini(model, apiKey, systemPrompt, userMessage, history, tem
       maxOutputTokens: 2048
     }
   };
-  if (systemPrompt) {
-    body.system_instruction = { parts: [{ text: systemPrompt }] };
+  if (systemPrompt && String(systemPrompt).trim()) {
+    body.system_instruction = { parts: [{ text: String(systemPrompt).trim() }] };
   }
 
   const r = await fetch(url, {
@@ -249,8 +313,17 @@ async function callGemini(model, apiKey, systemPrompt, userMessage, history, tem
   try { json = JSON.parse(resText); } catch (e) {}
 
   if (!r.ok) {
-    const errMsg = (json && json.error && json.error.message) || ("Gemini Error " + r.status + ": " + resText.slice(0, 200));
-    throw new Error(errMsg);
+    const rawMsg = (json && json.error && json.error.message) || ("Gemini Error " + r.status + ": " + resText.slice(0, 200));
+    if (r.status === 400 && /API key not valid|API_KEY_INVALID|invalid api key/i.test(rawMsg)) {
+      throw new Error("Invalid Gemini API key. Please check your API key from Google AI Studio (https://aistudio.google.com/app/apikey).");
+    }
+    if (r.status === 404 || /not found/i.test(rawMsg)) {
+      throw new Error(`Gemini model '${m}' not found. Please try 'gemini-1.5-flash' or 'gemini-2.0-flash'.`);
+    }
+    if (r.status === 429 || /quota|resource has been exhausted/i.test(rawMsg)) {
+      throw new Error("Gemini API quota exceeded or rate limit reached. Please check your Google AI Studio plan.");
+    }
+    throw new Error(rawMsg);
   }
 
   const candidate = json && json.candidates && json.candidates[0];
@@ -266,16 +339,17 @@ async function callGemini(model, apiKey, systemPrompt, userMessage, history, tem
 }
 
 async function callOpenAI(model, apiKey, customUrl, systemPrompt, userMessage, history, temperature) {
-  if (!apiKey) throw new Error("OpenAI API key is missing. Add your OpenAI API key in Settings › Ask AI Settings.");
-  const m = model || "gpt-4o-mini";
+  const key = cleanKey(apiKey);
+  if (!key) throw new Error("OpenAI API key is missing. Add your OpenAI API key in Settings › Ask AI Settings.");
+  const m = String(model || "gpt-4o-mini").trim();
   let url = (customUrl || "https://api.openai.com/v1").trim().replace(/\/+$/, "");
   if (!/\/chat\/completions$/i.test(url)) {
     url = `${url}/chat/completions`;
   }
 
   const messages = [];
-  if (systemPrompt) {
-    messages.push({ role: "system", content: systemPrompt });
+  if (systemPrompt && String(systemPrompt).trim()) {
+    messages.push({ role: "system", content: String(systemPrompt).trim() });
   }
   if (Array.isArray(history) && history.length) {
     history.slice(-6).forEach((h) => {
@@ -297,7 +371,7 @@ async function callOpenAI(model, apiKey, customUrl, systemPrompt, userMessage, h
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: "Bearer " + apiKey
+      authorization: "Bearer " + key
     },
     body: JSON.stringify(body)
   });
@@ -307,8 +381,17 @@ async function callOpenAI(model, apiKey, customUrl, systemPrompt, userMessage, h
   try { json = JSON.parse(resText); } catch (e) {}
 
   if (!r.ok) {
-    const errMsg = (json && json.error && json.error.message) || ("OpenAI Error " + r.status + ": " + resText.slice(0, 200));
-    throw new Error(errMsg);
+    const rawMsg = (json && json.error && json.error.message) || ("OpenAI Error " + r.status + ": " + resText.slice(0, 200));
+    if (r.status === 401 || /incorrect api key|invalid_api_key/i.test(rawMsg)) {
+      throw new Error("Invalid OpenAI API key. Check your key from https://platform.openai.com/api-keys.");
+    }
+    if (r.status === 429 || /quota|insufficient_quota/i.test(rawMsg)) {
+      throw new Error("OpenAI quota exceeded or insufficient credits. Please check your OpenAI billing plan.");
+    }
+    if (r.status === 404) {
+      throw new Error(`OpenAI model '${m}' not found. Please check model name or endpoint URL.`);
+    }
+    throw new Error(rawMsg);
   }
 
   const choice = json && json.choices && json.choices[0];
@@ -318,8 +401,9 @@ async function callOpenAI(model, apiKey, customUrl, systemPrompt, userMessage, h
 }
 
 async function callAnthropic(model, apiKey, systemPrompt, userMessage, history, temperature) {
-  if (!apiKey) throw new Error("Anthropic API key is missing. Add your Anthropic API key in Settings › Ask AI Settings.");
-  const m = model || "claude-3-5-sonnet-20241022";
+  const key = cleanKey(apiKey);
+  if (!key) throw new Error("Anthropic API key is missing. Add your Anthropic API key in Settings › Ask AI Settings.");
+  const m = String(model || "claude-3-5-sonnet-20241022").trim();
   const url = "https://api.anthropic.com/v1/messages";
 
   const messages = [];
@@ -334,7 +418,7 @@ async function callAnthropic(model, apiKey, systemPrompt, userMessage, history, 
 
   const body = {
     model: m,
-    system: systemPrompt || undefined,
+    system: (systemPrompt && String(systemPrompt).trim()) ? String(systemPrompt).trim() : undefined,
     messages,
     max_tokens: 2048,
     temperature: typeof temperature === "number" ? temperature : 0.3
@@ -344,7 +428,7 @@ async function callAnthropic(model, apiKey, systemPrompt, userMessage, history, 
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": apiKey,
+      "x-api-key": key,
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify(body)
@@ -355,8 +439,17 @@ async function callAnthropic(model, apiKey, systemPrompt, userMessage, history, 
   try { json = JSON.parse(resText); } catch (e) {}
 
   if (!r.ok) {
-    const errMsg = (json && json.error && json.error.message) || ("Anthropic Error " + r.status + ": " + resText.slice(0, 200));
-    throw new Error(errMsg);
+    const rawMsg = (json && json.error && json.error.message) || ("Anthropic Error " + r.status + ": " + resText.slice(0, 200));
+    if (r.status === 401 || /invalid x-api-key|authentication_error/i.test(rawMsg)) {
+      throw new Error("Invalid Anthropic API key. Check your key from https://console.anthropic.com/settings/keys.");
+    }
+    if (r.status === 429) {
+      throw new Error("Anthropic rate limit or credit balance exceeded.");
+    }
+    if (r.status === 404) {
+      throw new Error(`Anthropic model '${m}' not found. Please try 'claude-3-5-sonnet-20241022' or 'claude-3-5-haiku-20241022'.`);
+    }
+    throw new Error(rawMsg);
   }
 
   const contentBlock = json && json.content && json.content[0];
@@ -513,19 +606,25 @@ module.exports = async function handler(req, res) {
       const body = await readJsonBody(req);
       const existing = await loadStoredAiSettings(sbFetch);
 
+      let keyToSave = existing.apiKey;
+      if (body.apiKey !== undefined && body.apiKey !== null && String(body.apiKey).trim() !== "") {
+        const cleaned = cleanKey(body.apiKey);
+        if (!isMasked(cleaned)) {
+          keyToSave = cleaned;
+        }
+      }
+
       const toSave = {
-        provider: body.provider || existing.provider || "gemini",
-        model: body.model || existing.model || "gemini-1.5-flash",
-        apiKey: (body.apiKey !== undefined && body.apiKey !== null && String(body.apiKey).trim() !== "")
-          ? String(body.apiKey).trim()
-          : existing.apiKey,
+        provider: String(body.provider || existing.provider || "gemini").trim().toLowerCase(),
+        model: String(body.model || existing.model || "gemini-1.5-flash").trim(),
+        apiKey: keyToSave,
         customUrl: body.customUrl !== undefined ? String(body.customUrl).trim() : existing.customUrl,
         systemPrompt: body.systemPrompt !== undefined ? String(body.systemPrompt).trim() : existing.systemPrompt,
         temperature: typeof body.temperature === "number" ? body.temperature : existing.temperature,
         enabled: body.enabled !== false
       };
 
-      await saveStoredAiSettings(sbFetch, toSave, me.email);
+      await saveStoredAiSettings(sbFetch, toSave, me.email, me.isLocal);
 
       return send(res, 200, {
         ok: true,
@@ -546,7 +645,7 @@ module.exports = async function handler(req, res) {
 
       const existing = await loadStoredAiSettings(sbFetch);
       existing.apiKey = "";
-      await saveStoredAiSettings(sbFetch, existing, me.email);
+      await saveStoredAiSettings(sbFetch, existing, me.email, me.isLocal);
 
       return send(res, 200, {
         ok: true,
@@ -564,13 +663,21 @@ module.exports = async function handler(req, res) {
       const body = await readJsonBody(req);
       const existing = await loadStoredAiSettings(sbFetch);
 
-      const provider = body.provider || existing.provider || "gemini";
-      const model = body.model || existing.model || "gemini-1.5-flash";
-      const apiKey = body.apiKey || existing.apiKey;
-      const customUrl = body.customUrl || existing.customUrl;
+      const provider = String(body.provider || existing.provider || "gemini").trim().toLowerCase();
+      const model = String(body.model || existing.model || "gemini-1.5-flash").trim();
+
+      let apiKey = "";
+      if (body.apiKey && !isMasked(body.apiKey)) {
+        apiKey = cleanKey(body.apiKey);
+      }
+      if (!apiKey && existing.apiKey && !isMasked(existing.apiKey)) {
+        apiKey = cleanKey(existing.apiKey);
+      }
+
+      const customUrl = (body.customUrl !== undefined && body.customUrl !== "") ? String(body.customUrl).trim() : existing.customUrl;
 
       if (!apiKey) {
-        return send(res, 400, { error: "No API key provided or saved to test." });
+        return send(res, 400, { error: "Please enter a valid API key to test." });
       }
 
       const testMsg = "Respond with 'API connection successful' in 5 words or less.";
@@ -580,7 +687,7 @@ module.exports = async function handler(req, res) {
         model,
         apiKey,
         customUrl,
-        "You are an API connection test responder.",
+        "",
         testMsg,
         [],
         0.1
@@ -622,7 +729,7 @@ module.exports = async function handler(req, res) {
       const answer = await dispatchLLM(
         provider,
         model,
-        stored.apiKey,
+        cleanKey(stored.apiKey),
         customUrl,
         systemPrompt,
         message,
