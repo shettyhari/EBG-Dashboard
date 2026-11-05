@@ -988,6 +988,18 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
 .ai-test-result.ok{background:var(--good-bg);color:var(--good);border:1px solid var(--good)}
 .ai-test-result.err{background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad)}
 
+/* ---------- Agentic AI Styles ---------- */
+.ask-ai-badge.agent{background:#e8f0fe;color:#1967d2;border-color:#aecbfa;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.ask-ai-agent-banner{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:6px;background:rgba(26,115,232,0.1);color:#1a73e8;border:1px solid rgba(26,115,232,0.25);font-size:11.5px;font-weight:500;margin-bottom:6px}
+.ask-ai-agent-pulse{width:7px;height:7px;border-radius:50%;background:#1a73e8;box-shadow:0 0 0 2px rgba(26,115,232,0.25);animation:askAiPulse 1.5s infinite;flex:0 0 auto}
+@keyframes askAiPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.3);opacity:0.6}}
+.ask-ai-suggestions{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:6px}
+.ask-ai-suggestions-title{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px}
+.ask-ai-action-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ask-ai-action-chip{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 10px;font-size:11.5px;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .15s ease}
+.ask-ai-action-chip:hover{background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg);transform:translateY(-1px)}
+.ask-ai-action-chip.done{background:var(--good-bg);color:var(--good);border-color:var(--good);cursor:default}
+
 @media (max-width:600px){
   .ask-ai-trigger{bottom:16px;right:16px;padding:9px 14px}
   .ask-ai-window{bottom:0;right:0;left:0;width:100%;max-width:100%;height:82vh;border-radius:16px 16px 0 0}
@@ -1110,9 +1122,9 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
     <div class="ask-ai-head-info">
       <div class="ask-ai-title-row">
         <h3 class="ask-ai-title">Ask AI</h3>
-        <span id="ask-ai-badge" class="ask-ai-badge">AI Analyst</span>
+        <span id="ask-ai-badge" class="ask-ai-badge agent">⚡ Agent Active</span>
       </div>
-      <div id="ask-ai-subtitle" class="ask-ai-subtitle">Live dashboard analyst</div>
+      <div id="ask-ai-subtitle" class="ask-ai-subtitle">Autonomous dashboard copilot</div>
     </div>
     <div class="ask-ai-head-actions">
       <button id="ask-ai-btn-settings" class="ask-ai-icon-btn" type="button" title="Ask AI Settings" aria-label="Ask AI Settings">
@@ -1133,16 +1145,17 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
   </div>
 
   <div class="ask-ai-prompts" id="ask-ai-chips">
-    <button class="ask-ai-prompt-chip" type="button" data-prompt="Summarize the overall performance: spend, leads, QL rate, and CPL/CPQL.">📊 Performance summary</button>
-    <button class="ask-ai-prompt-chip" type="button" data-prompt="Which campaigns have the highest spend or worst leakages (high CPL / zero qualified)?">🚨 Top leakages</button>
-    <button class="ask-ai-prompt-chip" type="button" data-prompt="How do the brands compare in spend, leads, QL%, and TAT?">🏷️ Brand comparison</button>
-    <button class="ask-ai-prompt-chip" type="button" data-prompt="Analyze lead TAT and uncalled leads. What are the key bottlenecks?">⏱️ TAT bottlenecks</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Audit all campaigns for wasted spend and lead leakages, and take me to the leakages view.">⚡ Audit leakages & open view</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Analyze speed to lead (TAT) and SLA compliance, and navigate to the TAT analysis tab.">⏱️ Inspect lead TAT & SLA</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Summarize overall performance across spend, leads, qualification rate, and blended CPL/CPQL.">📊 Performance summary</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Compare performance across all brands and identify which brand has the healthiest CPQL.">🏷️ Brand comparison</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Check for duplicate leads and data integrity issues.">🔍 Duplicate leads & checks</button>
   </div>
 
   <div id="ask-ai-messages" class="ask-ai-body" aria-live="polite"></div>
 
   <div class="ask-ai-foot">
-    <input id="ask-ai-input" class="ask-ai-input" type="text" placeholder="Ask about spend, leads, CPL, leakages…" autocomplete="off" aria-label="Ask a question about the dashboard">
+    <input id="ask-ai-input" class="ask-ai-input" type="text" placeholder="Ask AI or command: e.g. 'show leakages for Carlton' or 'switch to TAT'…" autocomplete="off" aria-label="Ask a question or issue a dashboard command">
     <button id="ask-ai-send" class="ask-ai-send-btn" type="button" title="Send message" aria-label="Send message">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
     </button>
@@ -7004,10 +7017,13 @@ var askAiSending = false;
 
 function getDashboardAIContext(){
   var R = state.R;
+  var bList = (state.settings && state.settings.brands) ? state.settings.brands : [];
   var ctx = {
     activeTab: state.tab || "overview",
     activeBrand: state.brand || "All",
     dateRange: typeof rangeText === "function" ? rangeText(false) : (state.range ? (state.range.preset || "") : "All time"),
+    availableBrands: ["All"].concat(bList),
+    availableTabs: ["overview", "trends", "campaigns", "adsets", "ads", "status", "crmdata", "reports", "leaks", "forms", "tat", "checks", "ql", "settings", "help"],
     hasData: !!(R && R.ads && R.ads.length)
   };
   if (!R || !R.ads || !R.ads.length){
@@ -7221,16 +7237,111 @@ function openAiSettings(){
   }
 }
 
-function renderAskAIMessage(role, text, isHtml){
+function applyAgentAction(act){
+  if (!act || !act.tool) return null;
+  try {
+    switch (act.tool){
+      case "switch_tab":
+        if (act.tab && state.tab !== act.tab){
+          state.tab = act.tab;
+          try { localStorage.setItem("ebg-lead-dash-tab", state.tab); } catch (e) {}
+          render();
+          window.scrollTo(0, 0);
+          updateAskAIContext();
+          return "Switched tab to " + act.tab;
+        }
+        return null;
+
+      case "filter_brand":
+        if (act.brand && state.brand !== act.brand){
+          state.brand = act.brand;
+          state.limit = {};
+          render();
+          updateAskAIContext();
+          return "Filtered brand: " + act.brand;
+        }
+        return null;
+
+      case "set_date_range":
+        if (act.preset && typeof setRange === "function"){
+          setRange({ preset: act.preset });
+          updateAskAIContext();
+          return "Date range: " + act.preset;
+        }
+        return null;
+
+      case "search_dashboard":
+        if (typeof act.query === "string"){
+          if (!state.q) state.q = {};
+          state.q[state.tab] = act.query;
+          render();
+          var qInp = document.getElementById("q-" + state.tab) || document.querySelector(".tbl-tools input[type=search], input.search");
+          if (qInp) qInp.value = act.query;
+          return "Searched: \"" + act.query + "\"";
+        }
+        return null;
+
+      case "export_report":
+        var expEl = document.getElementById("export");
+        if (expEl && expEl.hidden && typeof toggleExport === "function"){
+          toggleExport();
+          return "Opened Excel export";
+        }
+        return null;
+
+      default:
+        return null;
+    }
+  } catch (err){
+    console.warn("Agent action error:", err);
+    return null;
+  }
+}
+
+function renderAskAIMessage(role, text, isHtml, executedActions, suggestedActions){
   var box = document.getElementById("ask-ai-messages");
   if (!box) return;
   var m = el("div", {cls: "ask-ai-msg " + (role === "user" ? "user" : "bot")});
   var bubble = el("div", {cls: "ask-ai-msg-bubble"});
-  if (role === "user"){
-    bubble.textContent = text;
-  } else {
-    bubble.innerHTML = isHtml ? text : formatAIMarkdown(text);
+
+  if (role === "bot" && Array.isArray(executedActions) && executedActions.length){
+    var banner = el("div", {cls: "ask-ai-agent-banner"});
+    banner.appendChild(el("span", {cls: "ask-ai-agent-pulse"}));
+    banner.appendChild(el("span", {text: "⚡ Action: " + executedActions.join(" · ")}));
+    bubble.appendChild(banner);
   }
+
+  var contentEl = el("div", {cls: "ask-ai-msg-content"});
+  if (role === "user"){
+    contentEl.textContent = text;
+  } else {
+    contentEl.innerHTML = isHtml ? text : formatAIMarkdown(text);
+  }
+  bubble.appendChild(contentEl);
+
+  if (role === "bot" && Array.isArray(suggestedActions) && suggestedActions.length){
+    var sugBox = el("div", {cls: "ask-ai-suggestions"});
+    suggestedActions.forEach(function(sug){
+      if (!sug) return;
+      var label = sug.label || (sug.action ? sug.action.tool : "Action");
+      var chip = el("button", {cls: "ask-ai-action-chip", type: "button", text: "⚡ " + label});
+      chip.onclick = function(){
+        if (sug.action){
+          var resLabel = applyAgentAction(sug.action);
+          chip.classList.add("done");
+          chip.textContent = "✓ " + label;
+          if (typeof toast === "function") toast(resLabel ? "⚡ " + resLabel : "Action executed");
+        } else if (sug.prompt){
+          sendAskAIMessage(sug.prompt);
+        } else {
+          sendAskAIMessage(label);
+        }
+      };
+      sugBox.appendChild(chip);
+    });
+    bubble.appendChild(sugBox);
+  }
+
   m.appendChild(bubble);
 
   if (role === "bot"){
@@ -7307,8 +7418,18 @@ function sendAskAIMessage(text){
     if (sendBtn) sendBtn.disabled = false;
     if (inp){ inp.disabled = false; inp.focus(); }
 
-    var reply = (res && res.reply) ? res.reply : (res && res.text ? res.text : "No answer received from AI.");
-    renderAskAIMessage("bot", reply);
+    var reply = (res && res.reply) ? res.reply : (res && res.text ? res.text : (res && res.answer ? res.answer : "No answer received from AI."));
+    var executedLabels = [];
+    if (res && Array.isArray(res.actions)){
+      for (var a = 0; a < res.actions.length; a++){
+        var actLabel = applyAgentAction(res.actions[a]);
+        if (actLabel) executedLabels.push(actLabel);
+      }
+      if (executedLabels.length && typeof toast === "function"){
+        toast("⚡ Agent: " + executedLabels.join(", "));
+      }
+    }
+    renderAskAIMessage("bot", reply, false, executedLabels, res && res.suggestedActions);
     askAiHistory.push({role: "assistant", content: reply});
     saveAskAIHistory();
   }).catch(function(err){
@@ -7331,9 +7452,14 @@ function sendAskAIMessage(text){
 }
 
 function renderWelcomeAskAI(){
-  var welcomeText = "Hello! I am your **EBG Lead Analyst**.\n\n" +
-    "I analyze your live dashboard data across spend, Meta leads, TeleCRM leads, QL rate, CPL, CPQL, and speed-to-lead (TAT).\n\n" +
-    "Ask any question or tap a quick prompt above!";
+  var welcomeText = "Hello! I am your **Autonomous EBG Copilot** ⚡\n\n" +
+    "I analyze your live performance metrics and can **take direct actions** on your dashboard:\n" +
+    "- 🔄 **Switch tabs** (`overview`, `trends`, `campaigns`, `leaks`, `tat`, etc.)\n" +
+    "- 🏷️ **Filter brands** (switch between individual brands or All)\n" +
+    "- 📅 **Adjust date ranges** (Today, Yesterday, Last 7d, Last 30d, etc.)\n" +
+    "- 🔍 **Filter & search campaigns** and tables in real time\n" +
+    "- 📊 **Open Excel report exports**\n\n" +
+    "Ask any question or tap a quick prompt above to get started!";
   renderAskAIMessage("bot", welcomeText);
 }
 

@@ -658,9 +658,130 @@ async function runTests() {
     global.fetch = originalFetch;
   }
 
-  console.log('\n=======================================');
-  console.log('ALL 9 AI API INTEGRATION TESTS PASSED!');
-  console.log('=======================================');
+  // Test 10: Agentic copilot parses action blocks and interactive suggestions
+  console.log('Test 10: Agentic action parsing and interactive suggestions');
+  {
+    const originalFetch = global.fetch;
+    global.fetch = async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/auth/v1/user')) {
+        return { ok: true, status: 200, json: async () => ({ id: 'u-agent', email: 'agent@example.com' }) };
+      }
+      if (urlStr.includes('/rest/v1/team_members')) {
+        return { ok: true, status: 200, json: async () => [{ email: 'agent@example.com', role: 'viewer' }] };
+      }
+      if (urlStr.includes('/rest/v1/ai_settings')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify([{ provider: 'gemini', model: 'gemini-2.0-flash', api_key: 'AIzaSyAgentKey123' }]),
+          json: async () => [{ provider: 'gemini', model: 'gemini-2.0-flash', api_key: 'AIzaSyAgentKey123' }]
+        };
+      }
+      if (urlStr.includes('generativelanguage.googleapis.com')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [{
+              content: {
+                parts: [{
+                  text: 'Here is the campaign leakage analysis for Carlton:\n\n' +
+                    '- 2 campaigns have high spend with 0 QL.\n\n' +
+                    '```action\n' +
+                    '[\n' +
+                    '  {"tool": "switch_tab", "tab": "leaks"},\n' +
+                    '  {"tool": "filter_brand", "brand": "Carlton"}\n' +
+                    ']\n' +
+                    '```\n\n' +
+                    '```suggestions\n' +
+                    '[\n' +
+                    '  {"label": "Inspect Adset Level", "action": {"tool": "switch_tab", "tab": "adsets"}},\n' +
+                    '  {"label": "Download Excel Export", "action": {"tool": "export_report"}},\n' +
+                    '  {"label": "Speed to Lead Analysis", "prompt": "Show lead TAT and SLA violations"}\n' +
+                    ']\n' +
+                    '```'
+                }]
+              }
+            }]
+          })
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+
+    const fakeUserPayload = { sub: 'u-a', email: 'agent@example.com', aud: 'authenticated', role: 'authenticated' };
+    const fakeUserJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + Buffer.from(JSON.stringify(fakeUserPayload)).toString('base64url') + '.sig';
+
+    const { req, res } = createMockReqRes({
+      method: 'POST',
+      headers: { 'authorization': 'Bearer ' + fakeUserJwt },
+      body: { op: 'chat', message: 'Show me campaign leakages for Carlton' }
+    });
+
+    await aiHandler(req, res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.ok, true);
+
+    // Verify actions parsed
+    assert(Array.isArray(res.body.actions), 'res.body.actions should be an array');
+    assert.strictEqual(res.body.actions.length, 2, 'Should have parsed 2 actions');
+    assert.strictEqual(res.body.actions[0].tool, 'switch_tab');
+    assert.strictEqual(res.body.actions[0].tab, 'leaks');
+    assert.strictEqual(res.body.actions[1].tool, 'filter_brand');
+    assert.strictEqual(res.body.actions[1].brand, 'Carlton');
+
+    // Verify suggestions parsed
+    assert(Array.isArray(res.body.suggestedActions), 'res.body.suggestedActions should be an array');
+    assert.strictEqual(res.body.suggestedActions.length, 3, 'Should have parsed 3 suggestions');
+    assert.strictEqual(res.body.suggestedActions[0].label, 'Inspect Adset Level');
+    assert.strictEqual(res.body.suggestedActions[0].action.tool, 'switch_tab');
+    assert.strictEqual(res.body.suggestedActions[2].prompt, 'Show lead TAT and SLA violations');
+
+    // Verify clean reply has stripped action/suggestion code blocks
+    assert(!res.body.reply.includes('```action'), 'Reply text must not contain ```action blocks');
+    assert(!res.body.reply.includes('```suggestions'), 'Reply text must not contain ```suggestions blocks');
+    assert(res.body.reply.includes('campaign leakage analysis for Carlton'), 'Clean reply must retain analysis');
+
+    console.log('✓ Agentic actions and suggested actions parsed correctly and stripped from reply');
+    global.fetch = originalFetch;
+  }
+
+  // Test 11: Ensure index.html maintains strict ES5 compatibility (no const, let, arrow functions)
+  console.log('Test 11: index.html strict ES5 compliance');
+  {
+    const fs = require('fs');
+    const htmlPath = path.join(__dirname, '..', 'index.html');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const scriptMatches = [...html.matchAll(/<script[\s\S]*?>([\s\S]*?)<\/script>/gi)];
+    const es5Violations = [];
+
+    scriptMatches.forEach((m) => {
+      const lines = m[1].split(/\r?\n/);
+      lines.forEach((line, idx) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('//') || trimmed.startsWith('/*')) return;
+        // Strip out string literals so english words like "or let the brand" inside strings aren't falsely flagged
+        const codeOnly = line.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/'(?:[^'\\]|\\.)*'/g, "''");
+        if (/\bconst\s+[a-zA-Z_$]/.test(codeOnly)) {
+          es5Violations.push(`Line ${idx + 1}: const keyword used -> ${trimmed}`);
+        }
+        if (/\blet\s+[a-zA-Z_$]/.test(codeOnly)) {
+          es5Violations.push(`Line ${idx + 1}: let keyword used -> ${trimmed}`);
+        }
+        if (/=>/.test(codeOnly) && !codeOnly.includes('==>')) {
+          es5Violations.push(`Line ${idx + 1}: arrow function used -> ${trimmed}`);
+        }
+      });
+    });
+
+    assert.strictEqual(es5Violations.length, 0, 'index.html must not contain ES6+ keywords: ' + JSON.stringify(es5Violations));
+    console.log('✓ index.html has 0 ES6 syntax violations in <script> blocks');
+  }
+
+  console.log('\n========================================');
+  console.log('ALL 11 AI API INTEGRATION TESTS PASSED!');
+  console.log('========================================');
 }
 
 runTests().catch(err => {

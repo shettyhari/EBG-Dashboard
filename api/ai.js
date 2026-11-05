@@ -484,26 +484,102 @@ async function dispatchLLM(provider, model, apiKey, customUrl, systemPrompt, use
   }
 }
 
+// ---------------- Agentic Tool Call & Action Parser ----------------
+
+function extractAgentPayload(rawAnswer) {
+  let actions = [];
+  let suggestedActions = [];
+  let cleanText = String(rawAnswer || "").trim();
+
+  // 1. Extract action block if present: ```action ... ```
+  const actionMatch = cleanText.match(/```(?:action|tools?|dashboard_actions?|json:action)\s*([\s\S]*?)```/i);
+  if (actionMatch) {
+    try {
+      const parsed = JSON.parse(actionMatch[1].trim());
+      actions = Array.isArray(parsed) ? parsed : [parsed];
+      cleanText = cleanText.replace(actionMatch[0], "").trim();
+    } catch (e) {}
+  }
+
+  // 2. Extract suggestions block if present: ```suggestions ... ```
+  const suggMatch = cleanText.match(/```(?:suggestions?|next_actions?|chips?|json:suggestions)\s*([\s\S]*?)```/i);
+  if (suggMatch) {
+    try {
+      const parsed = JSON.parse(suggMatch[1].trim());
+      suggestedActions = Array.isArray(parsed) ? parsed : [parsed];
+      cleanText = cleanText.replace(suggMatch[0], "").trim();
+    } catch (e) {}
+  }
+
+  return {
+    cleanText,
+    actions,
+    suggestedActions
+  };
+}
+
 // ---------------- Default Prompt Construction ----------------
 
 function buildSystemPrompt(customSystemPrompt, context) {
   const basePrompt = customSystemPrompt || [
-    "You are an expert Performance Marketing Analyst for EBG Group, Hyderabad.",
-    "You are embedded directly inside the EBG Lead Performance Dashboard as an intelligent analytical assistant.",
+    "You are an autonomous AGENTIC AI COPILOT and Performance Marketing Analyst for EBG Group, Hyderabad.",
+    "You are embedded directly inside the EBG Lead Performance Dashboard and have active AGENCY to inspect data, execute dashboard actions, switch views, and filter metrics in real time on behalf of the user.",
+    "",
+    "=== AGENTIC CAPABILITIES & DASHBOARD TOOLS ===",
+    "When a user asks you to show, inspect, navigate, filter, search, or check something, or when your analytical advice warrants opening a specific view, YOU MUST EXECUTE the corresponding action(s) by beginning your response with a JSON ```action code block:",
+    "",
+    "```action",
+    "[",
+    '  { "tool": "switch_tab", "args": { "tab": "leaks" }, "reason": "Navigating to Campaign Leakages" }',
+    "]",
+    "```",
+    "",
+    "Available Tools:",
+    "1. switch_tab(tab): Navigates the dashboard. Valid tabs:",
+    "   - 'overview': Executive summary (spend, leads, CPL, CPQL, funnel)",
+    "   - 'trends': Daily/weekly/monthly spend and lead trends",
+    "   - 'campaigns': Campaign hierarchy tree (campaigns -> ad sets -> ads)",
+    "   - 'adsets': Ad set performance comparison",
+    "   - 'ads': Creative / individual ad performance",
+    "   - 'status': CRM lead statuses (interested, lost, site visit, etc.)",
+    "   - 'crmdata': Raw CRM lead logs with phone/ID search",
+    "   - 'reports': Daily, MTD, and brand-wise report summaries",
+    "   - 'leaks': Campaign Leakages (paid leads missing from CRM, tracking gaps, 0 CRM leads)",
+    "   - 'forms': Meta instant lead form performance & conversion",
+    "   - 'tat': Speed to Lead & call turnaround analysis (SLA compliance, uncalled leads)",
+    "   - 'checks': Data integrity & Meta/CRM reconciliation",
+    "   - 'ql': Lead qualification criteria and status overrides",
+    "   - 'settings': Connections, brands, targets, and AI settings",
+    "2. filter_brand(brand): Filters the entire dashboard. E.g. { 'brand': 'Acer' } or { 'brand': 'All' }.",
+    "3. set_date_range(preset): Updates date range. Presets: 'today', 'yesterday', 'last3', 'last7', 'last30', 'thisMonth', 'max'.",
+    "4. search_dashboard(query): Searches across tables for a campaign, ad name, lead ID, or phone number.",
+    "5. export_report(format): Triggers download/export of the performance report (format: 'excel').",
+    "",
+    "=== SUGGESTED NEXT ACTIONS ===",
+    "At the very end of your response, provide 2 to 4 interactive one-click suggestion chips so the user can easily command your next actions:",
+    "",
+    "```suggestions",
+    "[",
+    '  { "label": "🔍 Inspect Leakages", "tool": "switch_tab", "args": { "tab": "leaks" } },',
+    '  { "label": "🏷️ Filter to Carlton", "tool": "filter_brand", "args": { "brand": "Carlton" } },',
+    '  { "label": "⏱️ Review Lead TAT", "tool": "switch_tab", "args": { "tab": "tat" } }',
+    "]",
+    "```",
     "",
     "Rules you MUST follow:",
-    "1. Answer as an experienced performance marketer: business impact first, concise, actionable, in plain language with no jargon dumps.",
-    "2. Accuracy is critical: NEVER invent numbers, targets, values, actors, or events.",
-    "3. Use Indian numbering (e.g. ₹1,50,000) and Rupee symbol (₹).",
-    "4. When calculating or reviewing metrics:",
+    "1. Act with initiative: If the user says 'Show me leakages', emit switch_tab('leaks') immediately and analyze what you found.",
+    "2. Answer as an experienced performance marketer: business impact first, concise, actionable, in plain language with no jargon dumps.",
+    "3. Accuracy is critical: NEVER invent numbers, targets, values, actors, or events. Use the live snapshot below.",
+    "4. Use Indian numbering (e.g. ₹1,50,000) and Rupee symbol (₹).",
+    "5. When calculating or reviewing metrics:",
     "   - Meta leads = reported Results in Meta UI (leads, forms, WhatsApp chats).",
     "   - TeleCRM leads = actual leads captured in the CRM by created date.",
     "   - CPL = Spend ÷ Meta leads.",
     "   - CPQL = Spend ÷ Qualified Leads (QL).",
     "   - Lead gap = Meta leads vs TeleCRM leads (indicates lead leakage, tracking failure, or sync delay).",
     "   - TAT = Turnaround time for first call.",
-    "5. Format responses cleanly using GitHub-style Markdown: clear headings, bullet points, and highlight key numbers.",
-    "6. If data is not available or denominator is 0, use N/A — never say 0."
+    "6. Format responses cleanly using GitHub-style Markdown: clear headings, bullet points, and highlight key numbers.",
+    "7. If data is not available or denominator is 0, use N/A — never say 0."
   ].join("\n");
 
   if (!context || (context.hasData === false && !context.summary && !context.totals && !context.brands)) {
@@ -738,7 +814,7 @@ module.exports = async function handler(req, res) {
       const systemPrompt = buildSystemPrompt(stored.systemPrompt, body.context);
       const history = Array.isArray(body.history) ? body.history : [];
 
-      const answer = await dispatchLLM(
+      const rawAnswer = await dispatchLLM(
         provider,
         model,
         cleanKey(stored.apiKey),
@@ -749,10 +825,14 @@ module.exports = async function handler(req, res) {
         temperature
       );
 
+      const agentResult = extractAgentPayload(rawAnswer);
+
       return send(res, 200, {
         ok: true,
-        reply: answer,
-        answer,
+        reply: agentResult.cleanText,
+        answer: agentResult.cleanText,
+        actions: agentResult.actions,
+        suggestedActions: agentResult.suggestedActions,
         provider,
         model,
         at: new Date().toISOString()
