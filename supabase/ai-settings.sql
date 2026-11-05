@@ -26,7 +26,7 @@ create policy ai_settings_admin on public.ai_settings for all to authenticated
 
 -- Non-admin view: team members can check if AI is enabled and which model is active,
 -- but cannot see the actual api_key
-create or replace view public.v_ai_config with (security_invoker = true) as
+create or replace view public.v_ai_config as
   select id,
          provider,
          model,
