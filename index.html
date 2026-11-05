@@ -4173,11 +4173,18 @@ var AI_PROVIDERS = [
     id: "gemini",
     name: "Google Gemini",
     models: [
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Fastest, latest generation)" },
-      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Recommended default)" },
-      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Deep complex reasoning)" }
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash (Next-Gen · Fast & Reasoning)" },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro (Next-Gen · Deep Reasoning & Coding)" },
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Recommended · Fastest General Release)" },
+      { id: "gemini-2.0-flash-lite", name: "Gemini 2.0 Flash-Lite (Ultra-fast & Cost-efficient)" },
+      { id: "gemini-2.0-pro-exp-02-05", name: "Gemini 2.0 Pro Experimental (Most Intelligent Coding/Math)" },
+      { id: "gemini-2.0-flash-thinking-exp-01-21", name: "Gemini 2.0 Flash Thinking Exp (Visible Reasoning Steps)" },
+      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Stable Standard · 1M Context)" },
+      { id: "gemini-1.5-flash-8b", name: "Gemini 1.5 Flash-8B (High Throughput & Lightweight)" },
+      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Stable Long-Context · 2M Context)" },
+      { id: "gemini-1.0-pro", name: "Gemini 1.0 Pro (Legacy Text Generation)" }
     ],
-    defaultModel: "gemini-1.5-flash",
+    defaultModel: "gemini-2.0-flash",
     placeholder: "AIzaSy...",
     help: "Get your free Gemini API key from Google AI Studio at aistudio.google.com/apikey"
   },
@@ -7344,6 +7351,13 @@ function initAskAI(){
   var btnSettings = document.getElementById("ask-ai-btn-settings");
   if (btnSettings){
     btnSettings.onclick = function(){ openAiSettings(); };
+  }
+
+  var badge = document.getElementById("ask-ai-badge");
+  if (badge){
+    badge.style.cursor = "pointer";
+    badge.title = "Click to configure or change AI model in Settings";
+    badge.onclick = function(){ openAiSettings(); };
   }
 
   var btnClear = document.getElementById("ask-ai-btn-clear");

@@ -299,7 +299,14 @@ async function callGemini(model, apiKey, systemPrompt, userMessage, history, tem
     }
   };
   if (systemPrompt && String(systemPrompt).trim()) {
-    body.system_instruction = { parts: [{ text: String(systemPrompt).trim() }] };
+    if (/^gemini-1\.0/i.test(m)) {
+      // gemini-1.0 does not support system_instruction field; prepend to user turn
+      if (contents.length && contents[0].role === "user") {
+        contents[0].parts[0].text = `[System Instructions]\n${String(systemPrompt).trim()}\n\n${contents[0].parts[0].text}`;
+      }
+    } else {
+      body.system_instruction = { parts: [{ text: String(systemPrompt).trim() }] };
+    }
   }
 
   const r = await fetch(url, {
@@ -318,7 +325,7 @@ async function callGemini(model, apiKey, systemPrompt, userMessage, history, tem
       throw new Error("Invalid Gemini API key. Please check your API key from Google AI Studio (https://aistudio.google.com/app/apikey).");
     }
     if (r.status === 404 || /not found/i.test(rawMsg)) {
-      throw new Error(`Gemini model '${m}' not found. Please try 'gemini-1.5-flash' or 'gemini-2.0-flash'.`);
+      throw new Error(`Gemini model '${m}' not found. Please try 'gemini-2.0-flash' or 'gemini-1.5-flash'.`);
     }
     if (r.status === 429 || /quota|resource has been exhausted/i.test(rawMsg)) {
       throw new Error("Gemini API quota exceeded or rate limit reached. Please check your Google AI Studio plan.");
@@ -327,8 +334,13 @@ async function callGemini(model, apiKey, systemPrompt, userMessage, history, tem
   }
 
   const candidate = json && json.candidates && json.candidates[0];
-  const part = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
-  const answer = part && part.text;
+  const parts = (candidate && candidate.content && candidate.content.parts) || [];
+  const answer = parts
+    .filter((p) => !p.thought)
+    .map((p) => p.text || "")
+    .filter(Boolean)
+    .join("\n\n") || (parts[0] && parts[0].text);
+
   if (!answer) {
     if (candidate && candidate.finishReason) {
       throw new Error("Model finished with reason: " + candidate.finishReason);

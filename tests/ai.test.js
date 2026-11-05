@@ -598,8 +598,68 @@ async function runTests() {
     global.fetch = originalFetch;
   }
 
+  // Test 9: Gemini thinking models filter thought:true parts and return clean answer
+  console.log('Test 9: Gemini 2.0 thinking models filter internal thoughts and support new models');
+  {
+    const originalFetch = global.fetch;
+    let requestedModel = '';
+    global.fetch = async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/auth/v1/user')) {
+        return { ok: true, status: 200, json: async () => ({ id: 'u-gemini', email: 'user@example.com' }) };
+      }
+      if (urlStr.includes('/rest/v1/team_members')) {
+        return { ok: true, status: 200, json: async () => [{ email: 'user@example.com', role: 'viewer' }] };
+      }
+      if (urlStr.includes('/rest/v1/ai_settings')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify([{ provider: 'gemini', model: 'gemini-2.0-flash-thinking-exp-01-21', api_key: 'AIzaSyThinking123' }]),
+          json: async () => [{ provider: 'gemini', model: 'gemini-2.0-flash-thinking-exp-01-21', api_key: 'AIzaSyThinking123' }]
+        };
+      }
+      if (urlStr.includes('generativelanguage.googleapis.com')) {
+        requestedModel = urlStr;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [{
+              content: {
+                parts: [
+                  { thought: true, text: 'Analyzing CPL and TAT data...' },
+                  { text: 'Final analysis: The blended CPL is ₹200 and lead TAT is under 15 minutes.' }
+                ]
+              }
+            }]
+          })
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+
+    const fakeUserPayload = { sub: 'u-g', email: 'user@example.com', aud: 'authenticated', role: 'authenticated' };
+    const fakeUserJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + Buffer.from(JSON.stringify(fakeUserPayload)).toString('base64url') + '.sig';
+
+    const { req, res } = createMockReqRes({
+      method: 'POST',
+      headers: { 'authorization': 'Bearer ' + fakeUserJwt },
+      body: { op: 'chat', message: 'Analyze performance' }
+    });
+
+    await aiHandler(req, res);
+    assert.strictEqual(res.statusCode, 200);
+    assert(requestedModel.includes('gemini-2.0-flash-thinking-exp-01-21'), 'Should call the requested model');
+    assert.strictEqual(res.body.reply, 'Final analysis: The blended CPL is ₹200 and lead TAT is under 15 minutes.');
+    assert(!res.body.reply.includes('Analyzing CPL'), 'Thought parts should be filtered out');
+
+    console.log('✓ Gemini thinking models correctly filtered and clean response returned');
+    global.fetch = originalFetch;
+  }
+
   console.log('\n=======================================');
-  console.log('ALL 8 AI API INTEGRATION TESTS PASSED!');
+  console.log('ALL 9 AI API INTEGRATION TESTS PASSED!');
   console.log('=======================================');
 }
 
