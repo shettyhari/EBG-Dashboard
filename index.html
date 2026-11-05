@@ -907,6 +907,92 @@ table.sticky-1 tbody tr:hover td:first-child{background:var(--row-hover)}
 .rep-how{margin-top:16px}
 tr.total-bottom td{position:static!important;background:#dce3f0!important;color:#111}
 @media (max-width:640px){ .rep-actions{margin-left:0} }
+
+/* ---------- Ask AI Floating Chatbot & Settings ---------- */
+.ask-ai-trigger{position:fixed;bottom:24px;right:24px;z-index:990;display:inline-flex;align-items:center;gap:9px;background:var(--btn-bg);color:var(--btn-fg);border:1px solid var(--line);border-radius:9999px;padding:10px 18px;font-family:var(--font-body);font-size:13.5px;font-weight:500;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.18);transition:transform .15s ease,box-shadow .15s ease}
+.ask-ai-trigger:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,0.24)}
+.ask-ai-trigger svg{flex:0 0 auto}
+.ask-ai-status-dot{width:8px;height:8px;border-radius:50%;background:#1e8e3e;box-shadow:0 0 0 2px rgba(30,142,62,.2);flex:0 0 auto}
+.ask-ai-status-dot.needs-setup{background:#f9ab00;box-shadow:0 0 0 2px rgba(249,171,0,.2)}
+
+.ask-ai-window{position:fixed;bottom:80px;right:24px;width:440px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 100px);z-index:1000;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column;overflow:hidden;font-family:var(--font-body);animation:askAiSlideUp .2s cubic-bezier(0.16,1,0.3,1)}
+@keyframes askAiSlideUp{from{opacity:0;transform:translateY(16px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.ask-ai-head{padding:12px 16px;background:var(--band);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.ask-ai-head-info{min-width:0;flex:1 1 auto}
+.ask-ai-title-row{display:flex;align-items:center;gap:8px}
+.ask-ai-title{font-size:14.5px;font-weight:600;color:var(--ink);margin:0}
+.ask-ai-badge{font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--muted);font-weight:500;white-space:nowrap}
+.ask-ai-subtitle{font-size:11.5px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ask-ai-head-actions{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.ask-ai-icon-btn{width:28px;height:28px;border:0;background:transparent;color:var(--muted);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.ask-ai-icon-btn:hover{background:var(--panel);color:var(--ink)}
+
+.ask-ai-context-banner{padding:7px 14px;background:var(--panel);border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);flex:0 0 auto}
+.ask-ai-context-badge{background:var(--good-bg);color:var(--good);padding:1px 6px;border-radius:4px;font-weight:500;font-size:10.5px}
+.ask-ai-context-text{flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.ask-ai-prompts{padding:8px 14px 4px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line-soft);flex:0 0 auto}
+.ask-ai-prompts::-webkit-scrollbar{display:none}
+.ask-ai-prompt-chip{flex:0 0 auto;background:var(--band);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:11.5px;color:var(--ink);cursor:pointer;white-space:nowrap}
+.ask-ai-prompt-chip:hover{background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg)}
+
+.ask-ai-body{flex:1 1 auto;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;min-height:0}
+.ask-ai-msg{display:flex;flex-direction:column;max-width:88%;gap:4px}
+.ask-ai-msg.user{align-self:flex-end}
+.ask-ai-msg.bot{align-self:flex-start;max-width:94%}
+.ask-ai-msg-bubble{padding:9px 13px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word}
+.ask-ai-msg.user .ask-ai-msg-bubble{background:var(--btn-bg);color:var(--btn-fg);border-bottom-right-radius:2px}
+.ask-ai-msg.bot .ask-ai-msg-bubble{background:var(--band);color:var(--fg);border:1px solid var(--line);border-bottom-left-radius:2px}
+.ask-ai-msg-time{font-size:10.5px;color:var(--faint);align-self:flex-end;margin:0 2px}
+.ask-ai-msg.bot .ask-ai-msg-time{align-self:flex-start}
+
+.ask-ai-msg-bubble h1,.ask-ai-msg-bubble h2,.ask-ai-msg-bubble h3,.ask-ai-msg-bubble h4{font-size:13.5px;font-weight:600;margin:8px 0 4px;color:var(--ink)}
+.ask-ai-msg-bubble h1:first-child,.ask-ai-msg-bubble h2:first-child,.ask-ai-msg-bubble h3:first-child{margin-top:0}
+.ask-ai-msg-bubble p{margin:0 0 6px}
+.ask-ai-msg-bubble p:last-child{margin-bottom:0}
+.ask-ai-msg-bubble ul,.ask-ai-msg-bubble ol{margin:4px 0 6px;padding-left:18px}
+.ask-ai-msg-bubble li{margin-bottom:3px}
+.ask-ai-msg-bubble table{width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0;border:1px solid var(--line)}
+.ask-ai-msg-bubble th,.ask-ai-msg-bubble td{padding:4px 7px;border:1px solid var(--line);text-align:left}
+.ask-ai-msg-bubble th{background:var(--band);font-weight:600}
+.ask-ai-msg-bubble code{font-family:monospace;font-size:12px;background:rgba(125,125,125,0.12);padding:2px 4px;border-radius:4px}
+.ask-ai-msg-bubble pre{margin:6px 0;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;overflow-x:auto}
+.ask-ai-msg-bubble pre code{background:transparent;padding:0}
+
+.ask-ai-msg-acts{display:flex;align-items:center;gap:8px;margin-top:2px}
+.ask-ai-copy-btn{background:none;border:0;padding:0;color:var(--muted);font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+.ask-ai-copy-btn:hover{color:var(--ink);text-decoration:underline}
+
+.ask-ai-typing{display:flex;align-items:center;gap:4px;padding:10px 14px}
+.ask-ai-typing-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:askAiBounce 1.2s infinite ease-in-out}
+.ask-ai-typing-dot:nth-child(2){animation-delay:0.2s}
+.ask-ai-typing-dot:nth-child(3){animation-delay:0.4s}
+@keyframes askAiBounce{0%,80%,100%{transform:scale(0.6);opacity:0.5}40%{transform:scale(1);opacity:1}}
+
+.ask-ai-foot{padding:10px 14px;background:var(--band);border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end;flex:0 0 auto}
+.ask-ai-input{flex:1 1 auto;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 12px;border-radius:8px;font:inherit;font-size:13px;resize:none;max-height:100px;min-height:38px;line-height:1.4}
+.ask-ai-input:focus{outline:0;border-color:var(--ink)}
+.ask-ai-send-btn{flex:0 0 auto;width:36px;height:36px;border-radius:8px;border:0;background:var(--btn-bg);color:var(--btn-fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:opacity .15s}
+.ask-ai-send-btn:hover:not([disabled]){opacity:.85}
+.ask-ai-send-btn[disabled]{opacity:.4;cursor:not-allowed}
+
+.ai-status-card{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin-bottom:12px}
+.ai-status-card.ok{border-left:4px solid #1e8e3e}
+.ai-status-card.warn{border-left:4px solid #f9ab00}
+.ai-key-wrap{display:flex;align-items:center;gap:8px;position:relative}
+.ai-key-wrap input{flex:1 1 auto;padding-right:36px}
+.ai-key-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px;padding:4px}
+.ai-model-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}
+.ai-test-result{margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12.5px;line-height:1.4}
+.ai-test-result.ok{background:var(--good-bg);color:var(--good);border:1px solid var(--good)}
+.ai-test-result.err{background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad)}
+
+@media (max-width:600px){
+  .ask-ai-trigger{bottom:16px;right:16px;padding:9px 14px}
+  .ask-ai-window{bottom:0;right:0;left:0;width:100%;max-width:100%;height:82vh;border-radius:16px 16px 0 0}
+}
+
 </style>
 
 <script>try{var _t=localStorage.getItem("ebg-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
@@ -1009,6 +1095,60 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
 </div>
 <div id="toast" class="toast" hidden></div>
 
+<!-- Floating Ask AI Chatbot -->
+<button id="ask-ai-trigger" class="ask-ai-trigger" type="button" aria-label="Open Ask AI chatbot" title="Ask AI about dashboard performance">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    <path d="M12 7v2M12 13v.01M9 10h6"></path>
+  </svg>
+  <span>Ask AI</span>
+  <span id="ask-ai-status-dot" class="ask-ai-status-dot" title="AI active"></span>
+</button>
+
+<div id="ask-ai-window" class="ask-ai-window" role="dialog" aria-label="Ask AI Assistant" aria-hidden="true" hidden>
+  <div class="ask-ai-head">
+    <div class="ask-ai-head-info">
+      <div class="ask-ai-title-row">
+        <h3 class="ask-ai-title">Ask AI</h3>
+        <span id="ask-ai-badge" class="ask-ai-badge">AI Analyst</span>
+      </div>
+      <div id="ask-ai-subtitle" class="ask-ai-subtitle">Live dashboard analyst</div>
+    </div>
+    <div class="ask-ai-head-actions">
+      <button id="ask-ai-btn-settings" class="ask-ai-icon-btn" type="button" title="Ask AI Settings" aria-label="Ask AI Settings">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+      <button id="ask-ai-btn-clear" class="ask-ai-icon-btn" type="button" title="Clear chat history" aria-label="Clear chat">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      </button>
+      <button id="ask-ai-btn-close" class="ask-ai-icon-btn" type="button" title="Close" aria-label="Close chat">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="ask-ai-ctx-bar" class="ask-ai-context-banner">
+    <span class="ask-ai-context-badge">LIVE DATA</span>
+    <span id="ask-ai-ctx-text" class="ask-ai-context-text">Syncing with dashboard…</span>
+  </div>
+
+  <div class="ask-ai-prompts" id="ask-ai-chips">
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Summarize the overall performance: spend, leads, QL rate, and CPL/CPQL.">📊 Performance summary</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Which campaigns have the highest spend or worst leakages (high CPL / zero qualified)?">🚨 Top leakages</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="How do the brands compare in spend, leads, QL%, and TAT?">🏷️ Brand comparison</button>
+    <button class="ask-ai-prompt-chip" type="button" data-prompt="Analyze lead TAT and uncalled leads. What are the key bottlenecks?">⏱️ TAT bottlenecks</button>
+  </div>
+
+  <div id="ask-ai-messages" class="ask-ai-body" aria-live="polite"></div>
+
+  <div class="ask-ai-foot">
+    <input id="ask-ai-input" class="ask-ai-input" type="text" placeholder="Ask about spend, leads, CPL, leakages…" autocomplete="off" aria-label="Ask a question about the dashboard">
+    <button id="ask-ai-send" class="ask-ai-send-btn" type="button" title="Send message" aria-label="Send message">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+    </button>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ENGINE START
@@ -1044,6 +1184,7 @@ var DEFAULT_SETTINGS = {
   qlPos: QL_POS_DEF.slice(), qlNeg: QL_NEG_DEF.slice(), qlOverride: {},
   excludedCampaigns: [], includedCampaigns: [], autoExcludeNonLead: true, sourceMap: {},
   holidays: DEFAULT_HOLIDAYS.map(function(h){ return {id: "h" + h[1].replace(/-/g, ""), name: h[0], date: h[1], active: true}; }),
+  ai: {provider: "gemini", model: "gemini-1.5-flash", apiKey: "", customUrl: "", systemPrompt: "", temperature: 0.3},
   cols: {
     meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
     crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name", manager:"Assignee Manager name", phone:"Phone", email:"Email", fbLead:"Facebook Lead ID"}
@@ -1544,12 +1685,14 @@ function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function mergeSettings(saved){
   var d = Object.assign(clone(DEFAULT_SETTINGS), saved || {});
   d.cols = {meta: Object.assign(clone(DEFAULT_SETTINGS.cols.meta), ((saved || {}).cols || {}).meta || {}), crm: Object.assign(clone(DEFAULT_SETTINGS.cols.crm), ((saved || {}).cols || {}).crm || {})};
+  d.ai = Object.assign(clone(DEFAULT_SETTINGS.ai), (saved || {}).ai || {});
   return d;
 }
 function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
   var d = clone(DEFAULT_SETTINGS); if (!s) return d;
   for (var k in d) if (k in s) d[k] = s[k];
   d.cols.meta = Object.assign(clone(DEFAULT_SETTINGS.cols.meta), (s.cols || {}).meta || {}); d.cols.crm = Object.assign(clone(DEFAULT_SETTINGS.cols.crm), (s.cols || {}).crm || {});
+  d.ai = Object.assign(clone(DEFAULT_SETTINGS.ai), (s.ai || {}));
   return d; }
 function storeSettings(noShare){ var ok = true; try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch (e) { ok = false; } if (!noShare && typeof dbSettingsChanged === "function") dbSettingsChanged(); return ok; }
 
@@ -3265,8 +3408,37 @@ var PROV = {
   meta: {api: "meta", label: "Meta API (direct)", key: "metaAccounts", prefix: "Meta API · ", env: "META_ACCESS_TOKEN", what: "System User access token",
     help: "Meta Business Settings › Users › System users › your system user › Generate new token (tick ads_read; give the system user access to the ad accounts under Assigned assets)"},
   google: {api: "google", label: "Google Ads API", key: "googleAccounts", prefix: "Google Ads API · "},
-  alerts: {api: "alerts", label: "Alerts", key: "alertsNone"}
+  alerts: {api: "alerts", label: "Alerts", key: "alertsNone"},
+  ai: {api: "ai", label: "Ask AI", key: "ai"}
 };
+function aiApi(op, body, params, retried){
+  var authP = (sb && sb.client && sb.client.auth) ?
+    (retried ? sb.client.auth.refreshSession() : sb.client.auth.getSession()) :
+    Promise.resolve(null);
+  return authP.then(function(r){
+    var tok = r && r.data && r.data.session && r.data.session.access_token;
+    var q = Object.keys(params || {}).map(function(k){ return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); }).join("&");
+    var url = "/api/ai?op=" + encodeURIComponent(op || "status") + (q ? "&" + q : "");
+    var headers = { "content-type": "application/json" };
+    if (tok) headers.authorization = "Bearer " + tok;
+    var opt = { headers: headers };
+    if (body) { opt.method = "POST"; opt.body = JSON.stringify(body); }
+    else { opt.method = "GET"; }
+    return fetch(url, opt);
+  }).then(function(res){
+    return res.text().then(function(t){
+      var b = null; try { b = JSON.parse(t); } catch (e) {}
+      if (!b) throw new Error(res.status === 404 ? "NOAPI" : "Unexpected response (" + res.status + ")");
+      if (res.status === 401 && b.code === "session" && !retried && sb && sb.client) {
+        return { __retry: true };
+      }
+      if (!res.ok) throw new Error(b.error || ("Error " + res.status));
+      return b;
+    });
+  }).then(function(b){
+    return b && b.__retry ? aiApi(op, body, params, true) : b;
+  });
+}
 function provApi(pk, op, params, retried){
   /* a sign-in left open for hours can hold an expired token: on "session" refuse, refresh it once and retry */
   return (retried ? sb.client.auth.refreshSession() : sb.client.auth.getSession()).then(function(r){
@@ -3986,12 +4158,360 @@ function viewQL(){
     table("ql", cols, R.statuses, {empty: "No statuses in the CRM data."}));
 }
 /* ================= settings: sections, row editors, one save bar ================= */
+var AI_PROVIDERS = [
+  {
+    id: "gemini",
+    name: "Google Gemini",
+    models: [
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Fastest, latest generation)" },
+      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Recommended default)" },
+      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Deep complex reasoning)" }
+    ],
+    defaultModel: "gemini-1.5-flash",
+    placeholder: "AIzaSy...",
+    help: "Get your free Gemini API key from Google AI Studio at aistudio.google.com/apikey"
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    models: [
+      { id: "gpt-4o-mini", name: "GPT-4o Mini (Fast & cost-efficient)" },
+      { id: "gpt-4o", name: "GPT-4o (High intelligence multimodal)" },
+      { id: "o3-mini", name: "o3-mini (Advanced reasoning model)" },
+      { id: "gpt-4-turbo", name: "GPT-4 Turbo" }
+    ],
+    defaultModel: "gpt-4o-mini",
+    placeholder: "sk-proj-...",
+    help: "Get your API key from OpenAI Platform at platform.openai.com/api-keys"
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic Claude",
+    models: [
+      { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet (Recommended)" },
+      { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku (Fast & light)" },
+      { id: "claude-3-opus-20240229", name: "Claude 3 Opus (High intelligence)" }
+    ],
+    defaultModel: "claude-3-5-sonnet-20241022",
+    placeholder: "sk-ant-api03-...",
+    help: "Get your API key from Anthropic Console at console.anthropic.com/settings/keys"
+  },
+  {
+    id: "custom",
+    name: "Custom / OpenAI-Compatible (DeepSeek, Groq, OpenRouter, Local...)",
+    models: [
+      { id: "deepseek-chat", name: "DeepSeek Chat (V3)" },
+      { id: "deepseek-reasoner", name: "DeepSeek Reasoner (R1)" },
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B (Groq)" },
+      { id: "custom", name: "Custom model ID…" }
+    ],
+    defaultModel: "deepseek-chat",
+    placeholder: "API key or token",
+    needsBaseUrl: true,
+    help: "Provide standard Base URL (e.g. https://api.deepseek.com/v1 or https://openrouter.ai/api/v1)"
+  }
+];
+
+function aiSettingsAllowed(){
+  return (sb.status === "ready" && sb.role === "admin") || (!sb.cfg && !sb.status);
+}
+
+function aiSettingsPanel(){
+  var S = state.settings || {};
+  var AI = S.ai || (S.ai = {provider: "gemini", model: "gemini-1.5-flash", apiKey: "", customUrl: "", systemPrompt: "", temperature: 0.3});
+  var box = el("div", {cls: "set-ai-panel"});
+
+  var isAdmin = (sb.status === "ready" && sb.role === "admin") || (!sb.cfg && !sb.status);
+  if (sb.status === "ready" && sb.role !== "admin"){
+    box.appendChild(el("div", {cls: "banner warn"},
+      el("strong", {text: "Admin Access Required"}),
+      el("p", {style: "margin:6px 0 0", text: "API key settings and LLM model configuration are restricted to dashboard administrators only. Your signed-in role is “" + (sb.role || "viewer") + "”. Please ask an admin to configure the API key."})));
+    return box;
+  }
+
+  if (!state._aiStatus && !state._aiLoading){
+    state._aiLoading = true;
+    aiApi("config").then(function(d){
+      state._aiStatus = d;
+      state._aiLoading = false;
+      if (d.provider) AI.provider = d.provider;
+      if (d.model) AI.model = d.model;
+      if (d.customUrl !== undefined) AI.customUrl = d.customUrl;
+      if (d.systemPrompt !== undefined) AI.systemPrompt = d.systemPrompt;
+      if (typeof d.temperature === "number") AI.temperature = d.temperature;
+      if (state.tab === "settings" && state.setTab === "ai") render();
+    }).catch(function(e){
+      state._aiLoading = false;
+      state._aiStatus = { err: e.message === "NOAPI" ? "Local mode: Settings will be saved to team settings." : e.message };
+      if (state.tab === "settings" && state.setTab === "ai") render();
+    });
+  }
+
+  var st = state._aiStatus || {};
+  var curProvId = AI.provider || "gemini";
+  var provObj = AI_PROVIDERS.filter(function(p){ return p.id === curProvId; })[0] || AI_PROVIDERS[0];
+
+  var hasKey = (st && st.hasKey) || (AI.apiKey && AI.apiKey.length > 5);
+  var statusCard = el("div", {cls: "ai-status-card " + (hasKey ? "ok" : "warn")},
+    el("span", {cls: "ask-ai-status-dot " + (hasKey ? "" : "needs-setup")}),
+    el("div", {style: "flex:1 1 auto;min-width:0"},
+      el("div", {style: "font-weight:600;color:var(--ink)", text: hasKey ? "Ask AI is Configured and Active" : "No API Key Saved in Database"}),
+      el("div", {cls: "small", text: hasKey ?
+        "Saved in Database · Provider: " + provObj.name + " (" + (AI.model || provObj.defaultModel) + ")" + (st.maskedKey ? " · Key: " + st.maskedKey : "") + (st.updatedBy ? " · By: " + st.updatedBy : "") :
+        "Enter your API key below and click “Save to Database” to enable the floating Ask AI chatbot for this dashboard."})));
+  box.appendChild(statusCard);
+
+  var provSelect = el("select", {id: "ai-provider", "aria-label": "AI Provider"},
+    AI_PROVIDERS.map(function(p){
+      return el("option", {value: p.id, selected: p.id === curProvId ? true : null, text: p.name});
+    }));
+
+  var modelSelect = el("select", {id: "ai-model", "aria-label": "Model"});
+  var fillModels = function(pid, selModel){
+    modelSelect.textContent = "";
+    var p = AI_PROVIDERS.filter(function(x){ return x.id === pid; })[0] || AI_PROVIDERS[0];
+    (p.models || []).forEach(function(m){
+      modelSelect.appendChild(el("option", {value: m.id, selected: m.id === selModel ? true : null, text: m.name}));
+    });
+    modelSelect.appendChild(el("option", {value: "_custom", selected: (selModel && !p.models.some(function(x){ return x.id === selModel; })) ? true : null, text: "Enter custom model ID…"}));
+  };
+  fillModels(curProvId, AI.model);
+
+  var customModelInp = el("input", {type: "text", id: "ai-custom-model", value: AI.model || "", placeholder: "e.g. gemini-2.0-flash or gpt-4o", style: "margin-top:6px"});
+  var isCustomModel = modelSelect.value === "_custom";
+  customModelInp.hidden = !isCustomModel;
+
+  modelSelect.addEventListener("change", function(){
+    if (modelSelect.value === "_custom"){
+      customModelInp.hidden = false;
+      customModelInp.focus();
+    } else {
+      customModelInp.hidden = true;
+      AI.model = modelSelect.value;
+    }
+    setDirty();
+  });
+  customModelInp.addEventListener("input", function(){
+    AI.model = customModelInp.value.trim();
+    setDirty();
+  });
+
+  var customUrlInp = el("input", {type: "text", id: "ai-custom-url", value: AI.customUrl || "", placeholder: "https://api.deepseek.com/v1"});
+  var urlField = el("div", {cls: "field", style: curProvId === "custom" ? "" : "display:none"},
+    el("label", {"for": "ai-custom-url", text: "Base URL (OpenAI-Compatible endpoint)"}),
+    customUrlInp,
+    el("span", {cls: "small", text: "Include protocol and path (e.g. https://api.deepseek.com/v1 or https://openrouter.ai/api/v1)"}));
+
+  provSelect.addEventListener("change", function(){
+    var newPid = provSelect.value;
+    AI.provider = newPid;
+    var newP = AI_PROVIDERS.filter(function(x){ return x.id === newPid; })[0] || AI_PROVIDERS[0];
+    AI.model = newP.defaultModel;
+    fillModels(newPid, AI.model);
+    customModelInp.hidden = true;
+    urlField.style.display = newPid === "custom" ? "" : "none";
+    keyInput.placeholder = newP.placeholder || "Enter API key";
+    hintText.textContent = newP.help || "";
+    setDirty();
+  });
+
+  var card1 = el("div", {cls: "group set-card"},
+    el("h3", {text: "1. LLM Provider & Model Selection"}),
+    el("p", {cls: "small set-intro", text: "Select which AI platform powers the dashboard chatbot. All major LLM providers (Google Gemini, OpenAI, Anthropic Claude, or custom models) are supported."}),
+    el("div", {cls: "ai-model-grid"},
+      el("div", {cls: "field"}, el("label", {"for": "ai-provider", text: "Provider"}), provSelect),
+      el("div", {cls: "field"}, el("label", {"for": "ai-model", text: "Model"}), modelSelect, customModelInp)),
+    urlField);
+  box.appendChild(card1);
+
+  var keyInput = el("input", {type: "password", id: "ai-key", value: AI.apiKey || "", placeholder: provObj.placeholder || "Enter API key"});
+  var eyeBtn = el("button", {cls: "ai-key-toggle", type: "button", "aria-label": "Show or hide key", title: "Show / hide key"}, "👁");
+  eyeBtn.addEventListener("click", function(){
+    keyInput.type = keyInput.type === "password" ? "text" : "password";
+  });
+  keyInput.addEventListener("input", function(){
+    AI.apiKey = keyInput.value.trim();
+    setDirty();
+  });
+
+  var hintText = el("span", {cls: "small", text: provObj.help || ""});
+
+  var testResultBox = el("div", {cls: "ai-test-result", style: "display:none"});
+  var testBtn = el("button", {cls: "btn ghost", type: "button"}, "⚡ Test Connection");
+  testBtn.addEventListener("click", function(){
+    var k = keyInput.value.trim() || AI.apiKey;
+    if (!k && !hasKey){
+      testResultBox.style.display = "";
+      testResultBox.className = "ai-test-result err";
+      testResultBox.textContent = "Please enter an API key first before testing.";
+      return;
+    }
+    testBtn.disabled = true;
+    testBtn.textContent = "Testing connection…";
+    testResultBox.style.display = "";
+    testResultBox.className = "ai-test-result";
+    testResultBox.textContent = "Sending test query to " + provSelect.value + " (" + (AI.model || provObj.defaultModel) + ")…";
+
+    var effModel = (modelSelect.value === "_custom" ? customModelInp.value.trim() : modelSelect.value) || AI.model || provObj.defaultModel;
+    aiApi("test", {
+      provider: provSelect.value,
+      model: effModel,
+      apiKey: k,
+      customUrl: customUrlInp.value.trim()
+    }).then(function(res){
+      testBtn.disabled = false;
+      testBtn.textContent = "⚡ Test Connection";
+      testResultBox.className = "ai-test-result ok";
+      testResultBox.textContent = "✓ " + (res.message || "Connected successfully!");
+    }).catch(function(err){
+      testBtn.disabled = false;
+      testBtn.textContent = "⚡ Test Connection";
+      testResultBox.className = "ai-test-result err";
+      testResultBox.textContent = "✗ Connection failed: " + err.message;
+    });
+  });
+
+  var card2 = el("div", {cls: "group set-card"},
+    el("h3", {text: "2. API Key Configuration (Admin Only)"}),
+    el("p", {cls: "small set-intro", text: "Enter your API key. It is saved securely in the database for this dashboard and used by the floating Ask AI chatbot on all views. Non-admin users cannot view the key."}),
+    el("div", {cls: "field"},
+      el("label", {"for": "ai-key", text: "API Key"}),
+      el("div", {cls: "ai-key-wrap"}, keyInput, eyeBtn),
+      hintText),
+    el("div", {style: "display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap"},
+      testBtn,
+      el("span", {cls: "small", text: "Verifies the key and model before saving."})),
+    testResultBox);
+  box.appendChild(card2);
+
+  var tempInp = el("input", {type: "range", id: "ai-temp", min: "0", max: "1", step: "0.05", value: String(AI.temperature !== undefined ? AI.temperature : 0.3)});
+  var tempVal = el("span", {style: "font-weight:600;min-width:36px;font-variant-numeric:tabular-nums", text: Number(tempInp.value).toFixed(2)});
+  tempInp.addEventListener("input", function(){
+    tempVal.textContent = Number(tempInp.value).toFixed(2);
+    AI.temperature = parseFloat(tempInp.value);
+    setDirty();
+  });
+
+  var defaultPrompt = "You are an expert Performance Marketing Analyst for EBG Group, Hyderabad. Answer as a seasoned performance marketer: business impact first, plain language, no jargon dumps. Accuracy is critical: never invent numbers or targets. Use Indian numbering (e.g. ₹1,50,000) and Rupee symbol (₹). Format answers with bullet points and clear Markdown.";
+  var promptInp = el("textarea", {id: "ai-prompt", rows: 4, placeholder: defaultPrompt}, AI.systemPrompt || "");
+  promptInp.addEventListener("input", function(){
+    AI.systemPrompt = promptInp.value;
+    setDirty();
+  });
+  var resetPromptBtn = el("button", {cls: "linkbtn", type: "button", onclick: function(){
+    promptInp.value = "";
+    AI.systemPrompt = "";
+    setDirty();
+    toast("Reset system prompt to default analyst persona");
+  }}, "Reset to default persona");
+
+  var card3 = el("div", {cls: "group set-card"},
+    el("h3", {text: "3. Analyst Persona & Creativity"}),
+    el("p", {cls: "small set-intro", text: "Adjust the response style of the Ask AI chatbot."}),
+    el("div", {cls: "field"},
+      el("label", {"for": "ai-temp", text: "Temperature (Creativity vs Precision)"}),
+      el("div", {style: "display:flex;gap:12px;align-items:center"}, tempInp, tempVal),
+      el("span", {cls: "small", text: "0.10–0.30 = High accuracy & number precision (Recommended for dashboard data). 0.70+ = More creative copy suggestions."})),
+    el("div", {cls: "field", style: "margin-top:12px"},
+      el("label", {"for": "ai-prompt", text: "Custom Instructions / Persona"}),
+      promptInp,
+      el("div", {style: "display:flex;justify-content:space-between;margin-top:4px"},
+        el("span", {cls: "small", text: "Leave blank to use the built-in EBG Performance Marketing Analyst instructions."}),
+        resetPromptBtn)));
+  box.appendChild(card3);
+
+  var saveMsg = el("div", {cls: "small", id: "ai-save-msg", style: "margin-top:6px"});
+  var saveBtn = el("button", {cls: "btn", type: "button", id: "ai-save-btn"}, "Save AI Settings to Database");
+  saveBtn.addEventListener("click", function(){
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving to database…";
+    saveMsg.textContent = "";
+
+    var effModel = (modelSelect.value === "_custom" ? customModelInp.value.trim() : modelSelect.value) || AI.model || provObj.defaultModel;
+    var toSave = {
+      provider: provSelect.value,
+      model: effModel,
+      apiKey: keyInput.value.trim() || AI.apiKey,
+      customUrl: customUrlInp.value.trim(),
+      systemPrompt: promptInp.value.trim(),
+      temperature: parseFloat(tempInp.value) || 0.3,
+      enabled: true
+    };
+
+    aiApi("save-config", toSave).then(function(res){
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save AI Settings to Database";
+      AI.provider = toSave.provider;
+      AI.model = toSave.model;
+      if (toSave.apiKey) AI.apiKey = toSave.apiKey;
+      AI.customUrl = toSave.customUrl;
+      AI.systemPrompt = toSave.systemPrompt;
+      AI.temperature = toSave.temperature;
+      state._aiStatus = res;
+      storeSettings(true);
+      if (dbSharesSettings()) dbPushSettings().catch(function(){});
+      toast("AI settings saved to database successfully!");
+      updateAskAIStatus();
+      render();
+    }).catch(function(err){
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save AI Settings to Database";
+      if (err.message === "NOAPI"){
+        storeSettings(true);
+        if (dbSharesSettings()){
+          dbPushSettings().then(function(){
+            toast("Saved in team database (standalone mode)");
+            updateAskAIStatus();
+            render();
+          }).catch(function(e){
+            toast("Could not save: " + e.message);
+          });
+        } else {
+          toast("Saved in local browser settings");
+          updateAskAIStatus();
+          render();
+        }
+      } else {
+        toast("Failed to save: " + err.message);
+        saveMsg.textContent = "Error: " + err.message;
+      }
+    });
+  });
+
+  var clearBtn = el("button", {cls: "btn ghost danger", type: "button"}, "Remove Saved Key");
+  clearBtn.addEventListener("click", function(){
+    if (!confirm("Remove the saved API key from the database for this dashboard?")){ return; }
+    aiApi("clear-key", {}).then(function(){
+      AI.apiKey = "";
+      keyInput.value = "";
+      state._aiStatus = null;
+      storeSettings(true);
+      if (dbSharesSettings()) dbPushSettings().catch(function(){});
+      toast("API key removed from database");
+      updateAskAIStatus();
+      render();
+    }).catch(function(err){
+      toast("Could not clear key: " + err.message);
+    });
+  });
+
+  var actionsCard = el("div", {cls: "group set-card", style: "border-top:2px solid var(--accent)"},
+    el("div", {style: "display:flex;gap:12px;align-items:center;flex-wrap:wrap"},
+      saveBtn,
+      hasKey ? clearBtn : null),
+    saveMsg);
+  box.appendChild(actionsCard);
+
+  return box;
+}
+
 var SET_TABS = [["connections", "Data connections", "Where the dashboard gets Meta and TeleCRM data automatically."],
   ["brands", "Brands & campaigns", "Which brands appear in reports, how each campaign is assigned to a brand, and campaigns to leave out."],
   ["rules", "Lead rules", "Speed-to-lead targets, what counts as a qualified lead, and how repeat leads are handled."],
   ["hours", "Working hours & holidays", "Days that don't count towards working-hours TAT."],
   ["targets", "Report targets", "Monthly lead targets, target CPL and budgets per brand (set for each month), and leaders, used by the Reports page."],
   ["alerts", "Alerts", "Telegram alerts for ad account changes, CPL moves and a 30-minute update, sent to one person."],
+  ["ai", "Ask AI Settings", "Configure AI providers (Gemini, OpenAI, Anthropic), API keys, and models for the dashboard chatbot. Admin users only."],
   ["advanced", "Advanced", "Rarely needed: report date overrides, lead-source filter and export column names."]];
 function setDraft(){ var S = state.settings;
   if (state.setDraft && state.setDraft.base !== S && !state.setDraft.dirty) state.setDraft = null;   /* settings reloaded (e.g. from the team database) */
@@ -4004,6 +4524,7 @@ function viewSettings(){
   if (!SET_TABS.some(function(t){ return t[0] === tab; })) tab = sb.cfg ? "connections" : "brands";
   if (tab === "connections" && !sb.cfg) tab = "brands";
   if (tab === "alerts" && !alertsAllowed()) tab = sb.cfg ? "connections" : "brands";
+  if (tab === "ai" && !aiSettingsAllowed()) tab = sb.cfg ? "connections" : "brands";
   var go = function(t){ state.setTab = t; try { localStorage.setItem("ebg-set-tab", t); } catch (e) {} render(); window.scrollTo(0, 0); };
   /* inputs keep their unsaved value while you switch sections */
   var val = function(id, cur){ return id in D.inputs ? D.inputs[id] : cur; };
@@ -4019,13 +4540,14 @@ function viewSettings(){
 
   var head = el("div", {cls: "set-head"},
     el("p", {cls: "small", text: (sb.cfg && sb.status === "ready" && sbCanWrite() ? "Changes are shared with your whole team when you save." : "Changes are saved in this browser.") + (editable ? "" : " Load data to see their effect on the report.")}));
-  var nav = el("div", {cls: "set-nav", role: "tablist", "aria-label": "Settings sections"}, SET_TABS.filter(function(t){ return (t[0] !== "connections" || sb.cfg) && (t[0] !== "alerts" || alertsAllowed()); }).map(function(t){
+  var nav = el("div", {cls: "set-nav", role: "tablist", "aria-label": "Settings sections"}, SET_TABS.filter(function(t){ return (t[0] !== "connections" || sb.cfg) && (t[0] !== "alerts" || alertsAllowed()) && (t[0] !== "ai" || aiSettingsAllowed()); }).map(function(t){
     return el("button", {type: "button", role: "tab", "aria-selected": t[0] === tab ? "true" : "false", onclick: function(){ go(t[0]); }}, t[1]); }));
   var info = SET_TABS.filter(function(t){ return t[0] === tab; })[0];
   var body = el("div", {cls: "set-body"}, el("p", {cls: "set-lead", text: info[2]}));
   var needsSave = false;
 
   if (tab === "alerts" && alertsAllowed()){ body.appendChild(alertsPanel()); }
+  if (tab === "ai" && aiSettingsAllowed()){ body.appendChild(aiSettingsPanel()); }
   if (tab === "connections"){
     body.appendChild(connStatusCard()); body.appendChild(provPanel("meta", false)); body.appendChild(gadsPanel()); body.appendChild(crmPushPanel());
   }
@@ -4206,6 +4728,22 @@ function applySettings(){
   if (has("s-neg")) S.qlNeg = lines("s-neg").map(function(x){ return x.toLowerCase(); });
   if (has("s-pos")) S.qlPos = lines("s-pos").map(function(x){ return x.toLowerCase(); });
   ["meta", "crm"].forEach(function(src){ Object.keys(S.cols[src]).forEach(function(k){ var id = "col-" + src + "-" + k; if (has(id)){ var x = String(get(id)).trim(); if (x) S.cols[src][k] = x; } }); });
+  if (has("ai-provider")){
+    S.ai = S.ai || {};
+    S.ai.provider = String(get("ai-provider")).trim();
+    if (has("ai-model")){
+      var m = String(get("ai-model")).trim();
+      if (m === "_custom" && has("ai-custom-model")) m = String(get("ai-custom-model")).trim();
+      if (m) S.ai.model = m;
+    }
+    if (has("ai-key")){
+      var ak = String(get("ai-key")).trim();
+      if (ak && ak.indexOf("••••") < 0) S.ai.apiKey = ak;
+    }
+    if (has("ai-custom-url")) S.ai.customUrl = String(get("ai-custom-url")).trim();
+    if (has("ai-prompt")) S.ai.systemPrompt = String(get("ai-prompt")).trim();
+    if (has("ai-temp")) S.ai.temperature = parseFloat(get("ai-temp")) || 0.3;
+  }
   if (D.rep){ var keepRemarks = repS(S).remarks; S.report = JSON.parse(JSON.stringify(D.rep)); S.report.remarks = keepRemarks;
     S.report.leaders = (S.report.leaders || []).filter(function(L){ return L && String(L.name || "").trim(); }).map(function(L){ return {name: String(L.name).trim(), words: L.words || []}; }); }
   state.setDraft = null; state.repOut = null; storeSettings(); recompute();
@@ -4947,6 +5485,7 @@ function render(){
   DRAWS.forEach(function(f){ try { f(true); } catch (e) { console.error(e); } });
   friendly(v);
   window.scrollTo(0, y);
+  if (typeof updateAskAIContext === "function") updateAskAIContext();
 }
 function recompute(){
   if (state.raw){ rebuild(); }
@@ -6440,6 +6979,412 @@ function renderDbSection(x){
   }
 }
 
+/* ================= Ask AI Chatbot ================= */
+var askAiHistory = [];
+var askAiSending = false;
+
+function getDashboardAIContext(){
+  var R = state.R;
+  var ctx = {
+    activeTab: state.tab || "overview",
+    activeBrand: state.brand || "All",
+    dateRange: typeof rangeText === "function" ? rangeText(false) : (state.range ? (state.range.preset || "") : "All time"),
+    hasData: !!(R && R.ads && R.ads.length)
+  };
+  if (!R || !R.ads || !R.ads.length){
+    return ctx;
+  }
+  var rows = R.ads.filter(function(a){ return brandOK(a.brand); });
+  var T = typeof sumRows === "function" ? sumRows(rows) : null;
+  if (T){
+    ctx.summary = {
+      spend: T.spend,
+      metaLeads: T.ui,
+      crmLeads: T.crm,
+      qualifiedLeads: T.ql,
+      qlRate: T.crm ? ((T.ql / T.crm) * 100).toFixed(1) + "%" : "0%",
+      cpl: T.cpl ? Math.round(T.cpl) : null,
+      cpql: T.cpql ? Math.round(T.cpql) : null,
+      leadDifference: T.diff,
+      leadDiffPct: isNum(T.pct) ? (T.pct * 100).toFixed(1) + "%" : "0%",
+      avgTatMin: T.tat ? Math.round(T.tat) : null,
+      whTatMin: T.whAvg ? Math.round(T.whAvg) : null,
+      slaCompliance: isNum(T.sla) ? (T.sla * 100).toFixed(1) + "%" : null,
+      notContactedLeads: T.pend || 0
+    };
+  }
+
+  if (R.brandRows && R.brandRows.length){
+    ctx.brands = R.brandRows.filter(function(b){ return brandOK(b.brand); }).map(function(b){
+      return {
+        brand: b.brand,
+        spend: b.spend ? Math.round(b.spend) : 0,
+        metaLeads: b.ui || 0,
+        crmLeads: b.crm || 0,
+        qualifiedLeads: b.ql || 0,
+        qlRate: b.crm ? ((b.ql / b.crm) * 100).toFixed(1) + "%" : "0%",
+        cpl: b.cpl ? Math.round(b.cpl) : null,
+        cpql: b.cpql ? Math.round(b.cpql) : null,
+        tatAvgMin: b.tat ? Math.round(b.tat) : null,
+        uncalled: b.pend || 0
+      };
+    });
+  }
+
+  if (R.camps && R.camps.length){
+    var campRows = R.camps.filter(function(c){ return brandOK(c.brand); });
+    ctx.topCampaigns = campRows.slice(0, 10).map(function(c){
+      return {
+        campaign: c.campaign,
+        brand: c.brand,
+        spend: c.spend ? Math.round(c.spend) : 0,
+        metaLeads: c.ui || 0,
+        crmLeads: c.crm || 0,
+        ql: c.ql || 0,
+        cpl: c.cpl ? Math.round(c.cpl) : null,
+        cpql: c.cpql ? Math.round(c.cpql) : null
+      };
+    });
+
+    var leakages = campRows.filter(function(c){
+      return (c.spend > 1000 && !c.ql) || (c.cpl && T && T.cpl && c.cpl > T.cpl * 1.5);
+    }).slice(0, 6).map(function(c){
+      return {
+        campaign: c.campaign,
+        brand: c.brand,
+        spend: Math.round(c.spend || 0),
+        crmLeads: c.crm || 0,
+        ql: c.ql || 0,
+        issue: !c.ql ? "0 Qualified Leads with ₹" + Math.round(c.spend) + " spend" : "High CPL (₹" + Math.round(c.cpl) + ")"
+      };
+    });
+    if (leakages.length) ctx.leakages = leakages;
+  }
+
+  if (R.checks && R.checks.length){
+    ctx.dataChecks = R.checks.filter(function(k){ return k.n > 0; }).map(function(k){
+      return {label: k.label, count: k.n};
+    });
+  }
+
+  return ctx;
+}
+
+function formatAIMarkdown(raw){
+  if (!raw) return "";
+  var text = String(raw)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  text = text.replace(/\x60\x60\x60([a-z0-9_-]*)\n([\s\S]*?)\x60\x60\x60/g, function(_, lang, code){
+    return "<pre><code>" + code.trim() + "</code></pre>";
+  });
+
+  text = text.replace(/\x60([^\x60]+)\x60/g, "<code>$1</code>");
+  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
+  text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+
+  var lines = text.split("\n"), out = [], inTable = false, tableRows = [];
+  function flushTable(){
+    if (!tableRows.length) return;
+    var html = "<table>", isHeader = true;
+    for (var i = 0; i < tableRows.length; i++){
+      var row = tableRows[i];
+      if (/^\|?(\s*:?-+:?\s*\|?)+$/.test(row)){ isHeader = false; continue; }
+      var cells = row.split("|");
+      if (cells[0].trim() === "") cells.shift();
+      if (cells.length && cells[cells.length - 1].trim() === "") cells.pop();
+      html += "<tr>";
+      var tag = isHeader ? "th" : "td";
+      for (var c = 0; c < cells.length; c++) html += "<" + tag + ">" + cells[c].trim() + "</" + tag + ">";
+      html += "</tr>";
+      if (isHeader) isHeader = false;
+    }
+    html += "</table>";
+    out.push(html);
+    tableRows = [];
+    inTable = false;
+  }
+
+  for (var i = 0; i < lines.length; i++){
+    var line = lines[i], trimmed = line.trim();
+    if (trimmed.charAt(0) === "|" && trimmed.charAt(trimmed.length - 1) === "|"){
+      inTable = true; tableRows.push(trimmed); continue;
+    } else if (inTable){ flushTable(); }
+
+    if (/^### (.*)$/.test(trimmed)) out.push("<h4>" + trimmed.replace(/^### /, "") + "</h4>");
+    else if (/^## (.*)$/.test(trimmed)) out.push("<h3>" + trimmed.replace(/^## /, "") + "</h3>");
+    else if (/^# (.*)$/.test(trimmed)) out.push("<h2>" + trimmed.replace(/^# /, "") + "</h2>");
+    else if (/^[-*•] (.*)$/.test(trimmed)) out.push("<li>" + trimmed.replace(/^[-*•]\s+/, "") + "</li>");
+    else if (/^\d+\.\s+(.*)$/.test(trimmed)) out.push("<li>" + trimmed.replace(/^\d+\.\s+/, "") + "</li>");
+    else if (trimmed === "") out.push("");
+    else if (line.indexOf("<pre>") === 0 || line.indexOf("<table>") === 0) out.push(line);
+    else out.push("<p>" + line + "</p>");
+  }
+  if (inTable) flushTable();
+
+  var res = out.join("\n");
+  res = res.replace(/(<li>[\s\S]*?<\/li>(\n<li>[\s\S]*?<\/li>)*)/g, "<ul>$1</ul>");
+  res = res.replace(/<p>\s*<\/p>/g, "");
+  return res;
+}
+
+function updateAskAIContext(){
+  var bar = document.getElementById("ask-ai-ctx-text");
+  if (!bar) return;
+  var b = state.brand || "All";
+  var p = typeof rangeText === "function" ? rangeText(false) : (state.range ? (state.range.preset || "") : "All time");
+  var t = state.tab || "overview";
+  if (!state.R || !state.R.ads || !state.R.ads.length){
+    bar.textContent = "No live report loaded · upload or connect data";
+  } else {
+    bar.textContent = "Brand: " + b + " · Period: " + p + " · Tab: " + t.charAt(0).toUpperCase() + t.slice(1);
+  }
+}
+
+function updateAskAIStatus(){
+  var dot = document.getElementById("ask-ai-status-dot");
+  var badge = document.getElementById("ask-ai-badge");
+  var sub = document.getElementById("ask-ai-subtitle");
+  aiApi("config").then(function(d){
+    var isReady = !!(d && (d.isConfigured || d.hasKey));
+    if (dot){
+      if (isReady){
+        dot.className = "ask-ai-status-dot";
+        dot.title = "Ask AI active (" + (d.provider || "AI") + ")";
+      } else {
+        dot.className = "ask-ai-status-dot needs-setup";
+        dot.title = "Needs API Key setup in Settings";
+      }
+    }
+    if (badge){
+      badge.textContent = d.model ? d.model : (d.provider ? d.provider : "AI Analyst");
+    }
+    if (sub){
+      sub.textContent = isReady ?
+        "Live dashboard analyst (" + (d.provider || "active") + ")" :
+        "Needs API key setup in Settings";
+    }
+  }).catch(function(e){
+    if (dot) dot.className = "ask-ai-status-dot needs-setup";
+    if (sub) sub.textContent = "Needs API key setup";
+  });
+}
+
+function toggleAskAI(open){
+  var win = document.getElementById("ask-ai-window");
+  if (!win) return;
+  var isHidden = win.hidden;
+  var toOpen = open !== undefined ? !!open : isHidden;
+  win.hidden = !toOpen;
+  win.setAttribute("aria-hidden", toOpen ? "false" : "true");
+  if (toOpen){
+    updateAskAIContext();
+    var inp = document.getElementById("ask-ai-input");
+    if (inp) setTimeout(function(){ inp.focus(); }, 80);
+    var box = document.getElementById("ask-ai-messages");
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+}
+
+function openAiSettings(){
+  if (aiSettingsAllowed()){
+    state.tab = "settings";
+    state.setTab = "ai";
+    render();
+    if (window.innerWidth <= 640){
+      toggleAskAI(false);
+    }
+  } else {
+    toast("Ask AI API key configuration is restricted to Admin users only.");
+  }
+}
+
+function renderAskAIMessage(role, text, isHtml){
+  var box = document.getElementById("ask-ai-messages");
+  if (!box) return;
+  var m = el("div", {cls: "ask-ai-msg " + (role === "user" ? "user" : "bot")});
+  var bubble = el("div", {cls: "ask-ai-msg-bubble"});
+  if (role === "user"){
+    bubble.textContent = text;
+  } else {
+    bubble.innerHTML = isHtml ? text : formatAIMarkdown(text);
+  }
+  m.appendChild(bubble);
+
+  if (role === "bot"){
+    var acts = el("div", {cls: "ask-ai-msg-acts"});
+    var copyBtn = el("button", {cls: "ask-ai-copy-btn", type: "button", text: "Copy"});
+    copyBtn.onclick = function(){
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){
+          copyBtn.textContent = "Copied!";
+          setTimeout(function(){ copyBtn.textContent = "Copy"; }, 2000);
+        });
+      }
+    };
+    acts.appendChild(copyBtn);
+    m.appendChild(acts);
+  }
+
+  var d = new Date();
+  var hh = d.getHours(), mm = d.getMinutes();
+  var ts = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+  m.appendChild(el("span", {cls: "ask-ai-msg-time", text: ts}));
+
+  box.appendChild(m);
+  box.scrollTop = box.scrollHeight;
+}
+
+function renderAskAITyping(){
+  var box = document.getElementById("ask-ai-messages");
+  if (!box) return null;
+  var t = el("div", {cls: "ask-ai-msg bot", id: "ask-ai-typing-indicator"},
+    el("div", {cls: "ask-ai-msg-bubble", style: "padding:6px 12px"},
+      el("div", {cls: "ask-ai-typing"},
+        el("span", {cls: "ask-ai-typing-dot"}),
+        el("span", {cls: "ask-ai-typing-dot"}),
+        el("span", {cls: "ask-ai-typing-dot"}))));
+  box.appendChild(t);
+  box.scrollTop = box.scrollHeight;
+  return t;
+}
+
+function saveAskAIHistory(){
+  try {
+    sessionStorage.setItem("ebg-ask-ai-history", JSON.stringify(askAiHistory.slice(-20)));
+  } catch (e) {}
+}
+
+function sendAskAIMessage(text){
+  if (askAiSending) return;
+  var inp = document.getElementById("ask-ai-input");
+  var val = text || (inp ? inp.value : "");
+  val = (val || "").trim();
+  if (!val) return;
+  if (inp) inp.value = "";
+
+  renderAskAIMessage("user", val);
+  askAiHistory.push({role: "user", content: val});
+  saveAskAIHistory();
+
+  askAiSending = true;
+  var sendBtn = document.getElementById("ask-ai-send");
+  if (sendBtn) sendBtn.disabled = true;
+  if (inp) inp.disabled = true;
+
+  var typing = renderAskAITyping();
+  var ctx = getDashboardAIContext();
+
+  aiApi("chat", {
+    message: val,
+    context: ctx,
+    history: askAiHistory.slice(-6)
+  }).then(function(res){
+    if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+    askAiSending = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (inp){ inp.disabled = false; inp.focus(); }
+
+    var reply = (res && res.reply) ? res.reply : (res && res.text ? res.text : "No answer received from AI.");
+    renderAskAIMessage("bot", reply);
+    askAiHistory.push({role: "assistant", content: reply});
+    saveAskAIHistory();
+  }).catch(function(err){
+    if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+    askAiSending = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (inp){ inp.disabled = false; inp.focus(); }
+
+    var msg = err.message || String(err);
+    if (msg === "NOKEY" || msg.indexOf("API key") !== -1 || msg.indexOf("not configured") !== -1){
+      var errHtml = "<p><strong>API Key Required:</strong> Ask AI has not been configured with an API key yet.</p>" +
+        (aiSettingsAllowed() ?
+          "<p><button type=\"button\" class=\"btn ghost\" style=\"margin-top:6px;font-size:12px;padding:4px 10px\" onclick=\"openAiSettings()\">Open Ask AI Settings →</button></p>" :
+          "<p style=\"color:var(--muted);font-size:12px\">Please contact an administrator to enter the API key in Settings › Ask AI Settings.</p>");
+      renderAskAIMessage("bot", errHtml, true);
+    } else {
+      renderAskAIMessage("bot", "⚠️ **Analysis Error:** " + msg);
+    }
+  });
+}
+
+function renderWelcomeAskAI(){
+  var welcomeText = "Hello! I am your **EBG Lead Analyst**.\n\n" +
+    "I analyze your live dashboard data across spend, Meta leads, TeleCRM leads, QL rate, CPL, CPQL, and speed-to-lead (TAT).\n\n" +
+    "Ask any question or tap a quick prompt above!";
+  renderAskAIMessage("bot", welcomeText);
+}
+
+function initAskAI(){
+  var trig = document.getElementById("ask-ai-trigger");
+  if (trig){
+    trig.onclick = function(){ toggleAskAI(); };
+  }
+
+  var btnClose = document.getElementById("ask-ai-btn-close");
+  if (btnClose){
+    btnClose.onclick = function(){ toggleAskAI(false); };
+  }
+
+  var btnSettings = document.getElementById("ask-ai-btn-settings");
+  if (btnSettings){
+    btnSettings.onclick = function(){ openAiSettings(); };
+  }
+
+  var btnClear = document.getElementById("ask-ai-btn-clear");
+  if (btnClear){
+    btnClear.onclick = function(){
+      if (askAiHistory.length && !confirm("Clear conversation history?")) return;
+      askAiHistory = [];
+      try { sessionStorage.removeItem("ebg-ask-ai-history"); } catch (e) {}
+      var box = document.getElementById("ask-ai-messages");
+      if (box) box.textContent = "";
+      renderWelcomeAskAI();
+    };
+  }
+
+  var chips = document.querySelectorAll("#ask-ai-chips .ask-ai-prompt-chip");
+  chips.forEach(function(chip){
+    chip.onclick = function(){
+      var p = chip.getAttribute("data-prompt");
+      if (p) sendAskAIMessage(p);
+    };
+  });
+
+  var sendBtn = document.getElementById("ask-ai-send");
+  if (sendBtn){
+    sendBtn.onclick = function(){ sendAskAIMessage(); };
+  }
+
+  var inp = document.getElementById("ask-ai-input");
+  if (inp){
+    inp.addEventListener("keydown", function(e){
+      if (e.key === "Enter" && !e.shiftKey){
+        e.preventDefault();
+        sendAskAIMessage();
+      }
+    });
+  }
+
+  // Restore history or show welcome greeting
+  var stored = null;
+  try { stored = JSON.parse(sessionStorage.getItem("ebg-ask-ai-history") || "null"); } catch (e) {}
+  if (Array.isArray(stored) && stored.length){
+    askAiHistory = stored;
+    stored.forEach(function(m){
+      renderAskAIMessage(m.role === "user" ? "user" : "bot", m.content);
+    });
+  } else {
+    renderWelcomeAskAI();
+  }
+
+  updateAskAIStatus();
+  updateAskAIContext();
+}
+
 /* ================= boot ================= */
 state.settings = loadSettings();
 setTimeout(function(){ renderMetaBrandPick(); var mb = document.getElementById("meta-brand"); if (mb) mb.addEventListener("change", function(){ mb.classList.remove("need"); document.getElementById("er-meta").textContent = ""; }); }, 0);
@@ -6449,6 +7394,7 @@ function boot(){
   state.booting = /^https?:$/.test(location.protocol) && !(window.claude && window.claude.use);
   if (typeof XLSX === "undefined"){ var b = document.getElementById("team-banner"); b.hidden = false; b.className = "banner warn"; b.textContent = "The spreadsheet reader did not load, so exports cannot be opened. Check your connection and reload the page."; }
   render();
+  initAskAI();
   var teamInit;
   if (window.claude && window.claude.use){
     window.claude.use("downloads").then(function(d){ state.caps.downloads = d; render(); }).catch(function(){});

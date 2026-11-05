@@ -9,6 +9,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node tests/monitor.test.js"
+    "dev": "node dev-server.js",
+    "start": "node dev-server.js",
+    "test": "node tests/monitor.test.js && node tests/ai.test.js"
   }
 }
