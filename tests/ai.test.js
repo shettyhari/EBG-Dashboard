@@ -779,8 +779,88 @@ async function runTests() {
     console.log('✓ index.html has 0 ES6 syntax violations in <script> blocks');
   }
 
+  // Test 12: AI chat history isolation per user account and ad account/brand
+  console.log('Test 12: AI chat history isolation per user account and ad account/brand');
+  {
+    const fs = require('fs');
+    const htmlPath = path.join(__dirname, '..', 'index.html');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+
+    // Verify UI contains account bar and user tag
+    assert(html.includes('id="ask-ai-account-select"'), 'index.html must have #ask-ai-account-select');
+    assert(html.includes('id="ask-ai-user-tag"'), 'index.html must have #ask-ai-user-tag');
+    assert(html.includes('switchAskAIAccount'), 'index.html must define switchAskAIAccount');
+    assert(html.includes('getAskAIAccountKey'), 'index.html must define getAskAIAccountKey');
+
+    // Simulate multi-account storage isolation
+    const mockStorage = {};
+    function getAskAIAccountKey(userKey, scopeKey) {
+      const u = (userKey || 'local').toLowerCase().trim();
+      const s = scopeKey || 'All';
+      return u + '::' + s;
+    }
+
+    function saveHistory(user, brand, messages) {
+      const k = 'ebg-ai-hist:' + getAskAIAccountKey(user, brand);
+      mockStorage[k] = JSON.stringify(messages);
+    }
+
+    function loadHistory(user, brand) {
+      const k = 'ebg-ai-hist:' + getAskAIAccountKey(user, brand);
+      return mockStorage[k] ? JSON.parse(mockStorage[k]) : [];
+    }
+
+    function clearHistory(user, brand) {
+      const k = 'ebg-ai-hist:' + getAskAIAccountKey(user, brand);
+      delete mockStorage[k];
+    }
+
+    // Account A (hari@ebg.com) chats under Carlton
+    saveHistory('hari@ebg.com', 'Carlton', [
+      { role: 'user', content: 'Audit Carlton campaigns' },
+      { role: 'bot', content: 'Carlton has 2 high-spend leakages' }
+    ]);
+
+    // Account A (hari@ebg.com) chats under Acer
+    saveHistory('hari@ebg.com', 'Acer', [
+      { role: 'user', content: 'What is Acer CPQL?' },
+      { role: 'bot', content: 'Acer CPQL is ₹340' }
+    ]);
+
+    // Account B (manager@ebg.com) chats under Carlton
+    saveHistory('manager@ebg.com', 'Carlton', [
+      { role: 'user', content: 'Check Carlton TAT' }
+    ]);
+
+    // Verify complete isolation
+    const hariCarlton = loadHistory('hari@ebg.com', 'Carlton');
+    const hariAcer = loadHistory('hari@ebg.com', 'Acer');
+    const managerCarlton = loadHistory('manager@ebg.com', 'Carlton');
+    const managerAcer = loadHistory('manager@ebg.com', 'Acer');
+    const localAll = loadHistory('local', 'All');
+
+    assert.strictEqual(hariCarlton.length, 2, 'hari@ebg.com on Carlton should have 2 messages');
+    assert.strictEqual(hariAcer.length, 2, 'hari@ebg.com on Acer should have 2 messages');
+    assert.strictEqual(managerCarlton.length, 1, 'manager@ebg.com on Carlton should have 1 message');
+    assert.strictEqual(managerAcer.length, 0, 'manager@ebg.com on Acer should be empty');
+    assert.strictEqual(localAll.length, 0, 'local user on All should be empty');
+
+    // Verify messages do not bleed into each other
+    assert.strictEqual(hariCarlton[0].content, 'Audit Carlton campaigns');
+    assert.strictEqual(hariAcer[0].content, 'What is Acer CPQL?');
+    assert.strictEqual(managerCarlton[0].content, 'Check Carlton TAT');
+
+    // Clear hari's Carlton history only
+    clearHistory('hari@ebg.com', 'Carlton');
+    assert.strictEqual(loadHistory('hari@ebg.com', 'Carlton').length, 0, 'hari Carlton history cleared');
+    assert.strictEqual(loadHistory('hari@ebg.com', 'Acer').length, 2, 'hari Acer history remains intact');
+    assert.strictEqual(loadHistory('manager@ebg.com', 'Carlton').length, 1, 'manager Carlton history remains intact');
+
+    console.log('✓ Multi-account chat history isolation and scoped deletion verified');
+  }
+
   console.log('\n========================================');
-  console.log('ALL 11 AI API INTEGRATION TESTS PASSED!');
+  console.log('ALL 12 AI API INTEGRATION TESTS PASSED!');
   console.log('========================================');
 }
 

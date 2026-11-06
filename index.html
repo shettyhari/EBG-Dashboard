@@ -1000,6 +1000,13 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
 .ask-ai-action-chip:hover{background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg);transform:translateY(-1px)}
 .ask-ai-action-chip.done{background:var(--good-bg);color:var(--good);border-color:var(--good);cursor:default}
 
+.ask-ai-account-bar{padding:6px 14px;background:var(--band);border-bottom:1px solid var(--line-soft);display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--muted);flex:0 0 auto}
+.ask-ai-account-left{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 auto}
+.ask-ai-acc-label{font-weight:600;color:var(--ink);flex:0 0 auto;font-size:11px;text-transform:uppercase;letter-spacing:0.3px}
+.ask-ai-acc-select{padding:2px 8px;font-size:11.5px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);cursor:pointer;max-width:180px;text-overflow:ellipsis}
+.ask-ai-acc-select:focus{outline:0;border-color:var(--ink)}
+.ask-ai-user-tag{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;background:var(--panel);padding:2px 6px;border-radius:4px;border:1px solid var(--line-soft)}
+
 @media (max-width:600px){
   .ask-ai-trigger{bottom:16px;right:16px;padding:9px 14px}
   .ask-ai-window{bottom:0;right:0;left:0;width:100%;max-width:100%;height:82vh;border-radius:16px 16px 0 0}
@@ -1137,6 +1144,14 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
+  </div>
+
+  <div id="ask-ai-account-bar" class="ask-ai-account-bar">
+    <div class="ask-ai-account-left">
+      <span class="ask-ai-acc-label">Account:</span>
+      <select id="ask-ai-account-select" class="ask-ai-acc-select" title="Switch account / brand conversation"></select>
+    </div>
+    <span id="ask-ai-user-tag" class="ask-ai-user-tag" title="Active user account">👤 Local</span>
   </div>
 
   <div id="ask-ai-ctx-bar" class="ask-ai-context-banner">
@@ -1911,7 +1926,9 @@ function myLoadOnline(){
   return sb.client.from("user_prefs").select("prefs").eq("email", sb.email).maybeSingle().then(function(r){
     if (r.error || myKey() !== key) return;
     if (r.data && r.data.prefs){ var p = Object.assign({}, r.data.prefs, {_for: key}); state.my = p; state.colPrefs = null; try { var c = Object.assign({}, p); delete c._for; localStorage.setItem(key, JSON.stringify(c)); } catch (e) {} if (state.raw) recompute(); else render(); }
-    else { var m = myPrefs(); if (m.cols || m.camps) saveMyPrefs(); } }).catch(function(){});
+    else { var m = myPrefs(); if (m.cols || m.camps) saveMyPrefs(); }
+    if (typeof switchAskAIAccount === "function") switchAskAIAccount(undefined, true);
+  }).catch(function(){});
 }
 function colPrefs(){ var m = myPrefs(); if (!state.colPrefs) state.colPrefs = m.cols || (m.cols = {}); return state.colPrefs; }
 function saveColPrefs(){ myPrefs().cols = state.colPrefs || {}; saveMyPrefs(); }
@@ -5518,6 +5535,7 @@ function render(){
   friendly(v);
   window.scrollTo(0, y);
   if (typeof updateAskAIContext === "function") updateAskAIContext();
+  if (typeof switchAskAIAccount === "function") switchAskAIAccount();
 }
 function recompute(){
   if (state.raw){ rebuild(); }
@@ -6500,11 +6518,16 @@ function sbInit(){
 function sbSession(session){
   sb.email = session && session.user ? String(session.user.email || "").toLowerCase() : "";
   sb.user = session && session.user ? session.user : null;
-  if (!session){ sb.status = "signedout"; sb.role = null; state.my = null; state.colPrefs = null; return Promise.resolve(); }
+  if (!session){
+    sb.status = "signedout"; sb.role = null; state.my = null; state.colPrefs = null;
+    if (typeof switchAskAIAccount === "function") switchAskAIAccount(undefined, true);
+    return Promise.resolve();
+  }
   return sb.client.from("team_members").select("role").eq("email", sb.email).maybeSingle().then(function(r){
     if (r.error){ sb.status = "error"; sb.err = r.error.message; return; }
     sb.role = r.data ? r.data.role : null; sb.status = sb.role ? "ready" : "norole"; sb.err = ""; sb.msg = null;
     state.my = null; state.colPrefs = null; if (sb.status === "ready") myLoadOnline();
+    if (typeof switchAskAIAccount === "function") switchAskAIAccount(undefined, true);
     if (sb.confirmed){ sb.confirmed = false; setTimeout(function(){ toast("Email confirmed. You're signed in."); }, 300); }
   });
 }
@@ -6544,6 +6567,7 @@ function readAuthReturn(){
 }
 function sbSignOut(){ return sb.client.auth.signOut().then(function(){ return sbSession(null); }).then(function(){
   state.source = "none"; state.raw = null; state.R = null; state.metaFiles = []; state.pending = {meta: null, crm: null}; sb.msg = null; sb.mode = "signin";
+  if (typeof switchAskAIAccount === "function") switchAskAIAccount(undefined, true);
   ["upload", "saved", "export"].forEach(function(id){ document.getElementById(id).hidden = true; }); render(); }); }
 /* page through a query 1000 rows at a time (the API's limit per request) */
 function sbAll(build, onPage){
@@ -7013,7 +7037,143 @@ function renderDbSection(x){
 
 /* ================= Ask AI Chatbot ================= */
 var askAiHistory = [];
+var askAiActiveAccountKey = "";
 var askAiSending = false;
+
+function getAskAIUserKey(){
+  var email = (typeof sb !== "undefined" && sb.email) ? String(sb.email).toLowerCase().trim() : "";
+  return email ? email : "local";
+}
+
+function getAskAIAccountScope(){
+  return (state && state.brand) ? state.brand : "All";
+}
+
+function getAskAIAccountKey(userKey, scopeKey){
+  var u = userKey || getAskAIUserKey();
+  var s = scopeKey || getAskAIAccountScope();
+  return u + "::" + s;
+}
+
+function loadAskAIHistory(userKey, scopeKey){
+  var u = userKey || getAskAIUserKey();
+  var s = scopeKey || getAskAIAccountScope();
+  var k = "ebg-ai-hist:" + u + "::" + s;
+  var list = null;
+  try {
+    var raw = localStorage.getItem(k);
+    if (raw) list = JSON.parse(raw);
+  } catch (e) {}
+
+  if ((!list || !list.length) && state.my && state.my.aiHistoryMap && state.my.aiHistoryMap[s]){
+    list = state.my.aiHistoryMap[s];
+    try { localStorage.setItem(k, JSON.stringify(list)); } catch (e) {}
+  }
+
+  // Graceful legacy migration
+  if ((!list || !list.length) && u === "local" && s === "All"){
+    try {
+      var old = JSON.parse(sessionStorage.getItem("ebg-ask-ai-history") || "null");
+      if (Array.isArray(old) && old.length){
+        list = old;
+        localStorage.setItem(k, JSON.stringify(list));
+        sessionStorage.removeItem("ebg-ask-ai-history");
+      }
+    } catch (e) {}
+  }
+
+  return Array.isArray(list) ? list : [];
+}
+
+function saveAskAIHistory(){
+  var u = getAskAIUserKey();
+  var s = getAskAIAccountScope();
+  var k = "ebg-ai-hist:" + u + "::" + s;
+  try {
+    localStorage.setItem(k, JSON.stringify(askAiHistory.slice(-25)));
+  } catch (e) {}
+
+  if (typeof sb !== "undefined" && sb.cfg && sb.status === "ready" && sb.email && sb.client){
+    clearTimeout(saveAskAIHistory._t);
+    var email = sb.email, activeScope = s, histCopy = askAiHistory.slice(-25);
+    saveAskAIHistory._t = setTimeout(function(){
+      sb.client.from("user_prefs").select("prefs").eq("email", email).maybeSingle().then(function(r){
+        var p = (r && r.data && r.data.prefs) ? r.data.prefs : {};
+        if (!p.aiHistoryMap) p.aiHistoryMap = {};
+        p.aiHistoryMap[activeScope] = histCopy;
+        if (!state.my) state.my = {};
+        state.my.aiHistoryMap = p.aiHistoryMap;
+        return sb.client.from("user_prefs").upsert({email: email, prefs: p, updated_at: new Date().toISOString()}, {onConflict: "email"});
+      }).catch(function(e){ console.warn("Could not sync AI history online:", e); });
+    }, 900);
+  }
+}
+
+function updateAskAIAccountUI(){
+  var sel = document.getElementById("ask-ai-account-select");
+  var userTag = document.getElementById("ask-ai-user-tag");
+  var u = getAskAIUserKey();
+  var currentScope = getAskAIAccountScope();
+
+  if (userTag){
+    if (u === "local"){
+      userTag.textContent = "👤 Local Mode";
+      userTag.title = "Chat history kept on this device. Sign in to sync across devices.";
+    } else {
+      userTag.textContent = "👤 " + (typeof displayName === "function" ? displayName() : u);
+      userTag.title = "Account: " + u;
+    }
+  }
+
+  if (sel){
+    var brands = (state.settings && state.settings.brands) ? state.settings.brands : [];
+    var allOptions = ["All"].concat(brands);
+    var optValues = Array.prototype.map.call(sel.options, function(o){ return o.value; }).join(",");
+    if (optValues !== allOptions.join(",")){
+      sel.textContent = "";
+      allOptions.forEach(function(b){
+        var opt = el("option", {value: b, text: b === "All" ? "All Accounts / Brands" : b});
+        sel.appendChild(opt);
+      });
+    }
+    sel.value = currentScope;
+  }
+}
+
+function switchAskAIAccount(targetScope, force){
+  var u = getAskAIUserKey();
+  var s = targetScope !== undefined ? targetScope : getAskAIAccountScope();
+  var newKey = getAskAIAccountKey(u, s);
+
+  if (!force && newKey === askAiActiveAccountKey){
+    updateAskAIAccountUI();
+    return;
+  }
+
+  if (askAiActiveAccountKey && askAiHistory.length){
+    try {
+      localStorage.setItem("ebg-ai-hist:" + askAiActiveAccountKey, JSON.stringify(askAiHistory.slice(-25)));
+    } catch (e) {}
+  }
+
+  askAiActiveAccountKey = newKey;
+  askAiHistory = loadAskAIHistory(u, s);
+
+  var box = document.getElementById("ask-ai-messages");
+  if (box){
+    box.textContent = "";
+    if (askAiHistory.length){
+      askAiHistory.forEach(function(m){
+        renderAskAIMessage(m.role === "user" ? "user" : "bot", m.content);
+      });
+    } else {
+      renderWelcomeAskAI();
+    }
+  }
+
+  updateAskAIAccountUI();
+  updateAskAIContext();
+}
 
 function getDashboardAIContext(){
   var R = state.R;
@@ -7021,6 +7181,7 @@ function getDashboardAIContext(){
   var ctx = {
     activeTab: state.tab || "overview",
     activeBrand: state.brand || "All",
+    userAccount: getAskAIUserKey(),
     dateRange: typeof rangeText === "function" ? rangeText(false) : (state.range ? (state.range.preset || "") : "All time"),
     availableBrands: ["All"].concat(bList),
     availableTabs: ["overview", "trends", "campaigns", "adsets", "ads", "status", "crmdata", "reports", "leaks", "forms", "tat", "checks", "ql", "settings", "help"],
@@ -7382,12 +7543,6 @@ function renderAskAITyping(){
   return t;
 }
 
-function saveAskAIHistory(){
-  try {
-    sessionStorage.setItem("ebg-ask-ai-history", JSON.stringify(askAiHistory.slice(-20)));
-  } catch (e) {}
-}
-
 function sendAskAIMessage(text){
   if (askAiSending) return;
   var inp = document.getElementById("ask-ai-input");
@@ -7452,10 +7607,12 @@ function sendAskAIMessage(text){
 }
 
 function renderWelcomeAskAI(){
-  var welcomeText = "Hello! I am your **Autonomous EBG Copilot** ⚡\n\n" +
-    "I analyze your live performance metrics and can **take direct actions** on your dashboard:\n" +
+  var scope = getAskAIAccountScope();
+  var scopeLabel = scope === "All" ? "all accounts and brands" : ("**" + scope + "**");
+  var welcomeText = "Hello! I am your **Autonomous EBG Copilot** for " + scopeLabel + " ⚡\n\n" +
+    "I analyze live performance metrics and can **take direct actions** on your dashboard:\n" +
     "- 🔄 **Switch tabs** (`overview`, `trends`, `campaigns`, `leaks`, `tat`, etc.)\n" +
-    "- 🏷️ **Filter brands** (switch between individual brands or All)\n" +
+    "- 🏷️ **Filter brands & accounts**\n" +
     "- 📅 **Adjust date ranges** (Today, Yesterday, Last 7d, Last 30d, etc.)\n" +
     "- 🔍 **Filter & search campaigns** and tables in real time\n" +
     "- 📊 **Open Excel report exports**\n\n" +
@@ -7486,15 +7643,43 @@ function initAskAI(){
     badge.onclick = function(){ openAiSettings(); };
   }
 
+  var accSel = document.getElementById("ask-ai-account-select");
+  if (accSel){
+    accSel.addEventListener("change", function(){
+      var chosen = accSel.value;
+      if (chosen !== state.brand){
+        state.brand = chosen;
+        state.limit = {};
+        render();
+      }
+      switchAskAIAccount(chosen, true);
+    });
+  }
+
   var btnClear = document.getElementById("ask-ai-btn-clear");
   if (btnClear){
     btnClear.onclick = function(){
-      if (askAiHistory.length && !confirm("Clear conversation history?")) return;
+      var currentAccount = getAskAIAccountScope();
+      var label = currentAccount === "All" ? "All Accounts" : currentAccount;
+      if (askAiHistory.length && !confirm("Clear conversation history for " + label + "?")) return;
       askAiHistory = [];
-      try { sessionStorage.removeItem("ebg-ask-ai-history"); } catch (e) {}
+      var u = getAskAIUserKey();
+      var k = "ebg-ai-hist:" + u + "::" + currentAccount;
+      try { localStorage.removeItem(k); } catch (e) {}
+      if (typeof sb !== "undefined" && sb.cfg && sb.status === "ready" && sb.email && sb.client){
+        sb.client.from("user_prefs").select("prefs").eq("email", sb.email).maybeSingle().then(function(r){
+          var p = (r && r.data && r.data.prefs) ? r.data.prefs : {};
+          if (p.aiHistoryMap && p.aiHistoryMap[currentAccount]){
+            delete p.aiHistoryMap[currentAccount];
+            if (state.my && state.my.aiHistoryMap) delete state.my.aiHistoryMap[currentAccount];
+            sb.client.from("user_prefs").upsert({email: sb.email, prefs: p, updated_at: new Date().toISOString()}, {onConflict: "email"});
+          }
+        }).catch(function(){});
+      }
       var box = document.getElementById("ask-ai-messages");
       if (box) box.textContent = "";
       renderWelcomeAskAI();
+      if (typeof toast === "function") toast("Cleared chat history for " + label);
     };
   }
 
@@ -7521,18 +7706,8 @@ function initAskAI(){
     });
   }
 
-  // Restore history or show welcome greeting
-  var stored = null;
-  try { stored = JSON.parse(sessionStorage.getItem("ebg-ask-ai-history") || "null"); } catch (e) {}
-  if (Array.isArray(stored) && stored.length){
-    askAiHistory = stored;
-    stored.forEach(function(m){
-      renderAskAIMessage(m.role === "user" ? "user" : "bot", m.content);
-    });
-  } else {
-    renderWelcomeAskAI();
-  }
-
+  // Restore history for active account scope or show welcome greeting
+  switchAskAIAccount(undefined, true);
   updateAskAIStatus();
   updateAskAIContext();
 }
