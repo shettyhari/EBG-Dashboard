@@ -859,8 +859,121 @@ async function runTests() {
     console.log('✓ Multi-account chat history isolation and scoped deletion verified');
   }
 
+  // Test 13: Unique brand deduplication, QL duplicate retention, and Lead Temperature
+  console.log('Test 13: Unique brand deduplication, QL duplicate retention, and Lead Temperature');
+  {
+    const fs = require('fs');
+    const vm = require('vm');
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+
+    // Extract the engine code from index.html (between DEFAULT_SETTINGS and ENGINE END)
+    const scriptEnd = indexHtml.indexOf('// ENGINE END');
+    assert(scriptEnd > 0, 'ENGINE END boundary should exist in index.html');
+
+    const helpersStart = indexHtml.indexOf('// ENGINE START');
+    assert(helpersStart > 0, 'ENGINE START boundary should exist in index.html');
+    const codeToRun = indexHtml.slice(helpersStart, scriptEnd);
+
+    const sandbox = {
+      console: console,
+      Date: Date,
+      Math: Math,
+      Number: Number,
+      String: String,
+      Array: Array,
+      Object: Object,
+      isFinite: isFinite,
+      isNaN: isNaN,
+      parseInt: parseInt,
+      parseFloat: parseFloat
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(codeToRun, sandbox);
+
+    // Verify leadTemperature function
+    const leadTemperature = sandbox.leadTemperature;
+    assert.strictEqual(typeof leadTemperature, 'function', 'leadTemperature function should exist');
+    assert.strictEqual(leadTemperature('Won'), 'Hot');
+    assert.strictEqual(leadTemperature('Token Received'), 'Hot');
+    assert.strictEqual(leadTemperature('Payment Completed'), 'Hot');
+    assert.strictEqual(leadTemperature('Interested'), 'Warm');
+    assert.strictEqual(leadTemperature('Site Visit Scheduled'), 'Warm');
+    assert.strictEqual(leadTemperature('Details Shared'), 'Warm');
+    assert.strictEqual(leadTemperature('New Lead'), 'Cold');
+    assert.strictEqual(leadTemperature('Not Interested'), 'Cold');
+    assert.strictEqual(leadTemperature('Junk Lead'), 'Cold');
+    assert.strictEqual(leadTemperature('Custom Status', 'Hot'), 'Hot');
+    assert.strictEqual(leadTemperature('Custom Status', 'Warm'), 'Warm');
+    assert.strictEqual(leadTemperature('Custom Status', 'Cold'), 'Cold');
+
+    // Now test processData with cross-brand and duplicate leads
+    const metaAOA = [
+      ["Campaign name", "Ad set name", "Ad name", "Amount spent", "Results", "Reporting starts", "Reporting ends"],
+      ["Carlton | Conversions", "Adset 1", "Ad 1", "1000", "5", "2025-01-01", "2025-01-05"],
+      ["Acer | Conversions", "Adset 2", "Ad 2", "1500", "8", "2025-01-01", "2025-01-05"]
+    ];
+
+    const crmAOA = [
+      ["Lead id", "Created On", "Lead Source", "Facebook Campaign Name", "Facebook Ad Set Name", "Facebook Ad", "Status", "Brand", "Phone", "Email", "Previous lead", "Lead Temperature"],
+      // Lead 1: Person A submits for Carlton (Brand 1)
+      ["L1", "2025-01-01 10:00", "Facebook", "Carlton | Conversions", "Adset 1", "Ad 1", "New Lead", "Carlton", "9876543210", "personA@example.com", "", "Cold"],
+      // Lead 2: Same Person A submits for Acer (Brand 2). Unique brand!
+      // In TeleCRM, Previous lead points to L1 because the contact existed under Carlton.
+      ["L2", "2025-01-02 11:00", "Facebook", "Acer | Conversions", "Adset 2", "Ad 2", "Interested", "Acer", "9876543210", "personA@example.com", "L1", "Warm"],
+      // Lead 3: Same Person A submits for Acer AGAIN (repeat lead for same brand). Status: Site Visit Scheduled (QL)
+      ["L3", "2025-01-03 12:00", "Facebook", "Acer | Conversions", "Adset 2", "Ad 2", "Site Visit Scheduled", "Acer", "9876543210", "personA@example.com", "L2", "Warm"],
+      // Lead 4: Same Person A submits for Acer a 3rd time. Status: Not Interested (Not QL duplicate)
+      ["L4", "2025-01-04 13:00", "Facebook", "Acer | Conversions", "Adset 2", "Ad 2", "Not Interested", "Acer", "9876543210", "personA@example.com", "L3", "Cold"]
+    ];
+
+    const S = sandbox.DEFAULT_SETTINGS;
+    S.dupExclude = true; // default setting: exclude duplicates
+    const R = sandbox.processData(metaAOA, crmAOA, S, null, Date.UTC(2025, 0, 10));
+
+    // 1. Verify Unique Brands Deduplication:
+    // L2 was submitted for Acer while L1 was Carlton.
+    // L2 MUST NOT be treated as a duplicate!
+    const l2Dup = (R.dupList || []).find(d => d.id === 'L2');
+    assert.strictEqual(l2Dup, undefined, 'Lead 2 (unique brand Acer) should NOT be in dupList');
+
+    // 2. Verify Duplicate Lead QL Retention:
+    // L3 was submitted for Acer (same brand as L2), so it is a duplicate of L2.
+    // BUT L3 status is "Site Visit Scheduled" (QL).
+    // Because it is a QL, its QL count MUST NOT be dropped!
+    const l3Dup = (R.dupList || []).find(d => d.id === 'L3');
+    assert.notStrictEqual(l3Dup, undefined, 'Lead 3 should be detected as a repeat lead for Acer');
+    assert.strictEqual(l3Dup.excluded, false, 'Lead 3 is a Qualified Lead, so excluded must be false');
+    assert.strictEqual(l3Dup.isQL, true, 'Lead 3 isQL must be true');
+
+    // L4 is not a QL ("Not Interested"), so it should be excluded
+    const l4Dup = (R.dupList || []).find(d => d.id === 'L4');
+    assert.notStrictEqual(l4Dup, undefined, 'Lead 4 should be detected as a duplicate');
+    assert.strictEqual(l4Dup.excluded, true, 'Lead 4 is NOT a QL, so excluded must be true when dupExclude is on');
+
+    // Check Acer QL count:
+    // Acer had L2 (Interested, QL) and L3 (Site Visit Scheduled, QL duplicate).
+    // Both QLs must be counted!
+    const acerBrand = R.brandRows.find(b => b.brand === 'Acer');
+    assert(acerBrand, 'Acer brand row should exist');
+    assert.strictEqual(acerBrand.ql, 2, 'Acer should have 2 QLs (L2 + L3), not 1!');
+
+    // Check R.statuses has Lead Temperature
+    assert(R.statuses && R.statuses.length > 0, 'R.statuses should not be empty');
+    R.statuses.forEach(st => {
+      assert(['Hot', 'Warm', 'Cold'].includes(st.temperature), 'Every status should have Hot, Warm, or Cold temperature');
+    });
+
+    // Check viewQL UI in index.html contains temperature column and KPI cards
+    assert(indexHtml.includes('Lead Temperature'), 'index.html should have Lead Temperature column');
+    assert(indexHtml.includes('🔥 Hot Leads'), 'index.html should have Hot Leads KPI');
+    assert(indexHtml.includes('⚡ Warm Leads'), 'index.html should have Warm Leads KPI');
+    assert(indexHtml.includes('❄️ Cold Leads'), 'index.html should have Cold Leads KPI');
+
+    console.log('✓ Unique brands deduplication, duplicate QL retention, and Lead Temperature verified');
+  }
+
   console.log('\n========================================');
-  console.log('ALL 12 AI API INTEGRATION TESTS PASSED!');
+  console.log('ALL 13 AI API INTEGRATION TESTS PASSED!');
   console.log('========================================');
 }
 

@@ -224,6 +224,9 @@ td.name{min-width:180px;max-width:340px;overflow-wrap:anywhere}
 td.nowrap{white-space:nowrap}
 .pill{display:inline-block;padding:2px 7px;font-size:11px;border:1px solid currentColor;white-space:nowrap}
 .pill.good{color:var(--good)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)} .pill.mut{color:var(--muted)}
+.pill.temp-hot{color:#d93025;border-color:rgba(217,48,37,0.35);background:rgba(217,48,37,0.08);font-weight:600}
+.pill.temp-warm{color:#e37400;border-color:rgba(227,116,0,0.35);background:rgba(227,116,0,0.08);font-weight:600}
+.pill.temp-cold{color:#1a73e8;border-color:rgba(26,115,232,0.35);background:rgba(26,115,232,0.08);font-weight:600}
 .more{display:flex;justify-content:center;padding:10px}
 
 /* checks */
@@ -1215,7 +1218,7 @@ var DEFAULT_SETTINGS = {
   ai: {provider: "gemini", model: "gemini-1.5-flash", apiKey: "", customUrl: "", systemPrompt: "", temperature: 0.3},
   cols: {
     meta: {campaign:"Campaign name", adset:"Ad set name", ad:"Ad name", spend:"Amount spent", results:"Results", leads:"Leads", start:"Reporting starts", end:"Reporting ends"},
-    crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name", manager:"Assignee Manager name", phone:"Phone", email:"Email", fbLead:"Facebook Lead ID"}
+    crm: {id:"Lead id", created:"Created On", source:"Lead Source", campaign:"Facebook Campaign Name", adset:"Facebook Ad Set Name", ad:"Facebook Ad", status:"Status", brand:"Brand", firstCall:"First Attempted Call", owner:"Assignee name", manager:"Assignee Manager name", phone:"Phone", email:"Email", fbLead:"Facebook Lead ID", temperature:"Lead Temperature"}
   }
 };
 function isNum(x){ return typeof x === "number" && isFinite(x); }
@@ -1328,6 +1331,27 @@ function classifyStatus(status, S){
   for (k = 0; k < S.qlNeg.length; k++) if (S.qlNeg[k] && l.indexOf(S.qlNeg[k].toLowerCase()) >= 0) return {ql: false, reason: "Negative intent: " + S.qlNeg[k]};
   for (k = 0; k < S.qlPos.length; k++) if (S.qlPos[k] && l.indexOf(S.qlPos[k].toLowerCase()) >= 0) return {ql: true, reason: "Buying intent: " + S.qlPos[k]};
   return {ql: false, reason: "No buying intent yet (early stage)"};
+}
+function leadTemperature(status, rawTemp){
+  if (rawTemp !== null && rawTemp !== undefined){
+    var rt = String(rawTemp).trim().toLowerCase();
+    if (rt){
+      if (/hot|high|strong|urgent|priority\s*1|p1|\b5\b|\b4\b/i.test(rt)) return "Hot";
+      if (/warm|medium|med|moderate|priority\s*2|p2|\b3\b/i.test(rt)) return "Warm";
+      if (/cold|low|weak|priority\s*3|p3|\b1\b|\b2\b/i.test(rt)) return "Cold";
+    }
+  }
+  var s = (status || "").toLowerCase().trim();
+  if (!s) return "Cold";
+  if (/not interest|lost|junk|invalid|fake|drop|spam|reject|dead|unreach|unqual|disqual|wrong|rnr|no response|dnd|not eligible|below budget|no budget|not connect/i.test(s)) return "Cold";
+  if (/won|booked|booking|token|advance|converted|deal closed|closed deal|sale|visit completed|site visit done|payment|hot/i.test(s)) return "Hot";
+  if (/interest|site visit|visit|meeting|detail|shared|follow|prospect|quote|discuss|callback|re-call|negotiat|pipeline|connected|warm/i.test(s)) return "Warm";
+  var stSet = typeof state !== "undefined" && state && state.settings ? state.settings : (typeof DEFAULT_SETTINGS !== "undefined" ? DEFAULT_SETTINGS : null);
+  if (stSet){
+    var cls = classifyStatus(status, stSet);
+    if (cls && cls.ql) return "Warm";
+  }
+  return "Cold";
 }
 function campKey(name){ return clean(name).toLowerCase(); }
 /* brand chosen at upload (Meta reports uploaded brand-wise) wins over the brand keywords */
@@ -1509,25 +1533,34 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     if (hit) cnt.renamedCamp = (cnt.renamedCamp || 0) + 1;
     return (renameCache[l] = hit || name); }
   /* ---------- CRM ---------- */
-  var cc = S.cols.crm, ch = findHeaderRow(crmAOA || [], cc.id), leads = [], statusFirst = [], statusSeen = {};
+  var cc = S.cols.crm, ch = findHeaderRow(crmAOA || [], cc.id), leads = [], statusFirst = [], statusSeen = {}, statusTempCounts = {};
   var cnt = {excluded: 0, outsideSel: 0, pasted: 0, nonMeta: 0, outRange: 0, dupExtra: 0, noId: 0, badCreated: 0, noCampCounted: 0, unmatchedCounted: 0};
   var crmOnly = {}, crmOnlyOrder = [], unmatched = [], noCampByBrand = {}, rowInfo = {};
   if (ch < 0) missing.push("TeleCRM: " + cc.id);
   else {
     var HC = crmAOA[ch];
+    var tempCol = findCol(HC, cc.temperature);
+    if (tempCol < 0) tempCol = findCol(HC, "Lead Temperature");
+    if (tempCol < 0) tempCol = findCol(HC, "Temperature");
+    if (tempCol < 0) tempCol = findCol(HC, "Lead Temp");
+    if (tempCol < 0) tempCol = findCol(HC, "Rating");
     var k = {id: findCol(HC, cc.id), created: findCol(HC, cc.created), source: findCol(HC, cc.source), camp: findCol(HC, cc.campaign),
              adset: findCol(HC, cc.adset), ad: findCol(HC, cc.ad), status: findCol(HC, cc.status), brand: findCol(HC, cc.brand),
              fc: findCol(HC, cc.firstCall), owner: findCol(HC, cc.owner), manager: findCol(HC, cc.manager),
-             phone: findCol(HC, cc.phone), email: findCol(HC, cc.email), fbLead: findCol(HC, cc.fbLead),
+             phone: findCol(HC, cc.phone), email: findCol(HC, cc.email), fbLead: findCol(HC, cc.fbLead), temperature: tempCol,
              prevLead: findCol(HC, "Previous lead"), prevCreated: findCol(HC, "Previous lead created"), dupHow: findCol(HC, "Duplicate match")};
     hasManager = k.manager >= 0;
     /* ---- same person, same brand, earlier lead: from the database (Previous lead) or worked out here from phone / email / Facebook lead id ---- */
     var dupInfo = {}, dupKeysFound = k.prevLead >= 0 || k.phone >= 0 || k.email >= 0 || k.fbLead >= 0;
     var gB = function(r){ var c0 = clean(r[k.camp]), b0 = k.brand >= 0 ? clean(r[k.brand]) : ""; return c0 ? brandOf(c0) : (b0 ? brandOf(b0) : "No campaign"); };
-    if (k.prevLead >= 0){
-      for (var jd = ch + 1; jd < crmAOA.length; jd++){ var rd = crmAOA[jd] || [], pl = clean(rd[k.prevLead]);
-        if (pl) dupInfo[jd] = {prev: pl, prevAt: k.prevCreated >= 0 ? parseDT(rd[k.prevCreated]) : null, how: k.dupHow >= 0 ? clean(rd[k.dupHow]) : ""}; }
-    } else if (k.phone >= 0 || k.email >= 0 || k.fbLead >= 0){
+    var leadBrandById = {};
+    for (var jb = ch + 1; jb < crmAOA.length; jb++){
+      var rb = crmAOA[jb] || [];
+      var bid = clean(rb[k.id]);
+      if (bid) leadBrandById[bid] = gB(rb).toLowerCase();
+    }
+    var phoneDups = {};
+    if (k.phone >= 0 || k.email >= 0 || k.fbLead >= 0){
       var ents = [];
       for (var je = ch + 1; je < crmAOA.length; je++){ var re = crmAOA[je] || [], ce = parseDT(re[k.created]); if (!isNum(ce)) continue;
         var ks = []; var ph = k.phone >= 0 ? normPhone(re[k.phone]) : "", em = k.email >= 0 ? normEmail(re[k.email]) : "", fl = k.fbLead >= 0 ? normFbLead(re[k.fbLead]) : "";
@@ -1537,8 +1570,24 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       var lastBy = {};
       ents.forEach(function(e){ var best = null;
         e.ks.forEach(function(kk){ var p = lastBy[e.b + "|" + kk[1]]; if (p && p.id !== e.id && (!best || p.at > best.at)) best = {prev: p.id, prevAt: p.at, how: kk[0]}; });
-        if (best) dupInfo[e.j] = best;
+        if (best) phoneDups[e.j] = best;
         e.ks.forEach(function(kk){ lastBy[e.b + "|" + kk[1]] = {id: e.id, at: e.at}; }); });
+    }
+    if (k.prevLead >= 0){
+      for (var jd = ch + 1; jd < crmAOA.length; jd++){
+        var rd = crmAOA[jd] || [], pl = clean(rd[k.prevLead]);
+        var curB = gB(rd).toLowerCase();
+        if (pl){
+          if (leadBrandById[pl] && leadBrandById[pl] !== curB) continue;
+          if (phoneDups[jd]){ dupInfo[jd] = phoneDups[jd]; }
+          else if (!leadBrandById[pl] && (k.phone >= 0 || k.email >= 0 || k.fbLead >= 0)) continue;
+          else { dupInfo[jd] = {prev: pl, prevAt: k.prevCreated >= 0 ? parseDT(rd[k.prevCreated]) : null, how: k.dupHow >= 0 ? clean(rd[k.dupHow]) : "Previous lead"}; }
+        } else if (phoneDups[jd]){
+          dupInfo[jd] = phoneDups[jd];
+        }
+      }
+    } else {
+      dupInfo = phoneDups;
     }
     var dupWin = (num(S.dupDays) > 0 ? num(S.dupDays) : 0) * 86400000, dupList = [], dupIds = {};
     ["created", "camp", "adset", "ad"].forEach(function(f){ if (k[f] < 0) missing.push("TeleCRM: " + cc[{created: "created", camp: "campaign", adset: "adset", ad: "ad"}[f]]); });
@@ -1563,14 +1612,19 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       if (!sourceOK) cnt.nonMeta++;
       var inRange = isNum(created) && dayOf(created) >= effFrom && dayOf(created) <= effTo;
       if (isNum(created) && !inRange) cnt.outRange++;
+      var cls = status ? classifyStatus(status, S) : {ql: false};
+      var isQL = !!cls.ql;
+      var rawTemp = k.temperature >= 0 ? clean(g(row, k.temperature)) : "";
+      var rowTemp = leadTemperature(status, rawTemp);
+      var brand = camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign");
       var dpi = dupInfo[j], isDup = !!(dpi && (!dupWin || !isNum(dpi.prevAt) || !isNum(created) || created - dpi.prevAt <= dupWin));
       var counted = (!S.optDedupe || !id || first) && (!S.optSource || sourceOK) && (!S.optDates || inRange);
       if (counted && isDup){ cnt.dupPerson = (cnt.dupPerson || 0) + 1;
+        var dupExcluded = !!(S.dupExclude && !isQL);
         if (dupList.length < 5000) dupList.push({id: id, created: isNum(created) ? created : null, brand: brand, campaign: camp2 || ("(No campaign) — " + (source || "blank source")), source: source, status: status,
-          prev: dpi.prev, prevAt: isNum(dpi.prevAt) ? dpi.prevAt : null, how: dpi.how, gapH: isNum(dpi.prevAt) && isNum(created) ? (created - dpi.prevAt) / 3600000 : null, excluded: !!S.dupExclude});
-        if (S.dupExclude){ counted = false; if (id) dupIds[id] = 1; } }
+          prev: dpi.prev, prevAt: isNum(dpi.prevAt) ? dpi.prevAt : null, how: dpi.how, gapH: isNum(dpi.prevAt) && isNum(created) ? (created - dpi.prevAt) / 3600000 : null, excluded: dupExcluded, isQL: isQL, temperature: rowTemp});
+        if (dupExcluded){ counted = false; if (id) dupIds[id] = 1; } }
       if (status && !(status in statusSeen)){ statusSeen[status] = 0; statusFirst.push(status); }
-      var brand = camp2 ? brandOf(camp2) : (crmBrand ? brandOf(crmBrand) : "No campaign");
       /* leads TeleCRM saved without a campaign (e.g. WhatsApp Cloud API) can be mapped to a Meta campaign in Settings */
       var mapped = false;
       if (!camp2 && S.sourceMap){ var mk = (brand + "|" + (source || "(blank source)")).toLowerCase(), mc = pickMapped(S.sourceMap[mk], mk, isNum(created) ? dayOf(created) : null, campDay, mapAlloc);
@@ -1579,15 +1633,19 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
                        : "~nocamp|" + brand.toLowerCase() + "|" + (source || "(blank source)").toLowerCase();
       var matched = !!(camp2 && !mapped && metaAds[key2]);
       rowInfo[j] = {brand: brand, mapped: mapped, matched: matched, hasCamp: !!camp2, key: matched ? key2 : null, campaign: camp2, mapAd: mapped ? camp2 : "",
-        ql: status ? !!classifyStatus(status, S).ql : false, dupOf: isDup ? dpi.prev : "",
-        why: counted ? "" : (S.optDedupe && id && !first) ? "Repeated lead id" : (S.optSource && !sourceOK) ? "Not a Meta lead source" : (S.optDates && !inRange) ? "Outside the Meta data dates" : (S.dupExclude && isDup) ? "Duplicate person (left out)" : "Not counted"};
+        ql: isQL, dupOf: isDup ? dpi.prev : "", temp: rowTemp,
+        why: counted ? (isDup ? "Duplicate lead (QL counted)" : "") : (S.optDedupe && id && !first) ? "Repeated lead id" : (S.optSource && !sourceOK) ? "Not a Meta lead source" : (S.optDates && !inRange) ? "Outside the Meta data dates" : (S.dupExclude && isDup) ? "Duplicate person (left out)" : "Not counted"};
       if (!counted) continue;
       if (camp2 && excl[campKey(camp2)]){ cnt.excluded++; infoOf(camp2, brand).crm++; }
-      if (status) statusSeen[status]++;
-      var cls = status ? classifyStatus(status, S) : {ql: false};
+      if (status){
+        statusSeen[status]++;
+        var stLow = status.toLowerCase();
+        if (!statusTempCounts[stLow]) statusTempCounts[stLow] = {Hot: 0, Warm: 0, Cold: 0};
+        statusTempCounts[stLow][rowTemp] = (statusTempCounts[stLow][rowTemp] || 0) + 1;
+      }
       var tm = leadTiming(created, fc, S, hol, nowT), tat = tm.tat, sla = tm.sla;
       var L = {id: id, created: isNum(created) ? created : null, brand: brand, campaign: camp2, adset: adset2, ad: ad2, status: status, owner: owner,
-               fc: isNum(fc) ? fc : null, tat: tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: sla, isQL: !!cls.ql, shown: shownBrand(brand), source: source, manager: manager};
+               fc: isNum(fc) ? fc : null, tat: tat, wh: tm.wh, pendO: tm.pendO, pendW: tm.pendW, sla: sla, isQL: isQL, shown: shownBrand(brand), source: source, manager: manager, temperature: rowTemp};
       leads.push(L);
       if (mapped) cnt.mappedCounted = (cnt.mappedCounted || 0) + 1;
       if (!camp2){ cnt.noCampCounted++; noCampByBrand[brand] = (noCampByBrand[brand] || 0) + 1; }
@@ -1679,7 +1737,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     {k: "outRange", label: "CRM rows created outside the report dates", n: cnt.outRange, kind: cnt.outRange ? "warn" : "ok", detail: S.optDates ? "Excluded (counting rule on)." : "Counted (counting rule off)."},
     {k: "dupPerson", label: "Duplicate leads: same person came in again for the same brand (phone, email or Facebook lead id)", n: cnt.dupPerson || 0, kind: cnt.dupPerson ? "warn" : (dupKeysFound ? "ok" : "warn"),
      detail: !dupKeysFound ? "No Phone, Email or Facebook Lead ID column found, so repeat leads can't be detected. Include them in the TeleCRM export (column names in Settings)." :
-       (S.dupExclude ? "Left out of Leads in CRM, QLs, CPQL and TAT (Settings › Counting rules). " : "Still counted (Settings › Counting rules). ") + (num(S.dupDays) > 0 ? "Window: within " + num(S.dupDays) + " days of the earlier lead." : "Window: any earlier lead.") + " See the list on the Data checks tab."},
+       (S.dupExclude ? "Unqualified duplicate leads left out of report. Qualified duplicate leads (QLs) are counted." : "Still counted (Settings › Counting rules). ") + (num(S.dupDays) > 0 ? " Window: within " + num(S.dupDays) + " days of the earlier lead." : " Window: any earlier lead.") + " See the list on the Data checks tab."},
     {k: "dup", label: "CRM rows with a duplicate Lead id (extra copies)", n: cnt.dupExtra, kind: cnt.dupExtra ? "warn" : "ok", detail: S.optDedupe ? "Extra copies excluded (counting rule on)." : "Counted (counting rule off)."},
     {k: "bad", label: "CRM rows without Lead id or with an unreadable Created On", n: cnt.noId + cnt.badCreated, kind: cnt.noId + cnt.badCreated ? "warn" : "ok"},
     {k: "metaDup", label: "Meta rows that look pasted twice (same ad and date)", n: dupRows, kind: dupRows ? "warn" : "ok"},
@@ -1690,7 +1748,15 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
   ];
   if (cnt.renamedCamp) checks.push({k: "renamed", label: "TeleCRM campaign names matched to a renamed Meta campaign", n: cnt.renamedCamp, kind: "info",
     detail: "These campaigns were renamed in Meta (for example the “EBG - In House |” prefix removed). Their TeleCRM leads are counted under the new name."});
-  var statuses = statusFirst.map(function(s){ var c2 = classifyStatus(s, S); return {status: s, count: statusSeen[s], ql: c2.ql, reason: c2.reason, override: S.qlOverride[s.toLowerCase()] || ""}; });
+  var statuses = statusFirst.map(function(s){
+    var c2 = classifyStatus(s, S);
+    var stLow = s.toLowerCase();
+    var tc = statusTempCounts[stLow] || {Hot: 0, Warm: 0, Cold: 0};
+    var domTemp = (tc.Hot >= tc.Warm && tc.Hot >= tc.Cold && tc.Hot > 0) ? "Hot" :
+                  (tc.Warm >= tc.Cold && tc.Warm > 0) ? "Warm" :
+                  (tc.Cold > 0) ? "Cold" : leadTemperature(s, null);
+    return {status: s, count: statusSeen[s], ql: c2.ql, reason: c2.reason, override: S.qlOverride[stLow] || "", temperature: domTemp};
+  });
   var needsCall = [], lite = [];
   leads.forEach(function(L){ if (!L.shown) return; lite.push([L.brand, L.owner, L.tat, L.sla, L.wh, L.pendO, L.pendW, L.manager, L.isQL ? 1 : 0]);
     if (L.sla !== "Within SLA") needsCall.push({id: L.id, created: L.created, manager: L.manager, brand: L.brand, campaign: L.campaign || ("(No campaign) — " + (L.source || "blank source")), ad: L.ad, owner: L.owner, fc: L.fc, tat: L.tat, wh: L.wh, pendO: L.pendO, pendW: L.pendW, sla: L.sla, status: L.status, isQL: L.isQL}); });
@@ -2437,6 +2503,7 @@ function crmDataCols(){
     {k: "mUi", label: "Ad leads in UI", t: "int", def: false, get: function(r){ var a = r.x.key ? D.metaAds[r.x.key] : null; return a ? a.ui : null; }},
     {k: "mCpl", label: "Ad CPL", t: "inr", def: false, get: function(r){ var a = r.x.key ? D.metaAds[r.x.key] : null; return a ? a.cpl : null; }},
     {k: "mQL", label: "Qualified", t: "text", get: function(r){ return r.x.ql ? "QL" : "Not QL"; }, render: function(r){ return el("span", {cls: "pill " + (r.x.ql ? "good" : "mut"), text: r.x.ql ? "QL" : "Not QL"}); }},
+    {k: "mTemp", label: "Lead Temperature", t: "text", cls: "nowrap", get: function(r){ return r.x.temp || ""; }, render: function(r){ var tp = r.x.temp || "Cold"; return el("span", {cls: "pill temp-" + tp.toLowerCase(), text: (tp === "Hot" ? "🔥 Hot" : tp === "Warm" ? "⚡ Warm" : "❄️ Cold")}); }},
     {k: "mWhy", label: "In report", t: "text", cls: "nowrap", get: function(r){ return r.x.why || "Counted"; }, flag: function(r){ return r.x.why ? "warn" : null; }},
     {k: "mDup", label: "Same person as lead", t: "text", cls: "nowrap", def: false, get: function(r){ return r.x.dupOf || ""; }}];
   var cols = [];
@@ -3423,12 +3490,13 @@ function dupSection(){
   var R = state.R, list = (R.dupList || []).filter(function(d){ return brandOK(d.brand) && matchQ("dups", d, ["id", "prev", "campaign", "source"]); });
   var cols = [{k: "id", label: "Lead id", t: "text", cls: "nowrap", lock: true}, {k: "created", label: "Created", t: "dt", cls: "nowrap"}, {k: "brand", label: "Brand", t: "text", cls: "nowrap"},
     {k: "campaign", label: "Campaign", t: "text", cls: "name"}, {k: "source", label: "Lead source", t: "text", cls: "nowrap"}, {k: "status", label: "Status", t: "text", cls: "nowrap"},
+    {k: "temperature", label: "Lead Temperature", t: "text", cls: "nowrap", get: function(r){ return r.temperature || ""; }, render: function(r){ var tp = r.temperature || "Cold"; return el("span", {cls: "pill temp-" + tp.toLowerCase(), text: (tp === "Hot" ? "🔥 Hot" : tp === "Warm" ? "⚡ Warm" : "❄️ Cold")}); }},
     {k: "how", label: "Matched on", t: "text", cls: "nowrap"}, {k: "prev", label: "Earlier lead id", t: "text", cls: "nowrap"}, {k: "prevAt", label: "Earlier lead created", t: "dt", cls: "nowrap"},
     {k: "gapH", label: "Time since earlier lead", t: "text", cls: "nowrap", get: function(r){ return !isNum(r.gapH) ? "" : r.gapH < 24 ? Math.round(r.gapH) + " hrs" : Math.round(r.gapH / 24) + " days"; }},
-    {k: "excluded", label: "Counted?", t: "text", get: function(r){ return r.excluded ? "Left out" : "Counted"; }, render: function(r){ return el("span", {cls: "pill " + (r.excluded ? "warn" : "mut"), text: r.excluded ? "Left out" : "Counted"}); }}];
+    {k: "excluded", label: "Counted?", t: "text", get: function(r){ return r.excluded ? "Left out" : (r.isQL ? "Counted (QL)" : "Counted"); }, render: function(r){ return el("span", {cls: "pill " + (r.excluded ? "warn" : "good"), text: r.excluded ? "Left out" : (r.isQL ? "Counted (QL)" : "Counted")}); }}];
   return el("div", {cls: "panel", id: "dups"},
     el("div", {cls: "sec-head"}, el("h2", {text: "Duplicate leads (" + fInt(list.length) + ")"}),
-      el("span", {cls: "note", text: R.dupKeys ? "The same person (same phone, email or Facebook lead id) came in again for the same brand. The first lead counts; later ones are " + (R.dupExcluded ? "left out" : "counted but flagged") + ". Change this in Settings › Counting rules. Phone numbers and emails aren't stored: the database keeps only a coded key." :
+      el("span", {cls: "note", text: R.dupKeys ? "The same person came in again for the same brand. Unique brands are never flagged as duplicate leads. Unqualified duplicates are " + (R.dupExcluded ? "left out" : "counted but flagged") + ", while qualified duplicate leads (QLs) are always counted." :
         "Add the Phone, Email or Facebook Lead ID columns to the TeleCRM export to detect repeat leads."})),
     el("div", {cls: "tbl-tools"}, searchBox("dups", "Search lead id, earlier lead id or campaign")),
     table("dups", cols, list, {empty: R.dupKeys ? "No duplicate leads for this filter." : "Duplicate detection needs Phone, Email or Facebook Lead ID in the TeleCRM data."}));
@@ -4184,18 +4252,46 @@ function renderProvUpload(){
 
 function viewQL(){
   var R = state.R, editable = !!state.raw;
-  var cols = [{k: "status", label: "Status in CRM", t: "text", cls: "name"}, {k: "count", label: "Leads", t: "int"},
+  var allStatuses = (R && R.statuses) || [];
+  var totLeads = 0, qlLeads = 0, hotLeads = 0, warmLeads = 0, coldLeads = 0;
+  allStatuses.forEach(function(s){
+    var cnt = s.count || 0;
+    totLeads += cnt;
+    if (s.ql) qlLeads += cnt;
+    if (s.temperature === "Hot") hotLeads += cnt;
+    else if (s.temperature === "Warm") warmLeads += cnt;
+    else coldLeads += cnt;
+  });
+  var cols = [
+    {k: "status", label: "Status in CRM", t: "text", cls: "name"},
+    {k: "temperature", label: "Lead Temperature", t: "text", cls: "nowrap",
+      get: function(r){ return r.temperature || ""; },
+      render: function(r){
+        var tp = r.temperature || "Cold";
+        var icon = tp === "Hot" ? "🔥 " : tp === "Warm" ? "⚡ " : "❄️ ";
+        return el("span", {cls: "pill temp-" + tp.toLowerCase(), text: icon + tp});
+      }
+    },
+    {k: "count", label: "Leads", t: "int"},
     {k: "ql", label: "Counts as", t: "text", get: function(r){ return r.ql ? "QL" : "Not QL"; }, render: function(r){ return el("span", {cls: "pill " + (r.ql ? "good" : "mut"), text: r.ql ? "QL" : "Not QL"}); }},
     {k: "reason", label: "Why", t: "text"},
     {k: "override", label: "Override", t: "text", nosort: true, render: function(r){
       var s = el("select", {id: "ov-" + r.status.replace(/[^a-z0-9]/gi, "_"), "aria-label": "Override for " + r.status, disabled: editable ? null : true}, ["", "QL", "Not QL"].map(function(o){
         return el("option", {value: o, selected: (r.override || "") === o ? true : null, text: o === "" ? "Automatic" : o}); }));
       s.addEventListener("change", function(){ var k = r.status.toLowerCase(); if (s.value) state.settings.qlOverride[k] = s.value; else delete state.settings.qlOverride[k]; storeSettings(); recompute(); });
-      return s; }}];
+      return s; }}
+  ];
+  var kpiCards = [
+    kpi("Qualified Leads (QL)", fInt(qlLeads), totLeads ? fPct(qlLeads / totLeads) + " of CRM leads" : "0%", "good"),
+    kpi("🔥 Hot Leads", fInt(hotLeads), totLeads ? fPct(hotLeads / totLeads) + " · High buying intent" : "0%", "bad"),
+    kpi("⚡ Warm Leads", fInt(warmLeads), totLeads ? fPct(warmLeads / totLeads) + " · In conversation / follow up" : "0%", "warn"),
+    kpi("❄️ Cold Leads", fInt(coldLeads), totLeads ? fPct(coldLeads / totLeads) + " · Early stage or lost" : "0%", "mut")
+  ];
   return el("section", {cls: "panel"},
     el("div", {cls: "sec-head"}, el("h2", {text: "Which CRM statuses count as qualified"}),
-      el("span", {cls: "note", text: "Decided by intent: rejection words are checked first (not interested, lost, junk…), then buying-intent words (details shared, interested, site visit, booked…). Early stages like New Lead or Attempt 1 are not QL. Override any status here." + (editable ? "" : " Load the exports to change overrides.")})),
-    table("ql", cols, R.statuses, {empty: "No statuses in the CRM data."}));
+      el("span", {cls: "note", text: "Decided by intent: rejection words are checked first (not interested, lost, junk…), then buying-intent words (details shared, interested, site visit, booked…). Early stages like New Lead or Attempt 1 are not QL. Lead temperature categorizes statuses as 🔥 Hot, ⚡ Warm, or ❄️ Cold. Override any status here." + (editable ? "" : " Load the exports to change overrides.")})),
+    el("div", {cls: "kpis", style: "margin-bottom:16px"}, kpiCards),
+    table("ql", cols, allStatuses, {empty: "No statuses in the CRM data."}));
 }
 /* ================= settings: sections, row editors, one save bar ================= */
 var AI_PROVIDERS = [
@@ -5960,7 +6056,7 @@ function exportSpecs(brand, want){
       {k: "ind", label: "Meta result type", t: "text", get: function(x){ return x.indicators.join(", "); }}, {k: "spend", label: "Amount spent", t: "inr"}, {k: "ui", label: "Results not counted", t: "int"}, {k: "crm", label: "CRM leads (counted)", t: "int"}],
     rows: (R.excluded || []).filter(function(x){ return ok(x.brand) || !x.inMeta; })}); }
   if (want.ql){ specs.push({name: "QL statuses", title: "Which CRM statuses count as qualified", note: "All brands. Decided by intent words; overrides set on the QL statuses tab.",
-    cols: [{k: "status", label: "Status in CRM", t: "text", w: 30}, {k: "count", label: "Leads", t: "int"}, {k: "q", label: "Counts as", t: "text", get: function(r){ return r.ql ? "QL" : "Not QL"; }, flag: function(r){ return r.ql ? "good" : null; }},
+    cols: [{k: "status", label: "Status in CRM", t: "text", w: 30}, {k: "temperature", label: "Lead Temperature", t: "text", w: 18, get: function(r){ return r.temperature ? (r.temperature === "Hot" ? "🔥 Hot" : r.temperature === "Warm" ? "⚡ Warm" : "❄️ Cold") : ""; }}, {k: "count", label: "Leads", t: "int"}, {k: "q", label: "Counts as", t: "text", get: function(r){ return r.ql ? "QL" : "Not QL"; }, flag: function(r){ return r.ql ? "good" : null; }},
       {k: "reason", label: "Why", t: "text", w: 40}, {k: "override", label: "Override", t: "text"}], rows: R.statuses}); }
   if (want.checks){ specs.push({name: "Data checks", title: "Data checks", note: "All brands. With counting rules off, leads in the report + left out + excluded must equal the CRM rows uploaded.",
     cols: [{k: "label", label: "Check", t: "text", w: 58}, {k: "n", label: "Value", t: "text", align: "right"},
