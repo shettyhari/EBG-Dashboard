@@ -981,7 +981,10 @@ async function runTests() {
     // Verify key functions and components exist
     assert(indexHtml.includes('function budgetPacingSection('), 'budgetPacingSection function should be defined');
     assert(indexHtml.includes('function getMtdData('), 'getMtdData function should be defined');
-    assert(indexHtml.includes('budgetPacingSection(R, T)'), 'budgetPacingSection should be appended in viewOverview');
+    assert(indexHtml.includes('function viewPacing('), 'viewPacing tab function should be defined');
+    assert(indexHtml.includes('data-tab="pacing"'), 'pacing navigation tab button should be in #tablist');
+    assert(indexHtml.includes('pacing: viewPacing'), 'pacing view should be mapped in render()');
+    assert(indexHtml.includes('pacing: ["Budget pacing & forecast"'), 'PAGE_INFO should have pacing metadata');
 
     // Verify UI titles and labels
     assert(indexHtml.includes('Budget Pacing & Month-End Forecast'), 'UI title should be present');

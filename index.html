@@ -1039,6 +1039,7 @@ tr.total-bottom td{position:static!important;background:#dce3f0!important;color:
     <span class="word">EBG</span><span class="sub">Group</span></div>
   <nav class="side-nav" role="tablist" id="tablist" aria-label="Report sections">
       <button class="tab" role="tab" data-tab="overview" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="8" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg><span>Overview</span></button>
+      <button class="tab" role="tab" data-tab="pacing" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M3 12h2M19 12h2"/></svg><span>Budget pacing</span></button>
       <button class="tab" role="tab" data-tab="trends" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span>Trends</span></button>
       <button class="tab" role="tab" data-tab="reports" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6M9 9h2"/></svg><span>Reports</span></button>
       <button class="tab" role="tab" data-tab="campaigns" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l15-6v14L3 13z"/><path d="M7 13v5a2 2 0 0 0 4 0v-4"/></svg><span>Campaigns</span></button>
@@ -2620,6 +2621,7 @@ function viewTAT(){
 /* ================= plain-language layer: page titles, term explanations, folded notes, help page ================= */
 var PAGE_INFO = {
   overview: ["Overview", "Your results at a glance: money spent, leads received, lead quality and how fast leads were called."],
+  pacing: ["Budget pacing & forecast", "Month-to-date pacing, run-rate tracking, recommended daily spend and month-end forecast vs your targets."],
   trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
   leaks: ["Lead leaks", "Paid leads that never reached TeleCRM, WhatsApp leads without a campaign, and ad accounts that spend but aren't synced."],
   monitor: ["Telegram Alerts & Monitoring", "Open and resolved issues, account changes, alert history, report preview, trends and thresholds. Visible only to you."],
@@ -5445,6 +5447,17 @@ function budgetPacingSection(R, T){
   return wrap;
 }
 
+function viewPacing(){
+  var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows);
+  var sec = el("section", {cls: "panel ov-classic pacing-tab-view"});
+  sec.appendChild(el("div", {cls: "sec-head"},
+    el("h2", {text: (state.brand === "All" ? "All listed brands" : state.brand) + " · Budget pacing & forecast"}),
+    el("span", {cls: "note", text: "Compares month-to-date spending and lead acquisition against your monthly allocated targets."})
+  ));
+  sec.appendChild(budgetPacingSection(R, T));
+  return sec;
+}
+
 function viewOverview(){
   var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows);
   var sec = el("section", {cls: "panel ov-classic"});
@@ -5486,9 +5499,6 @@ function viewOverview(){
     kpi("Working-hrs TAT", fMin(T.whAvg), "avg · median " + fMin(T.whMed) + " · Mon–Sat 10 AM–9 PM"),
     kpi("Not Contacted", fInt(T.pend), T.pend ? "waiting " + fMin(T.pendAgeO) + " avg · " + fMin(T.pendAgeW) + " in working hrs" : "none waiting", T.pend ? "warn" : ""),
     kpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads (overall TAT)", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : "")]));
-  /* Budget Pacing & Forecast */
-  sec.appendChild(budgetPacingSection(R, T));
-
   /* brand summary */
   var br = R.brandRows.filter(function(b){ return brandOK(b.brand); });
   var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
@@ -5859,7 +5869,7 @@ function render(){
   if (state.R.partialRows && state.tab !== "settings") v.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "Your Meta export isn't split by day (it has one row per ad for " + fDay(state.R.period.metaStart) + " – " + fDay(state.R.period.metaEnd) +
     "), so spend, Leads in UI, CPL and CPQL show as N/A for " + rangeText(false) + ". CRM leads, QLs and TAT are filtered to these dates. To filter everything by date, export from Meta with Breakdown › By time › Day."}),
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ setRange({preset: "max"}); }}, "Show all dates")));
-  var map = {overview: viewOverview, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks, forms: viewForms,
+  var map = {overview: viewOverview, pacing: viewPacing, trends: viewTrends, campaigns: viewCampaignTree, adsets: function(){ return viewLevel("adset"); }, ads: function(){ return viewLevel("ad"); }, status: viewStatus, crmdata: viewCrmData, reports: viewReports, leaks: viewLeaks, forms: viewForms,
              tat: viewTAT, checks: viewChecks, ql: viewQL, settings: viewSettings, history: viewHistory, activity: viewActivity, monitor: viewMonitor, help: viewHelp};
   try { v.appendChild(map[state.tab]()); } catch (e) { v.appendChild(el("div", {cls: "banner warn", text: "This view could not be drawn: " + e.message})); console.error(e); }
   pageTitle();
