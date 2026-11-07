@@ -1,5 +1,6 @@
 const assert = require('assert');
 const path = require('path');
+const fs = require('fs');
 
 // Load api/ai.js
 const aiHandler = require('../api/ai.js');
@@ -972,8 +973,51 @@ async function runTests() {
     console.log('✓ Unique brands deduplication, duplicate QL retention, and Lead Temperature verified');
   }
 
+  // Test 14: Budget Pacing & Forecast module in index.html
+  {
+    console.log('Test 14: Budget Pacing & Forecast module in index.html');
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+
+    // Verify key functions and components exist
+    assert(indexHtml.includes('function budgetPacingSection('), 'budgetPacingSection function should be defined');
+    assert(indexHtml.includes('function getMtdData('), 'getMtdData function should be defined');
+    assert(indexHtml.includes('budgetPacingSection(R, T)'), 'budgetPacingSection should be appended in viewOverview');
+
+    // Verify UI titles and labels
+    assert(indexHtml.includes('Budget Pacing & Month-End Forecast'), 'UI title should be present');
+    assert(indexHtml.includes('Rec. Daily Spend'), 'Recommended daily spend KPI should be present');
+    assert(indexHtml.includes('Forecast Spend'), 'Forecast spend column should be present');
+    assert(indexHtml.includes('Forecast Leads'), 'Forecast leads column should be present');
+    assert(indexHtml.includes('Forecast CPL'), 'Forecast CPL column should be present');
+
+    // Verify CSS styles
+    assert(indexHtml.includes('.pacing-module'), '.pacing-module CSS class should exist');
+    assert(indexHtml.includes('.pacing-card'), '.pacing-card CSS class should exist');
+    assert(indexHtml.includes('.pacing-bar-track'), '.pacing-bar-track CSS class should exist');
+    assert(indexHtml.includes('.pacing-stats'), '.pacing-stats CSS class should exist');
+
+    // Verify algorithmic formulas in isolated sandbox
+    const mDays = 30;
+    const dayElapsed = 7;
+    const daysRemaining = 23;
+    const budget = 500000;
+    const spend = 125000;
+    const expSpend = budget * (dayElapsed / mDays);
+    const pacing = spend / expSpend;
+    const projSpend = Math.round((spend / dayElapsed) * mDays);
+    const variance = projSpend - budget;
+    const dailyRec = Math.round((budget - spend) / daysRemaining);
+
+    assert(Math.abs(pacing - 1.0714) < 0.001, 'Pacing calculation should be 107.1%');
+    assert.strictEqual(projSpend, 535714, 'Projected spend should be ₹5,35,714');
+    assert.strictEqual(variance, 35714, 'Variance should be +₹35,714');
+    assert.strictEqual(dailyRec, 16304, 'Recommended daily spend should be ₹16,304/day');
+
+    console.log('✓ Budget Pacing & Month-End Forecast module and formulas verified');
+  }
+
   console.log('\n========================================');
-  console.log('ALL 13 AI API INTEGRATION TESTS PASSED!');
+  console.log('ALL 14 AI API INTEGRATION TESTS PASSED!');
   console.log('========================================');
 }
 

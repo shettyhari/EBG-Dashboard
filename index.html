@@ -378,6 +378,13 @@ header.top .wrap{padding-block:22px 10px;align-items:center}
 .brand-pick{display:inline-flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 6px 6px 14px;box-shadow:var(--shadow);max-width:100%}
 .bp-dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
 .bp-lbl{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.pacing-module{margin:24px 0}
+.pacing-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.pacing-card{padding:18px 20px;border:1px solid var(--line);border-radius:var(--r,8px);background:var(--panel);box-shadow:var(--shadow-sm,0 1px 3px rgba(0,0,0,.04));margin-bottom:16px}
+.pacing-progress-wrap{display:grid;gap:6px}
+.pacing-bar-track{width:100%;height:10px;background:var(--line-soft);border-radius:6px;overflow:hidden;position:relative}
+.pacing-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-top:14px}
+.pacing-stat{display:grid;gap:2px}
 #brand-select{border:0;background:transparent;color:var(--ink);font:600 14px var(--font-body);padding:6px 8px;min-width:220px;max-width:100%;cursor:pointer;border-radius:8px}
 #brand-select:focus-visible{outline:2px solid var(--accent)}
 #brand-select option{background:var(--panel);color:var(--ink)}
@@ -5212,6 +5219,232 @@ function topN(list, n, key, labelKey){
 }
 function card(title, extra, body, span, i){ return el("div", {cls: "card2 anim " + span, style: "--i:" + (i || 0)}, el("div", {cls: "card-head"}, el("h3", {text: title}), extra || null), body); }
 
+/* ================= Budget Pacing & Month-End Forecast ================= */
+function getMtdData(refDay){
+  var start = monthStartOf(refDay);
+  if (state.range && state.range.preset === "this_month" && state.R){
+    return state.R;
+  }
+  if (state.raw && state.raw.meta && state.raw.meta.length > 1){
+    try {
+      return processData(state.raw.meta, state.raw.crm, platS(state.settings), {from: start, to: refDay});
+    } catch (e) {
+      return state.R;
+    }
+  }
+  return state.R;
+}
+
+function budgetPacingSection(R, T){
+  var sel = state.range || {}, r = rangeOf(sel);
+  var refDay = (r && r.to) ? r.to : todayDay();
+  var mk = monKey(refDay);
+  var mDays = monDays(refDay);
+  var todayD = todayDay();
+  var isCurrentMonth = monKey(todayD) === mk;
+  var dayElapsed = isCurrentMonth ? Math.min(mDays, Math.max(1, ymd(todayD).d)) : mDays;
+  var daysRemaining = Math.max(0, mDays - dayElapsed);
+  var timePace = dayElapsed / mDays;
+  var RP = repS(state.settings);
+  var M = (RP.months && RP.months[mk]) ? RP.months[mk] : {};
+  var bTargets = M.brands || {};
+
+  var wrap = el("div", {cls: "pacing-module"});
+  var head = el("div", {cls: "sec-head pacing-head"},
+    el("div", null,
+      el("h2", {text: "Budget Pacing & Month-End Forecast"}),
+      el("span", {cls: "note", text: monLabel(mk) + " · Day " + dayElapsed + " of " + mDays + " (" + fPct(timePace) + " elapsed · " + (daysRemaining ? daysRemaining + " day" + (daysRemaining > 1 ? "s" : "") + " left" : "Month complete") + ")"})
+    ),
+    el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "report"; render(); }}, "Edit targets in Settings")
+  );
+  wrap.appendChild(head);
+
+  var isAll = state.brand === "All";
+  var evalBrands = isAll ? state.settings.brands.filter(function(b){ return brandOK(b); }) : [state.brand];
+
+  var mtdData = getMtdData(refDay);
+  var mtdBrandMap = {};
+  if (mtdData && mtdData.brandRows){
+    mtdData.brandRows.forEach(function(b){ mtdBrandMap[b.brand] = b; });
+  }
+
+  var totBudget = 0, totSpend = 0, totLeadsTarget = 0, totLeads = 0, brandsWithBudget = 0;
+  var pRows = [];
+
+  evalBrands.forEach(function(b){
+    var tg = bTargets[b] || {};
+    var budget = (isNum(tg.budget) && tg.budget > 0) ? tg.budget : null;
+    var leadsTarget = (isNum(tg.leads) && tg.leads > 0) ? tg.leads : null;
+    var targetCpl = (isNum(tg.cpl) && tg.cpl > 0) ? tg.cpl : null;
+    var bRow = mtdBrandMap[b] || {};
+    var spend = bRow.spend || 0;
+    var leads = bRow.ui || 0;
+
+    if (budget){
+      totBudget += budget;
+      totSpend += spend;
+      brandsWithBudget++;
+      if (leadsTarget){
+        totLeadsTarget += leadsTarget;
+        totLeads += leads;
+      }
+    }
+
+    var expSpend = budget ? budget * timePace : null;
+    var budgetPacing = expSpend ? spend / expSpend : null;
+    var projSpend = spend > 0 ? Math.round((spend / dayElapsed) * mDays) : 0;
+    var spendVar = budget ? projSpend - budget : null;
+    var expLeads = leadsTarget ? leadsTarget * timePace : null;
+    var leadPacing = expLeads ? leads / expLeads : null;
+    var projLeads = leads > 0 ? Math.round((leads / dayElapsed) * mDays) : 0;
+    var actCpl = leads > 0 ? Math.round(spend / leads) : null;
+    var projCpl = projLeads > 0 ? Math.round(projSpend / projLeads) : null;
+    var dailyRec = (budget && daysRemaining > 0) ? Math.round(Math.max(0, (budget - spend) / daysRemaining)) : null;
+
+    pRows.push({
+      brand: b,
+      budget: budget,
+      spend: spend,
+      usedPct: budget ? spend / budget : null,
+      budgetPacing: budgetPacing,
+      projSpend: projSpend,
+      spendVar: spendVar,
+      leadsTarget: leadsTarget,
+      leads: leads,
+      leadPacing: leadPacing,
+      projLeads: projLeads,
+      targetCpl: targetCpl,
+      actCpl: actCpl,
+      projCpl: projCpl,
+      dailyRec: dailyRec
+    });
+  });
+
+  if (brandsWithBudget === 0){
+    var noTg = el("div", {cls: "banner warn"},
+      el("span", {text: "No monthly targets set for " + monLabel(mk) + ". Set your brand budgets and lead targets in Settings › Report targets to unlock real-time budget pacing, run-rate tracking, and month-end forecasts."}),
+      el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "report"; render(); }}, "Set " + monLabel(mk) + " targets")
+    );
+    wrap.appendChild(noTg);
+    return wrap;
+  }
+
+  var totExpSpend = totBudget * timePace;
+  var totBudgetPacing = totExpSpend ? totSpend / totExpSpend : null;
+  var totProjSpend = totSpend > 0 ? Math.round((totSpend / dayElapsed) * mDays) : 0;
+  var totSpendVar = totBudget ? totProjSpend - totBudget : null;
+  var totExpLeads = totLeadsTarget ? totLeadsTarget * timePace : null;
+  var totLeadPacing = totExpLeads ? totLeads / totExpLeads : null;
+  var totProjLeads = totLeads > 0 ? Math.round((totLeads / dayElapsed) * mDays) : 0;
+  var totActCpl = totLeads > 0 ? Math.round(totSpend / totLeads) : null;
+  var totProjCpl = totProjLeads > 0 ? Math.round(totProjSpend / totProjLeads) : null;
+  var totDailyRec = (totBudget && daysRemaining > 0) ? Math.round(Math.max(0, (totBudget - totSpend) / daysRemaining)) : null;
+
+  var summarySpend = isAll ? totSpend : (pRows[0] ? pRows[0].spend : 0);
+  var summaryBudget = isAll ? totBudget : (pRows[0] ? pRows[0].budget : null);
+  var summaryPacing = isAll ? totBudgetPacing : (pRows[0] ? pRows[0].budgetPacing : null);
+  var summaryProjSpend = isAll ? totProjSpend : (pRows[0] ? pRows[0].projSpend : 0);
+  var summaryDailyRec = isAll ? totDailyRec : (pRows[0] ? pRows[0].dailyRec : null);
+  var summaryProjLeads = isAll ? totProjLeads : (pRows[0] ? pRows[0].projLeads : 0);
+  var summaryLeadsTg = isAll ? totLeadsTarget : (pRows[0] ? pRows[0].leadsTarget : null);
+  var summaryProjCpl = isAll ? totProjCpl : (pRows[0] ? pRows[0].projCpl : null);
+
+  var statusBadge = function(pacing){
+    if (!isNum(pacing)) return el("span", {cls: "pill mut", text: "No Target"});
+    if (pacing >= 0.90 && pacing <= 1.10) return el("span", {cls: "pill good", text: "On Track (" + fPct(pacing) + ")"});
+    if (pacing > 1.10) return el("span", {cls: "pill bad", text: "Overspending (" + fPct(pacing) + ")"});
+    return el("span", {cls: "pill warn", text: "Underspending (" + fPct(pacing) + ")"});
+  };
+
+  var pCard = el("div", {cls: "pacing-card"});
+  var progWrap = el("div", {cls: "pacing-progress-wrap"});
+  var pLabels = el("div", {cls: "pacing-labels", style: "display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;color:var(--muted);font-weight:500;"},
+    el("span", {text: "Timeline: Day " + dayElapsed + " of " + mDays + " (" + fPct(timePace) + ")"}),
+    el("span", {text: "Budget Used: " + (summaryBudget ? fINR(summarySpend) + " of " + fINR(summaryBudget) + " (" + fPct(summarySpend / summaryBudget) + ")" : fINR(summarySpend))})
+  );
+  var track = el("div", {cls: "pacing-bar-track", style: "width:100%;height:10px;background:var(--line-soft);border-radius:6px;overflow:hidden;position:relative;"});
+  var usedWidth = summaryBudget ? Math.min(100, Math.round((summarySpend / summaryBudget) * 100)) : 0;
+  var fillCol = !isNum(summaryPacing) ? "var(--muted)" : (summaryPacing > 1.10 ? "var(--bad)" : (summaryPacing < 0.90 ? "var(--warn)" : "var(--good)"));
+  var fill = el("div", {style: "width:" + usedWidth + "%;height:100%;background:" + fillCol + ";border-radius:6px;transition:width .3s;"});
+  var markerPos = Math.min(100, Math.round(timePace * 100));
+  var marker = el("div", {style: "position:absolute;top:0;bottom:0;left:" + markerPos + "%;width:2px;background:var(--ink);z-index:2;", title: "Expected time pace: " + fPct(timePace)});
+  track.appendChild(fill);
+  track.appendChild(marker);
+  progWrap.appendChild(pLabels);
+  progWrap.appendChild(track);
+  pCard.appendChild(progWrap);
+
+  var sRow = el("div", {cls: "pacing-stats", style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-top:14px;"});
+  var statItem = function(title, val, sub, pill){
+    var d = el("div", {cls: "pacing-stat", style: "display:grid;gap:2px;"},
+      el("span", {style: "font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;", text: title}),
+      el("div", {style: "display:flex;align-items:center;gap:6px;"},
+        el("span", {style: "font-family:var(--font-display);font-size:19px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;", text: val}),
+        pill || null
+      ),
+      sub ? el("span", {style: "font-size:11.5px;color:var(--muted);", text: sub}) : null
+    );
+    return d;
+  };
+
+  sRow.appendChild(statItem("Budget Pacing", isNum(summaryPacing) ? fPct(summaryPacing) : "N/A", summaryBudget ? "Expected: " + fINR(summaryBudget * timePace) : "", statusBadge(summaryPacing)));
+  sRow.appendChild(statItem("Month-End Forecast", summaryProjSpend ? fINR(summaryProjSpend) : "N/A", summaryBudget ? (summaryProjSpend > summaryBudget ? "+" + fINR(summaryProjSpend - summaryBudget) + " over budget" : fINR(summaryProjSpend - summaryBudget) + " under budget") : ""));
+  sRow.appendChild(statItem("Rec. Daily Spend", summaryDailyRec !== null ? fINR(summaryDailyRec) + "/day" : "—", daysRemaining ? "for remaining " + daysRemaining + " days" : "Month complete"));
+  sRow.appendChild(statItem("Projected Leads", summaryProjLeads ? fInt(summaryProjLeads) : "—", summaryLeadsTg ? "Target: " + fInt(summaryLeadsTg) + " (" + (summaryProjLeads >= summaryLeadsTg ? "+" : "") + (summaryProjLeads - summaryLeadsTg) + ")" : ""));
+  sRow.appendChild(statItem("Forecast CPL", summaryProjCpl ? fINR(summaryProjCpl) : "—", (isAll ? (totActCpl ? "MTD CPL: " + fINR(totActCpl) : "") : (pRows[0] && pRows[0].targetCpl ? "Target: " + fINR(pRows[0].targetCpl) : ""))));
+  pCard.appendChild(sRow);
+  wrap.appendChild(pCard);
+
+  if (isAll && pRows.length > 0){
+    var totRow = {
+      _total: true,
+      brand: "TOTAL (" + brandsWithBudget + " with budget)",
+      budget: totBudget,
+      spend: totSpend,
+      usedPct: totBudget ? totSpend / totBudget : null,
+      budgetPacing: totBudgetPacing,
+      projSpend: totProjSpend,
+      spendVar: totSpendVar,
+      leadsTarget: totLeadsTarget,
+      leads: totLeads,
+      projLeads: totProjLeads,
+      actCpl: totActCpl,
+      projCpl: totProjCpl,
+      dailyRec: totDailyRec
+    };
+
+    var pCols = [
+      {k: "brand", label: "Brand", t: "text", cls: "name", lock: true},
+      {k: "budget", label: "Monthly Budget", t: "inr"},
+      {k: "spend", label: "MTD Spend", t: "inr"},
+      {k: "usedPct", label: "Budget Used", t: "pct"},
+      {k: "budgetPacing", label: "Pacing", t: "text", render: function(r){ return statusBadge(r.budgetPacing); }},
+      {k: "projSpend", label: "Forecast Spend", t: "inr"},
+      {k: "spendVar", label: "Variance", t: "inr", render: function(r){
+        if (!isNum(r.spendVar)) return document.createTextNode("—");
+        var txt = (r.spendVar > 0 ? "+" : "") + fINR(r.spendVar);
+        return el("span", {style: "color:" + (r.spendVar > 0 ? "var(--bad)" : "var(--good)") + ";font-weight:600;", text: txt});
+      }},
+      {k: "dailyRec", label: "Rec. Daily Spend", t: "inr", render: function(r){ return document.createTextNode(isNum(r.dailyRec) ? fINR(r.dailyRec) + "/day" : "—"); }},
+      {k: "leadsTarget", label: "Lead Target", t: "int"},
+      {k: "leads", label: "MTD Leads", t: "int"},
+      {k: "projLeads", label: "Forecast Leads", t: "int", render: function(r){
+        if (!r.projLeads) return document.createTextNode("—");
+        var diff = r.leadsTarget ? r.projLeads - r.leadsTarget : null;
+        var diffTxt = isNum(diff) ? " (" + (diff >= 0 ? "+" : "") + diff + ")" : "";
+        return el("span", null, document.createTextNode(fInt(r.projLeads)), el("span", {cls: "small", style: "color:" + (diff >= 0 ? "var(--good)" : "var(--bad)") + ";", text: diffTxt}));
+      }},
+      {k: "targetCpl", label: "Target CPL", t: "inr"},
+      {k: "actCpl", label: "MTD CPL", t: "inr"},
+      {k: "projCpl", label: "Forecast CPL", t: "inr"}
+    ];
+
+    wrap.appendChild(table("pacing", pCols, pRows, {total: totRow, stickyFirst: true}));
+  }
+
+  return wrap;
+}
+
 function viewOverview(){
   var R = state.R, rows = R.ads.filter(function(a){ return brandOK(a.brand); }), T = sumRows(rows);
   var sec = el("section", {cls: "panel ov-classic"});
@@ -5253,6 +5486,9 @@ function viewOverview(){
     kpi("Working-hrs TAT", fMin(T.whAvg), "avg · median " + fMin(T.whMed) + " · Mon–Sat 10 AM–9 PM"),
     kpi("Not Contacted", fInt(T.pend), T.pend ? "waiting " + fMin(T.pendAgeO) + " avg · " + fMin(T.pendAgeW) + " in working hrs" : "none waiting", T.pend ? "warn" : ""),
     kpi("SLA ≤ " + R.slaMin + " min", fPct(T.sla), T.win + " of " + T.elig + " leads (overall TAT)", isNum(T.sla) ? (T.sla < R.slaTarget ? "warn" : "good") : "")]));
+  /* Budget Pacing & Forecast */
+  sec.appendChild(budgetPacingSection(R, T));
+
   /* brand summary */
   var br = R.brandRows.filter(function(b){ return brandOK(b.brand); });
   var bt = sumRows(br.map(function(b){ return b; })); bt.brand = "TOTAL"; bt.noCamp = br.reduce(function(s, b){ return s + b.noCamp; }, 0);
