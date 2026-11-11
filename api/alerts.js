@@ -27,6 +27,15 @@ function sbFetch(path, opt) {
 }
 /* the one person who receives alerts: Settings › Alerts › recipient (default: the shettyharikrishna login) */
 const isRecipient = (S, email) => { const r = String(((S.alerts || {}).recipient) || "").toLowerCase().trim(); return r ? email === r : /^shettyharikrishna/.test(email); };
+const activityUsersOf = (S) => {
+  const raw = (S && S.alerts ? S.alerts.activityUsers : null);
+  const arr = Array.isArray(raw) ? raw : (raw ? String(raw).split(/[\s,;]+/) : []);
+  return Array.from(new Set(arr.map((x) => String(x || "").toLowerCase().trim()).filter(Boolean)));
+};
+const isActivityAllowed = (S, email) => {
+  const e = String(email || "").toLowerCase().trim();
+  return !!(e && (isRecipient(S, e) || activityUsersOf(S).includes(e)));
+};
 module.exports = async function handler(req, res) {
   try {
     const op = String((req.query && req.query.op) || "status");
@@ -36,12 +45,17 @@ module.exports = async function handler(req, res) {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return send(res, 400, { error: "SUPABASE_SERVICE_ROLE_KEY is not set in Vercel." });
     const st = await sbFetch("team_settings?id=eq.1&select=settings"), S = (st && st[0] && st[0].settings) || {};
     const rec = isRecipient(S, me.email);
-    // everything about alerts is visible to the recipient's own login only
-    if (!rec) return send(res, op === "status" ? 200 : 403, op === "status" ? { isRecipient: false } : { error: "Alerts are private to the alert recipient." });
+    const actAllowed = isActivityAllowed(S, me.email);
+    // Ad account activity can be shared with authorized teammates; everything else about alerts is visible to the recipient's own login only
+    if (!rec) {
+      if (op === "status") return send(res, 200, { isRecipient: false, isActivityAllowed: actAllowed });
+      if (op !== "activity" && op !== "activity-sync") return send(res, 403, { error: "Alerts are private to the alert recipient." });
+      if (!actAllowed) return send(res, 403, { error: "Ad account activity is private to the alert recipient and authorized users." });
+    }
     if (op === "status") {
-      let link = null, bot = null; try { link = await A.chatOf(sbFetch); } catch (e) { return send(res, 200, { configured: T.configured(), setup: /alert_state|schema cache|does not exist/i.test(e.message), error: e.message, me: me.email, isRecipient: rec }); }
+      let link = null, bot = null; try { link = await A.chatOf(sbFetch); } catch (e) { return send(res, 200, { configured: T.configured(), setup: /alert_state|schema cache|does not exist/i.test(e.message), error: e.message, me: me.email, isRecipient: rec, isActivityAllowed: true }); }
       if (T.configured()) { try { bot = (await T.tg("getMe")).username; } catch (e) { bot = null; } }
-      return send(res, 200, { configured: T.configured(), bot, linked: link ? { name: link.name, email: link.email, at: link.at } : null, me: me.email, isRecipient: rec, role: me.role });
+      return send(res, 200, { configured: T.configured(), bot, linked: link ? { name: link.name, email: link.email, at: link.at } : null, me: me.email, isRecipient: rec, isActivityAllowed: true, role: me.role });
     }
     if (op === "log") { const r = await sbFetch("alert_log?select=at,kind,text&order=id.desc&limit=" + Math.min(50, +req.query.n || 20)); return send(res, 200, { log: r || [] }); }
     if (op === "insights") return send(res, 200, await require("./_insights").insights(S, sbFetch));   // Trends › Updates & issues

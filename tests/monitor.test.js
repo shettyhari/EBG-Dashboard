@@ -274,6 +274,130 @@ test("deleted / archived: sync stores Meta's DELETED / ARCHIVED items, clears re
   assert.strictEqual(ACT.describe({ event_type: "update_campaign_run_status", extra: JSON.stringify({ old_value: "Paused", new_value: "Archived" }) }).category, "archived");
 });
 
+/* ---------- 9. Ad account activity per-user access delegation (api/alerts.js + index.html) ---------- */
+test("Ad account activity delegation: delegated teammate gets status/activity/activity-sync only; alerts/monitoring stay 403; unauthorized blocked 403", async () => {
+  const alertsHandler = require("../api/alerts");
+  const fs = require("fs");
+  const path = require("path");
+  const prevFetch = global.fetch;
+  const prevSrvKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-srv-key";
+
+  const storedActs = [];
+  let tgSendCalls = 0;
+  const teamSettings = {
+    brands: ["Natuf"],
+    keywords: [["natuf", "Natuf"]],
+    metaAccounts: [{ id: "1", name: "Acc One", brand: "Natuf", on: true }],
+    alerts: { recipient: "Owner@ebg.com", activityUsers: ["  Teammate@EBG.com ", "teammate@ebg.com"] }
+  };
+  const roles = { "owner@ebg.com": "admin", "teammate@ebg.com": "viewer", "otheradmin@ebg.com": "admin" };
+  const sampleStoredRow = {
+    ev_key: "act_1|2026-11-11T08:00:00.000Z|update_ad_set_budget|123",
+    account_id: "act_1", account_name: "Acc One", brand: "Natuf",
+    event_time: "2026-11-11T08:00:00.000Z", event_type: "update_ad_set_budget",
+    translated: "Ad Set Budget Updated", actor_name: "Ravi", application_name: "Ads Manager",
+    object_type: "AD_SET", object_id: "123", object_name: "Broad 25-45",
+    level: "adset", campaign: "Natuf | Leads", adset: "Broad 25-45", ad: "",
+    extra: JSON.stringify({ old_value: 100000, new_value: 150000 })
+  };
+  storedActs.push(sampleStoredRow);
+
+  const okRes = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+  global.fetch = async (url, opt) => {
+    const u = String(url), hdrs = (opt && opt.headers) || {};
+    if (u.indexOf("/auth/v1/user") >= 0) {
+      const em = String(hdrs.authorization || "").replace(/^Bearer\s+/i, "").toLowerCase();
+      if (!roles[em]) return { ok: false, status: 401, json: async () => ({}), text: async () => "{}" };
+      return okRes({ id: "uid-" + em, email: em });
+    }
+    if (u.indexOf("/rest/v1/team_members") >= 0) {
+      const m = /email=eq\.([^&]+)/.exec(u), em = m ? decodeURIComponent(m[1]).toLowerCase() : "";
+      return okRes(roles[em] ? [{ role: roles[em] }] : []);
+    }
+    if (u.indexOf("/rest/v1/team_settings") >= 0) return okRes([{ settings: teamSettings }]);
+    if (u.indexOf("/rest/v1/alert_state?k=eq.telegram") >= 0) return okRes([{ v: { chat_id: 99, name: "Owner", email: "owner@ebg.com", at: "2026-11-01T00:00:00Z" } }]);
+    if (u.indexOf("/rest/v1/alert_state?k=eq.activity") >= 0) return okRes([{ v: { act_1: "2026-11-11T07:00:00.000Z" } }]);
+    if (u.indexOf("/rest/v1/alert_state?on_conflict=k") >= 0) return okRes([]);
+    if (u.indexOf("/rest/v1/meta_activity?on_conflict=ev_key") >= 0) { storedActs.push.apply(storedActs, JSON.parse(opt.body)); return okRes([]); }
+    if (u.indexOf("/rest/v1/meta_activity?") >= 0) return okRes(storedActs);
+    if (u.indexOf("/rest/v1/alert_issues?") >= 0) return okRes([]);
+    if (u.indexOf("/rest/v1/uploads?") >= 0) return okRes([]);
+    if (u.indexOf("api.telegram.org") >= 0) {
+      if (u.indexOf("/getMe") >= 0) return okRes({ ok: true, result: { username: "ebg_alerts_bot" } });
+      tgSendCalls++;
+      return okRes({ ok: true, result: {} });
+    }
+    if (u.indexOf("graph.facebook.com") >= 0) {
+      if (u.indexOf("/act_1/activities") >= 0) {
+        return okRes({ data: [{ event_time: "2026-11-11T09:00:00+0000", event_type: "update_ad_set_budget", translated_event_type: "Budget Updated", actor_name: "Priya", object_type: "AD_SET", object_id: "456", object_name: "LAL 2%", extra_data: { old_value: 200000, new_value: 250000 } }] });
+      }
+      if (u.indexOf("/456?") >= 0) return okRes({ name: "LAL 2%", campaign: { name: "Natuf | Leads" } });
+    }
+    return prevFetch(url, opt);
+  };
+
+  const call = async (email, op, extraQ) => {
+    const res = { statusCode: 200, headers: {}, body: null, setHeader(k, v) { this.headers[k] = v; }, end(s) { this.body = s ? JSON.parse(s) : null; } };
+    await alertsHandler({ headers: email ? { authorization: "Bearer " + email } : {}, query: Object.assign({ op }, extraQ || {}) }, res);
+    return res;
+  };
+
+  try {
+    // 1. Delegated viewer: status reveals delegation only (no bot/linked info)
+    const stDel = await call("teammate@ebg.com", "status");
+    assert.strictEqual(stDel.statusCode, 200);
+    assert.deepStrictEqual(stDel.body, { isRecipient: false, isActivityAllowed: true });
+
+    // 2. Delegated viewer: can read Ad account activity and run Check Meta now (no Telegram sent)
+    const actDel = await call("teammate@ebg.com", "activity", { days: 7 });
+    assert.strictEqual(actDel.statusCode, 200);
+    assert.strictEqual(actDel.body.days, 7);
+    assert.strictEqual(actDel.body.rows.length, 1);
+    assert.strictEqual(actDel.body.rows[0].who, "Ravi");
+    assert.strictEqual(actDel.body.rows[0].brand, "Natuf");
+
+    const syncDel = await call("teammate@ebg.com", "activity-sync");
+    assert.strictEqual(syncDel.statusCode, 200);
+    assert.strictEqual(syncDel.body.events, 1);
+    assert.strictEqual(tgSendCalls, 0, "activity-sync must store changes without sending Telegram messages");
+
+    // 3. Delegated viewer: strictly blocked from all alert / monitoring / CPL / Telegram endpoints
+    for (const privOp of ["mon", "mon-history", "mon-preview", "mon-trends", "mon-ack", "log", "cpl", "insights", "run", "test", "link-start", "link-check", "unlink"]) {
+      const r = await call("teammate@ebg.com", privOp);
+      assert.strictEqual(r.statusCode, 403, "delegated activity user must be 403 on op=" + privOp);
+    }
+
+    // 4. Unauthorized admin (not recipient, not in activityUsers): blocked from activity & alerts
+    const stUnauth = await call("otheradmin@ebg.com", "status");
+    assert.strictEqual(stUnauth.statusCode, 200);
+    assert.deepStrictEqual(stUnauth.body, { isRecipient: false, isActivityAllowed: false });
+    assert.strictEqual((await call("otheradmin@ebg.com", "activity")).statusCode, 403);
+    assert.strictEqual((await call("otheradmin@ebg.com", "activity-sync")).statusCode, 403);
+    assert.strictEqual((await call("otheradmin@ebg.com", "mon")).statusCode, 403);
+
+    // 5. Recipient (owner): full access
+    const stOwn = await call("owner@ebg.com", "status");
+    assert.strictEqual(stOwn.statusCode, 200);
+    assert.strictEqual(stOwn.body.isRecipient, true);
+    assert.strictEqual(stOwn.body.isActivityAllowed, true);
+    assert.strictEqual(stOwn.body.bot, "ebg_alerts_bot");
+    assert.strictEqual((await call("owner@ebg.com", "mon")).statusCode, 200);
+
+    // 6. Frontend UI & gating wiring in index.html
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    ["function activityAllowed()", "function activityAccessCard(", "function toggleActivityUser(", "activityAccessCard(false)", "activityAccessCard(true)",
+     "viewActivity({embedded: true})", "actBtn.hidden = !activityAllowed()", "state.tab === \"activity\" && !activityAllowed()",
+     "state.tab === \"monitor\" && !alertsAllowed()", "\"Ad account activity\"", "histListDiff(AO.activityUsers, AN.activityUsers"].forEach((s) => {
+      assert.ok(html.indexOf(s) >= 0, "index.html missing expected delegation wiring: " + s);
+    });
+  } finally {
+    global.fetch = prevFetch;
+    if (prevSrvKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = prevSrvKey;
+  }
+});
+
 (async () => {
   for (const [name, fn] of tests) { try { await fn(); passed++; console.log("✓ " + name); } catch (e) { console.log("✗ " + name + "\n  " + (e && e.stack || e)); process.exitCode = 1; } }
   console.log("\n" + passed + "/" + tests.length + " passed");

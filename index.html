@@ -1795,6 +1795,7 @@ function loadSettings(){ var s = null; try { s = JSON.parse(localStorage.getItem
   for (var k in d) if (k in s) d[k] = s[k];
   d.cols.meta = Object.assign(clone(DEFAULT_SETTINGS.cols.meta), (s.cols || {}).meta || {}); d.cols.crm = Object.assign(clone(DEFAULT_SETTINGS.cols.crm), (s.cols || {}).crm || {});
   d.ai = Object.assign(clone(DEFAULT_SETTINGS.ai), (s.ai || {}));
+  if (s.alerts && typeof s.alerts === "object") d.alerts = clone(s.alerts);
   return d; }
 function storeSettings(noShare){ var ok = true; try { localStorage.setItem(LS_KEY, JSON.stringify(state.settings)); } catch (e) { ok = false; } if (!noShare && typeof dbSettingsChanged === "function") dbSettingsChanged(); return ok; }
 
@@ -2625,7 +2626,7 @@ var PAGE_INFO = {
   trends: ["Trends", "How spend, leads and cost per lead change day by day, week by week or month by month."],
   leaks: ["Lead leaks", "Paid leads that never reached TeleCRM, WhatsApp leads without a campaign, and ad accounts that spend but aren't synced."],
   monitor: ["Telegram Alerts & Monitoring", "Open and resolved issues, account changes, alert history, report preview, trends and thresholds. Visible only to you."],
-  activity: ["Ad account activity", "Who changed what in the Meta ad accounts, in plain language, with what will happen next. Visible only to you."],
+  activity: ["Ad account activity", "Who changed what in the Meta ad accounts, in plain language, with what will happen next. Visible to the alert recipient and authorized teammates."],
   history: ["History", "Who changed what, and when: settings, targets, remarks, saved data and team members, with the old and new value."],
   reports: ["Reports", "The EBG daily and MTD reports (brand-wise, master, leader-wise), ready to check and download as Excel."],
   campaigns: ["Campaigns", "Every campaign with its spend, leads and cost. Click ▸ to see its ad sets and ads."],
@@ -3411,6 +3412,9 @@ function histLines(key, o, n){
     histDiff(RO.brands, RN.brands, []).forEach(function(x){ line("Report targets (old daily format) › " + x.path.join(" › "), x.o, x.n); });
     return L; }
   if (key === "cols"){ histDiff(o, n, []).forEach(function(x){ line(lab + " › " + (x.path[0] === "meta" ? "Meta" : x.path[0] === "crm" ? "TeleCRM" : x.path[0]) + " › " + x.path.slice(1).join(" › "), x.o, x.n); }); return L; }
+  if (key === "alerts"){ var AO = Object.assign({}, o || {}), AN = Object.assign({}, n || {});
+    if ("activityUsers" in AO || "activityUsers" in AN){ var dau = histListDiff(AO.activityUsers, AN.activityUsers, String, String); listLine("Ad account activity access", dau); delete AO.activityUsers; delete AN.activityUsers; }
+    histDiff(AO, AN, []).forEach(function(x){ line(lab + (x.path.length ? " › " + x.path.join(" › ") : ""), x.o, x.n); }); return L; }
   if (!histIsObj(o) && !histIsObj(n) && !Array.isArray(o) && !Array.isArray(n)){ var fmt = function(v){ return key === "diffAlert" || key === "slaTarget" ? (isNum(v) ? Math.round(v * 100) + "%" : v) : v; }; line(lab, fmt(o), fmt(n)); return L; }
   histDiff(o, n, []).forEach(function(x){ line(lab + (x.path.length ? " › " + x.path.join(" › ") : ""), x.o, x.n); }); return L;
 }
@@ -3710,10 +3714,120 @@ function gadsPanel(){
   return box;
 }
 /* ================= Settings › Alerts (Telegram) ================= */
-var ALERT_DEF = {activity: true, summary: true, cpl7: true, cplYday: true, cplTarget: true, pct: 20, minLeads: 3, quietFrom: 23, quietTo: 8, activityInQuiet: true, recipient: ""};
+var ALERT_DEF = {activity: true, summary: true, cpl7: true, cplYday: true, cplTarget: true, pct: 20, minLeads: 3, quietFrom: 23, quietTo: 8, activityInQuiet: true, recipient: "", activityUsers: []};
+function normEmail(v){ return String(v || "").trim().toLowerCase(); }
+function activityUsersOf(S){
+  var v = ((S || {}).alerts || {}).activityUsers;
+  var raw = Array.isArray(v) ? v : (v ? String(v).split(/[\s,;]+/) : []);
+  var out = [], seen = {};
+  raw.forEach(function(x){ var e = normEmail(x); if (e && !seen[e]){ seen[e] = 1; out.push(e); } });
+  return out;
+}
+function isRecipientEmail(email, S){
+  var e = normEmail(email), r = normEmail(((S || {}).alerts || {}).recipient);
+  return !!(e && (r ? e === r : /^shettyharikrishna/.test(e)));
+}
 /* only the alert recipient's own login sees anything about alerts (Settings › Alerts, its History lines) */
-function alertsAllowed(){ var e = String(sb.email || "").toLowerCase(), r = String(((state.settings || {}).alerts || {}).recipient || "").toLowerCase().trim();
-  return !!(sb.cfg && sb.status === "ready" && e && (r ? e === r : /^shettyharikrishna/.test(e))); }
+function alertsAllowed(){ return !!(sb.cfg && sb.status === "ready" && isRecipientEmail(sb.email, state.settings)); }
+/* Ad account activity is visible to the alert recipient PLUS any teammates listed in settings.alerts.activityUsers */
+function activityAllowed(){
+  if (alertsAllowed()) return true;
+  if (!sb.cfg || sb.status !== "ready") return false;
+  var e = normEmail(sb.email);
+  return !!(e && activityUsersOf(state.settings).indexOf(e) >= 0);
+}
+function ensureMembersLoaded(tabName){
+  if (!sb.cfg || sb.status !== "ready" || !sb.client || sb.membersLoading || sb.membersAsked) return;
+  sb.membersLoading = true;
+  sb.client.from("team_members").select("email,role").order("email").then(function(r){
+    sb.membersLoading = false; sb.membersAsked = true;
+    if (!r.error && Array.isArray(r.data)) sb.members = r.data;
+    if (!tabName || state.tab === tabName) render();
+  }).catch(function(){ sb.membersLoading = false; sb.membersAsked = true; });
+}
+function setActivityUsers(nextList, msg){
+  var S = state.settings || (state.settings = {});
+  var cleanList = activityUsersOf({alerts: {activityUsers: nextList}});
+  S.alerts = Object.assign({}, S.alerts || {}, {activityUsers: cleanList});
+  storeSettings(true);
+  if (sb.cfg && sb.status === "ready" && sbCanWrite()){
+    dbPushSettings().then(function(){ if (msg) toast(msg); })
+      .catch(function(e){ toast("Not shared with the team: " + (e.message || e)); });
+  } else if (msg){
+    toast(msg);
+  }
+  render();
+}
+function toggleActivityUser(email, allow, msg){
+  var e = normEmail(email); if (!e) return;
+  var list = activityUsersOf(state.settings), idx = list.indexOf(e);
+  if (allow && idx < 0) list.push(e);
+  else if (!allow && idx >= 0) list.splice(idx, 1);
+  setActivityUsers(list, msg || (allow ? "Granted Ad account activity access to " + e : "Removed Ad account activity access for " + e));
+}
+function activityAccessCard(compact){
+  var S = state.settings, C = Object.assign({}, ALERT_DEF, S.alerts || {}), canEdit = sbCanWrite() || !sb.cfg;
+  ensureMembersLoaded(compact ? "activity" : "settings");
+  var recLabel = C.recipient || (isRecipientEmail(sb.email, S) ? sb.email : "shettyharikrishna@…");
+  var list = activityUsersOf(S);
+  var roleMap = {}; (sb.members || []).forEach(function(m){ if (m && m.email) roleMap[normEmail(m.email)] = m.role || "member"; });
+  var box = el("div", {cls: "group", id: compact ? "act-access-inline" : "act-access-settings"});
+  box.appendChild(el("h3", {text: compact ? "Who can view Ad account activity" : "Ad account activity access"}));
+  box.appendChild(el("div", {cls: "small", text: "Only you (the alert recipient) see Telegram Alerts, Monitoring, and Settings › Alerts. Teammates added below can open the Ad account activity tab and click Check Meta now to inspect Meta ad account changes."}));
+  var rows = el("div", {cls: "row-list"});
+  rows.appendChild(el("div", {cls: "row-item", style: "justify-content:space-between;padding:6px 10px;border:1px solid var(--line-soft);border-radius:6px;background:var(--band)"},
+    el("span", null, el("b", {text: recLabel}), " ", el("span", {cls: "small", text: "(Alert recipient)"})),
+    el("span", {cls: "pill good", text: "Owner · Full Alerts access"})));
+  list.forEach(function(em){
+    var r = roleMap[em];
+    var badges = [el("b", {text: em})];
+    if (r) badges.push(document.createTextNode(" "), el("span", {cls: "pill mut", text: r}));
+    else if (sb.membersAsked && sb.cfg) badges.push(document.createTextNode(" "), el("span", {cls: "pill warn", title: "Add this email in Saved data › Team members so they can sign in.", text: "Not in Team members"}));
+    rows.appendChild(el("div", {cls: "row-item", style: "justify-content:space-between;padding:6px 10px;border:1px solid var(--line-soft);border-radius:6px"},
+      el("span", null, badges),
+      canEdit ? el("button", {cls: "linkbtn", type: "button", onclick: function(){ toggleActivityUser(em, false); }}, "Remove") : el("span", {cls: "pill good", text: "Allowed"})));
+  });
+  box.appendChild(rows);
+  if (canEdit){
+    var cands = (sb.members || []).filter(function(m){
+      var e = normEmail(m && m.email);
+      return e && !isRecipientEmail(e, S) && list.indexOf(e) < 0;
+    });
+    var addWrap = el("div", {cls: "row-add", style: "align-items:center"});
+    var customInp = el("input", {type: "email", placeholder: "teammate@company.com", "aria-label": "User email for Ad account activity access", style: "max-width:300px"});
+    var pickSel = null;
+    if (cands.length){
+      pickSel = el("select", {"aria-label": "Choose teammate for Ad account activity access", style: "max-width:300px"},
+        [el("option", {value: "", text: "Choose a teammate…"})]
+          .concat(cands.map(function(m){ return el("option", {value: normEmail(m.email), text: normEmail(m.email) + (m.role ? " (" + m.role + ")" : "")}); }))
+          .concat([el("option", {value: "_custom", text: "Enter another email…"})]));
+      customInp.hidden = true;
+      pickSel.addEventListener("change", function(){
+        var cust = pickSel.value === "_custom";
+        customInp.hidden = !cust;
+        if (cust) customInp.focus();
+      });
+      addWrap.appendChild(pickSel);
+    }
+    var grant = function(){
+      var raw = pickSel && pickSel.value !== "_custom" ? pickSel.value : customInp.value;
+      var e = normEmail(raw);
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){ toast("Enter a valid email address"); return; }
+      if (isRecipientEmail(e, S)){ toast("Already has full access as the alert recipient"); return; }
+      if (list.indexOf(e) >= 0){ toast(e + " already has Ad account activity access"); return; }
+      customInp.value = "";
+      if (pickSel) pickSel.value = "";
+      toggleActivityUser(e, true);
+    };
+    customInp.addEventListener("keydown", function(ev){ if (ev.key === "Enter"){ ev.preventDefault(); grant(); } });
+    addWrap.appendChild(customInp);
+    addWrap.appendChild(el("button", {cls: "btn ghost", type: "button", onclick: grant}, "+ Grant access"));
+    box.appendChild(addWrap);
+  } else {
+    box.appendChild(el("div", {cls: "small", text: "Only an editor or admin can add or remove users here."}));
+  }
+  return box;
+}
 function alertsApi(op, params){ return provApi("alerts", op, params); }
 function alertsPanel(){
   var S = state.settings, A = state.alerts || (state.alerts = {}), C = Object.assign({}, ALERT_DEF, S.alerts || {}), box = el("div");
@@ -3770,10 +3884,12 @@ function alertsPanel(){
     el("div", {cls: "small", text: "No updates or CPL alerts between these times (India time). Set both the same to never pause."}),
     el("div", {cls: "rep-controls"}, hours("quietFrom", "From"), hours("quietTo", "To")),
     tog("activityInQuiet", "Still send ad account changes during quiet hours (recommended: a change at night is worth knowing about)")));
-  if (St && St.isRecipient){
+  if ((St && St.isRecipient) || (St && St.err === "NOAPI" && alertsAllowed())){
     var ri = el("input", {type: "email", value: C.recipient || "", placeholder: "shettyharikrishna@…", style: "max-width:320px"});
     ri.addEventListener("change", function(){ save("recipient", ri.value.trim().toLowerCase()); A.status = null; render(); });
-    box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Who gets alerts"}), el("div", {cls: "small", text: "Only this dashboard login sees the Alerts settings and can connect a Telegram chat. Leave empty for the shettyharikrishna login. Careful: if you change it to someone else, this tab disappears for you."}), ri)); }
+    box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Who gets alerts"}), el("div", {cls: "small", text: "Only this dashboard login sees the Alerts settings and can connect a Telegram chat. Leave empty for the shettyharikrishna login. Careful: if you change it to someone else, this tab disappears for you."}), ri));
+    box.appendChild(activityAccessCard(false));
+  }
   /* 3. recent */
   if (A.log === undefined && !A.logLoading){ A.logLoading = true; alertsApi("log", {n: 10}).then(function(d){ A.log = d.log || []; }).catch(function(){ A.log = null; }).then(function(){ A.logLoading = false; if (state.tab === "settings") render(); }); }
   if (A.log && A.log.length){ var ul = el("ul", {cls: "hist-lines"});
@@ -3781,7 +3897,7 @@ function alertsPanel(){
     box.appendChild(el("div", {cls: "group"}, el("h3", {text: "Last alerts sent"}), ul)); }
   return box;
 }
-/* ================= Ad account activity (who changed what), private to the alert recipient's login ================= */
+/* ================= Ad account activity (who changed what), alert recipient + authorized teammates ================= */
 var ACT_TYPES = [["", "All changes"], ["budget", "Budget"], ["status", "On / off"], ["deleted", "Deleted / archived"], ["created", "New"], ["targeting", "Targeting / audience"], ["bidding", "Bidding"], ["creative", "Creative"], ["approved", "Review"], ["billing", "Billing / limits"], ["other", "Other"]];
 var ACT_TYPE_OF = {archived: "deleted", audience: "targeting", rejected: "approved", payfail: "billing", cap: "billing", stopped: "billing", schedule: "other", rename: "other", access: "other", learning: "other", delivery: "other"};
 function actLoad(sync){
@@ -3793,16 +3909,23 @@ function actLoad(sync){
     .catch(function(e){ A.status = "error"; A.err = e.message === "NOAPI" ? "This page works on the live dashboard (ebg-dashboard.vercel.app)." : /meta_activity|schema cache|does not exist/i.test(e.message) ? "setup" : e.message; })
     .then(function(){ if (state.tab === "activity" || state.tab === "monitor") render(); });
 }
-function viewActivity(){
+function viewActivity(opts){
   var sec = el("section", {cls: "panel act-page"});
-  if (!alertsAllowed()){ sec.appendChild(el("div", {cls: "empty", text: "This page is private."})); return sec; }
+  if (!activityAllowed()){ sec.appendChild(el("div", {cls: "empty", text: "This page is private."})); return sec; }
   var A = state.act || (state.act = {days: 7, f: {brand: "", who: "", impact: "", type: "", q: ""}}), F = A.f;
+  var embedded = !!(opts && opts.embedded), canManage = !embedded && alertsAllowed(), sharedUsers = activityUsersOf(state.settings);
   if (!A.status) actLoad(false);
   var sel = function(label, val, opts, set){ var s = el("select", {"aria-label": label}, opts.map(function(o){ return el("option", {value: o[0], selected: String(val) === String(o[0]) ? true : null, text: o[1]}); }));
     s.addEventListener("change", function(){ set(s.value); }); return el("label", {cls: "field rep-field"}, el("span", {cls: "small", text: label}), s); };
   var rows = A.rows || [], uniq = function(k){ var o = {}; rows.forEach(function(r){ if (r[k]) o[r[k]] = 1; }); return Object.keys(o).sort(); };
   var q = el("input", {type: "search", cls: "search", placeholder: "Search campaign, ad, person…", value: F.q, "aria-label": "Search changes"});
   q.addEventListener("input", function(){ F.q = q.value; clearTimeout(viewActivity._t); viewActivity._t = setTimeout(function(){ render(); var e = document.querySelector(".act-page input[type=search]"); if (e){ e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }, 250); });
+  var repActs = el("div", {cls: "rep-actions"});
+  if (canManage){
+    repActs.appendChild(el("button", {cls: "btn ghost", type: "button", "aria-expanded": A.shareOpen ? "true" : "false", onclick: function(){ A.shareOpen = !A.shareOpen; render(); }},
+      (A.shareOpen ? "Hide access" : "Manage access") + (sharedUsers.length ? " (" + sharedUsers.length + ")" : "")));
+  }
+  repActs.appendChild(el("button", {cls: "btn", type: "button", disabled: A.status === "syncing" || A.status === "loading" ? true : null, onclick: function(){ actLoad(true); }}, A.status === "syncing" ? "Checking Meta…" : "Check Meta now"));
   sec.appendChild(el("div", {cls: "rep-controls"},
     sel("Period", A.days, [[1, "Last 24 hours"], [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]], function(v){ A.days = +v; actLoad(false); }),
     sel("Brand", F.brand, [["", "All brands"]].concat(uniq("brand").map(function(b){ return [b, b]; })), function(v){ F.brand = v; render(); }),
@@ -3810,7 +3933,8 @@ function viewActivity(){
     sel("Type", F.type, ACT_TYPES, function(v){ F.type = v; render(); }),
     sel("Impact", F.impact, [["", "Any impact"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]], function(v){ F.impact = v; render(); }),
     el("label", {cls: "field rep-field hist-q"}, el("span", {cls: "small", text: "Search"}), q),
-    el("div", {cls: "rep-actions"}, el("button", {cls: "btn", type: "button", disabled: A.status === "syncing" || A.status === "loading" ? true : null, onclick: function(){ actLoad(true); }}, A.status === "syncing" ? "Checking Meta…" : "Check Meta now"))));
+    repActs));
+  if (canManage && A.shareOpen) sec.appendChild(activityAccessCard(true));
   if (A.syncMsg) sec.appendChild(el("div", {cls: "small", style: "margin:-4px 0 8px", text: A.syncMsg}));
   if (A.status === "loading" && !A.rows){ sec.appendChild(el("div", {cls: "empty", text: "Loading changes…"})); return sec; }
   if (A.status === "error"){ sec.appendChild(A.err === "setup" ? el("div", {cls: "banner warn", text: "Not set up yet: run supabase/alerts.sql once in Supabase › SQL Editor. Changes are then collected every 5 minutes (the first run also loads the last 7 days)."}) : el("div", {cls: "msg err", text: A.err})); return sec; }
@@ -3820,7 +3944,9 @@ function viewActivity(){
     return !ql || [r.who, r.brand, r.account, r.campaign, r.adset, r.ad, r.object, r.what, r.status, r.remark].join(" ").toLowerCase().indexOf(ql) >= 0; });
   var hi = list.filter(function(r){ return r.impact === "high"; }).length, people = {}; list.forEach(function(r){ people[r.who] = 1; });
   sec.appendChild(el("div", {cls: "act-chips"}, el("span", {cls: "pill mut", text: list.length + " change" + (list.length === 1 ? "" : "s")}), el("span", {cls: "pill " + (hi ? "bad" : "good"), text: hi + " high impact"}),
-    el("span", {cls: "pill mut", text: Object.keys(people).length + " people / systems"}), el("span", {cls: "small", text: "Collected from Meta every 5 minutes · newest first"})));
+    el("span", {cls: "pill mut", text: Object.keys(people).length + " people / systems"}),
+    !embedded ? (alertsAllowed() ? el("span", {cls: "pill mut", text: sharedUsers.length ? ("Access: You + " + sharedUsers.length + " teammate" + (sharedUsers.length === 1 ? "" : "s")) : "Access: Only you"}) : el("span", {cls: "pill good", text: "Shared access"})) : null,
+    el("span", {cls: "small", text: "Collected from Meta every 5 minutes · newest first"})));
   if (!list.length){ sec.appendChild(el("div", {cls: "empty", text: rows.length ? "No changes match these filters." : "No changes in this period yet. Changes appear here within 5 minutes of being made in Ads Manager."})); return sec; }
   var IMP = {high: ["bad", "High"], medium: ["warn", "Medium"], low: ["mut", "Low"]};
   var cols = [
@@ -4040,7 +4166,7 @@ function viewMonitor(){
   var body = el("div", {cls: "mon-body"});
   if (M.sub === "open") body.appendChild(monIssues(M, open, true));
   else if (M.sub === "resolved") body.appendChild(monIssues(M, resolved, false));
-  else if (M.sub === "changes"){ body.appendChild(el("div", {cls: "small", style: "margin-bottom:8px", text: "Every change in the connected Meta ad accounts (checked every 5 minutes), in plain language. Telegram gets the ones at or above the level chosen in Thresholds & schedule."})); body.appendChild(viewActivity()); }
+  else if (M.sub === "changes"){ body.appendChild(el("div", {cls: "small", style: "margin-bottom:8px", text: "Every change in the connected Meta ad accounts (checked every 5 minutes), in plain language. Telegram gets the ones at or above the level chosen in Thresholds & schedule."})); body.appendChild(viewActivity({embedded: true})); }
   else if (M.sub === "history") body.appendChild(monHistory(M));
   else if (M.sub === "preview") body.appendChild(monPreview(M));
   else if (M.sub === "trends") body.appendChild(monTrends(M));
@@ -5858,9 +5984,10 @@ function render(){
   CUR = state.R.currency || "₹";
   if (isGoogle() && (state.tab === "adsets" || state.tab === "ads")) state.tab = "campaigns";   /* Google data is campaign-level */
   if (state.tab === "campaigns" || state.tab === "adsets" || state.tab === "ads") objStatusLoad();
-  var actBtn = document.querySelector('.tab[data-tab="activity"]'); if (actBtn) actBtn.hidden = !alertsAllowed();
+  var actBtn = document.querySelector('.tab[data-tab="activity"]'); if (actBtn) actBtn.hidden = !activityAllowed();
   var monBtn = document.querySelector('.tab[data-tab="monitor"]'); if (monBtn) monBtn.hidden = !alertsAllowed();
-  if ((state.tab === "activity" || state.tab === "monitor") && !alertsAllowed()) state.tab = "overview";
+  if (state.tab === "activity" && !activityAllowed()) state.tab = "overview";
+  if (state.tab === "monitor" && !alertsAllowed()) state.tab = "overview";
   renderHeader();
   document.querySelectorAll(".tab").forEach(function(t){ t.setAttribute("aria-selected", t.dataset.tab === state.tab ? "true" : "false"); });
   var v = document.getElementById("view"), y = window.scrollY; v.textContent = ""; DRAWS = [];
@@ -6860,6 +6987,8 @@ function sbInit(){
 function sbSession(session){
   sb.email = session && session.user ? String(session.user.email || "").toLowerCase() : "";
   sb.user = session && session.user ? session.user : null;
+  state.act = null; state.mon = null; state.alerts = null; state.lcpl = null; state.ins = null;
+  sb.members = []; sb.membersAsked = false; sb.membersLoading = false;
   if (!session){
     sb.status = "signedout"; sb.role = null; state.my = null; state.colPrefs = null;
     if (typeof switchAskAIAccount === "function") switchAskAIAccount(undefined, true);
@@ -6868,7 +6997,13 @@ function sbSession(session){
   return sb.client.from("team_members").select("role").eq("email", sb.email).maybeSingle().then(function(r){
     if (r.error){ sb.status = "error"; sb.err = r.error.message; return; }
     sb.role = r.data ? r.data.role : null; sb.status = sb.role ? "ready" : "norole"; sb.err = ""; sb.msg = null;
-    state.my = null; state.colPrefs = null; if (sb.status === "ready") myLoadOnline();
+    state.my = null; state.colPrefs = null;
+    if (sb.status === "ready"){
+      myLoadOnline();
+      sb.client.from("team_settings").select("settings,updated_at").eq("id", 1).maybeSingle().then(function(sr){
+        if (sr && !sr.error && sr.data && sr.data.settings){ state.settings = mergeSettings(sr.data.settings); sb.settingsAt = sr.data.updated_at; storeSettings(true); render(); }
+      }, function(){});
+    }
     if (typeof switchAskAIAccount === "function") switchAskAIAccount(undefined, true);
     if (sb.confirmed){ sb.confirmed = false; setTimeout(function(){ toast("Email confirmed. You're signed in."); }, 300); }
   });
@@ -7364,16 +7499,32 @@ function renderDbSection(x){
     box.appendChild(el("div", {cls: "small", text: "Viewer: sees data. Editor: also adds uploads and changes shared settings. Admin: also removes uploads and manages members. They sign in with the same email (Create an account the first time)."}));
     box.appendChild(el("div", {cls: "save-row"}, el("div", {cls: "field"}, el("label", {"for": "mb-email", text: "Email"}), mEmail),
       el("div", {cls: "field", style: "flex:0 0 140px"}, el("label", {"for": "mb-role", text: "Role"}), mRole), el("button", {cls: "btn", type: "button", onclick: add}, "Add member")));
-    var mt = el("tbody");
+    var mt = el("tbody"), showActCol = alertsAllowed(), actAllowedList = showActCol ? activityUsersOf(state.settings) : [];
     sb.members.forEach(function(m){
       var sel = el("select", {"aria-label": "Role for " + m.email, disabled: m.email === sb.email ? true : null}, ["viewer", "editor", "admin"].map(function(r){ return el("option", {value: r, selected: r === m.role ? true : null, text: r}); }));
       sel.addEventListener("change", function(){ sb.client.from("team_members").update({role: sel.value}).eq("email", m.email).then(function(r){ toast(r.error ? "Could not change: " + r.error.message : m.email + " is now " + sel.value); dbRefreshLists(); }); });
-      mt.appendChild(el("tr", null, el("td", {text: m.email}), el("td", null, sel), el("td", {cls: "small", text: m.added_by || ""}),
+      var actCell = null;
+      if (showActCol){
+        var emN = normEmail(m.email);
+        if (isRecipientEmail(emN, state.settings)){
+          actCell = el("td", null, el("span", {cls: "pill good", text: "Owner"}));
+        } else {
+          var cb = el("input", {type: "checkbox", checked: actAllowedList.indexOf(emN) >= 0 ? true : null, "aria-label": "Allow Ad account activity for " + m.email});
+          cb.addEventListener("change", function(){ toggleActivityUser(m.email, cb.checked); renderSavedPanel(); });
+          actCell = el("td", null, el("label", {cls: "toggle", style: "margin:0"}, cb, el("span", {cls: "small", text: "Allowed"})));
+        }
+      }
+      mt.appendChild(el("tr", null, el("td", {text: m.email}), el("td", null, sel), actCell, el("td", {cls: "small", text: m.added_by || ""}),
         el("td", null, m.email === sb.email ? el("span", {cls: "small", text: "You"}) : el("button", {cls: "linkbtn", type: "button", onclick: function(){
-          sb.client.from("team_members").delete().eq("email", m.email).then(function(r){ toast(r.error ? "Could not remove: " + r.error.message : "Removed " + m.email); return dbRefreshLists(); }).then(renderSavedPanel); }}, "Remove"))));
+          sb.client.from("team_members").delete().eq("email", m.email).then(function(r){
+            toast(r.error ? "Could not remove: " + r.error.message : "Removed " + m.email);
+            if (!r.error && alertsAllowed() && activityUsersOf(state.settings).indexOf(normEmail(m.email)) >= 0) toggleActivityUser(m.email, false, "Removed " + m.email);
+            return dbRefreshLists();
+          }).then(renderSavedPanel); }}, "Remove"))));
     });
+    var cols = showActCol ? ["Email", "Role", "Ad account activity", "Added by", ""] : ["Email", "Role", "Added by", ""];
     box.appendChild(el("div", {cls: "tbl-wrap", style: "max-height:320px"}, el("table", null,
-      el("thead", null, el("tr", null, ["Email", "Role", "Added by", ""].map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), mt)));
+      el("thead", null, el("tr", null, cols.map(function(h){ return el("th", {scope: "col", style: "cursor:default", text: h}); }))), mt)));
   }
 }
 
