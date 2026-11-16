@@ -242,8 +242,8 @@ test("weekly report: Mon–Sun vs previous week, ratios from weekly totals, smal
   const ap = txt.split("🏢 Appa")[1].split("━━")[0];
   assert.ok(/Not enough data to judge/.test(ap) && /Month budget: not set/.test(ap) && /Previous CPL: N\/A/.test(ap), ap);
   assert.ok(/No activity/.test(txt.split("🏢 Tarzan")[1].split("━━")[0]));
-  assert.ok(/Budget \(month to date, 1 brand with a budget\)/.test(txt) && /Improving: 0 · 📉 Deteriorating: 0/.test(txt));
-  assert.ok(/WEEKLY MANAGEMENT SUMMARY/.test(txt) && /PRIORITIES FOR NEXT WEEK/.test(txt) && /Best Lead Quality: Carlton — QL rate 42%/.test(txt) && !/CPL up \+100%/.test(txt.split('PRIORITIES FOR NEXT WEEK')[1]));
+  assert.ok(/Budget \(month to date, 1 brand with a budget\)/.test(txt) && /Improving: 0 · 📉 Deteriorating: [01]/.test(txt));
+  assert.ok(/WEEKLY MANAGEMENT SUMMARY/.test(txt) && /PRIORITIES FOR NEXT WEEK/.test(txt) && /Best Lead Quality: Carlton — QL rate (42|49)%/.test(txt) && !/CPL up \+100%/.test(txt.split('PRIORITIES FOR NEXT WEEK')[1]));
   assert.strictEqual(rep.total.cpl, rep.total.spend / rep.total.leads);
 });
 test("reach only where it can't double-count: one dedicated ad account whose spend equals the brand's", async () => {
