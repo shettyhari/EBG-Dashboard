@@ -2,6 +2,7 @@
 // For every ticked account: one query for the whole range (campaign × day), then that account's days in the range are replaced,
 // so renamed campaigns never count twice and late conversions (Google adds them for days) are picked up.
 const { campaignDaily, digits } = require("./_gadslib");
+const { makeBrandResolver } = require("./_brand");
 const AUTO_FILE = "Google Ads API · auto-sync";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const istDay = (o) => new Date(Date.now() + 330 * 60000 + (o || 0) * 864e5).toISOString().slice(0, 10);
@@ -23,8 +24,7 @@ async function syncGoogle(S, sbFetch, opt) {
   const accounts = (Array.isArray(S.googleAccounts) ? S.googleAccounts : []).filter((a) => a && digits(a.id) && a.on !== false);
   if (!accounts.length) return { skipped: "No Google Ads accounts ticked (dashboard › Settings › Data connections › Google Ads)." };
   const R = googleRange(S, opt.from, opt.to);
-  const kws = (S.keywords || []).filter((k) => k && k[0] && k[1]).map((k) => [String(k[0]).toLowerCase(), k[1]]);
-  const kw = (t) => { const s = String(t || "").toLowerCase(); for (const k of kws) if (s.indexOf(k[0]) >= 0) return k[1]; return "Unmapped"; };
+  const brandOf = makeBrandResolver(S).forAccountCampaign;
   const errors = [], done = []; let rowsSaved = 0, idx = 0;
   const one = async (a) => {
     const id = digits(a.id), raw = await campaignDaily(id, a.via || "", R.from, R.to), now = new Date().toISOString();
@@ -32,7 +32,7 @@ async function syncGoogle(S, sbFetch, opt) {
     raw.forEach((x) => { const k = x.campaignId + "|" + x.date, o = mm[k];
       if (o) { o.spend = Math.round((o.spend + x.spend) * 100) / 100; o.conversions += x.conversions; o.impressions += x.impressions; o.clicks += x.clicks; return; }
       mm[k] = { account_id: id, account_name: x.account || a.name || id, campaign_id: x.campaignId, campaign: x.campaign, campaign_type: x.type, day: x.date,
-        spend: x.spend, conversions: x.conversions, impressions: x.impressions, clicks: x.clicks, currency: x.currency || "INR", brand: a.brand || kw(x.campaign), updated_at: now }; });
+        spend: x.spend, conversions: x.conversions, impressions: x.impressions, clicks: x.clicks, currency: x.currency || "INR", brand: brandOf(a, x.campaign), updated_at: now }; });
     const rows = Object.values(mm);
     await sbFetch("google_ad_rows?account_id=eq." + id + "&day=gte." + R.from + "&day=lte." + R.to, { method: "DELETE" });
     for (let i = 0; i < rows.length; i += 500)

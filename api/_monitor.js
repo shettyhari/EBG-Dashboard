@@ -9,6 +9,7 @@ const T = require("./_tg");
 const A = require("./_alertlib");
 const ACT = require("./_activity");
 const R = require("./_reports");
+const { makeBrandResolver } = require("./_brand");
 const { all, graph, VER } = require("./_metalib");
 const GRAPH = "https://graph.facebook.com/" + VER;
 
@@ -48,8 +49,7 @@ async function rpcAll(sbFetch, fn, body) {   // PostgREST returns at most 1,000 
 }
 const accountsOf = (S) => (Array.isArray(S.metaAccounts) ? S.metaAccounts : []).filter((a) => a && a.id && a.on !== false);
 const actId = (id) => (String(id).indexOf("act_") === 0 ? String(id) : "act_" + id);
-function brander(S) { const kws = (S.keywords || []).filter((k) => k && k[0] && k[1]).map((k) => [String(k[0]).toLowerCase(), k[1]]);
-  return (acc, name) => (acc && acc.brand) || (function(){ const s = String(name || "").toLowerCase(); for (const k of kws) if (s.indexOf(k[0]) >= 0) return k[1]; return "Unmapped"; })(); }
+function brander(S) { return makeBrandResolver(S).forAccountCampaign; }
 const ACCOUNT_STATUS = { 1: "Active", 2: "Disabled", 3: "Unsettled (payment due)", 7: "Pending risk review", 8: "Pending settlement", 9: "In grace period", 100: "Pending closure", 101: "Closed", 201: "Any active", 202: "Any closed" };
 
 /* ---------- 1. load everything once ---------- */

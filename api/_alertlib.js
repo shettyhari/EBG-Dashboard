@@ -5,6 +5,7 @@
 // Numbers use the same definitions as the dashboard: Meta leads = Meta "Results" of lead / chat campaigns; CPL = spend ÷ Meta leads;
 // CRM leads and qualified leads come from TeleCRM (crm_leads).
 const { graph, all, VER } = require("./_metalib");
+const { makeBrandResolver } = require("./_brand");
 const T = require("./_tg");
 const GRAPH = "https://graph.facebook.com/" + VER;
 
@@ -30,8 +31,7 @@ async function deliver(sbFetch, kind, html) { const t = await chatOf(sbFetch); i
 const accountsOf = (S) => (Array.isArray(S.metaAccounts) ? S.metaAccounts : []).filter((a) => a && a.id && a.on !== false);
 const actId = (id) => (String(id).indexOf("act_") === 0 ? String(id) : "act_" + id);
 function brander(S) {
-  const kws = (S.keywords || []).filter((k) => k && k[0] && k[1]).map((k) => [String(k[0]).toLowerCase(), k[1]]);
-  return (acc, name) => (acc && acc.brand) || (function(){ const s = String(name || "").toLowerCase(); for (const k of kws) if (s.indexOf(k[0]) >= 0) return k[1]; return "Unmapped"; })();
+  return makeBrandResolver(S).forAccountCampaign;
 }
 
 /* ---------- 1. who changed what (Meta account activity log), in plain language ---------- */

@@ -2,6 +2,7 @@
 // Raw events are stored as Meta sends them (meta_activity); describe() turns each into
 //   who · brand · campaign · ad set / ad · what changed · before → after · remarks (what will happen next) · impact.
 const { all, graph, VER } = require("./_metalib");
+const { makeBrandResolver } = require("./_brand");
 const GRAPH = "https://graph.facebook.com/" + VER;
 const actId = (id) => (String(id).indexOf("act_") === 0 ? String(id) : "act_" + id);
 const isoOf = (t) => { const x = Date.parse(String(t).replace(/([+-]\d{2})(\d{2})$/, "$1:$2")); return isFinite(x) ? new Date(x).toISOString() : null; };
@@ -181,8 +182,7 @@ async function fromRows(sbFetch, objectId) {
 async function fetchAndStore(S, sbFetch, opt) {
   opt = opt || {};
   const accs = (Array.isArray(S.metaAccounts) ? S.metaAccounts : []).filter((a) => a && a.id && a.on !== false);
-  const kws = (S.keywords || []).filter((k) => k && k[0] && k[1]).map((k) => [String(k[0]).toLowerCase(), k[1]]);
-  const brandOf = (a, name) => a.brand || (function(){ const s = String(name || "").toLowerCase(); for (const k of kws) if (s.indexOf(k[0]) >= 0) return k[1]; return ""; })();
+  const brandOf = makeBrandResolver(S, { fallback: "" }).forAccountCampaign;
   const st = (await opt.getState(sbFetch, "activity")) || {}, next = Object.assign({}, st), fresh = [], errors = [];
   await Promise.all(accs.map(async (a) => {
     const id = actId(a.id), last = st[id], first = !last;

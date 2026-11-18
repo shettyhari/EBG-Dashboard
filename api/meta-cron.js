@@ -8,6 +8,7 @@
 // continuing where the last run stopped, so a long range is fully refreshed within a few runs.
 const crypto = require("crypto");
 const { accountRows } = require("./_metalib");
+const { makeBrandResolver } = require("./_brand");
 const OBJ = require("./_objstatus");
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
 const AUTO_FILE = "Meta API · auto-sync";
@@ -71,8 +72,7 @@ module.exports = async function handler(req, res) {
     const accounts = (Array.isArray(S.metaAccounts) ? S.metaAccounts : []).filter((a) => a && a.id && a.on !== false);
     if (!accounts.length) return send(res, 200, { skipped: "No ad accounts ticked." });
     const R = autoRange(S);
-    const kws = (S.keywords || []).filter((k) => k && k[0] && k[1]).map((k) => [String(k[0]).toLowerCase(), k[1]]);
-    const kw = (t) => { const s = String(t || "").toLowerCase(); for (const k of kws) if (s.indexOf(k[0]) >= 0) return k[1]; return "Unmapped"; };
+    const brandOf = makeBrandResolver(S).forAccountCampaign;
 
     // pieces: yesterday + today first (every run), then older days in 7-day pieces, newest first, continuing from the last run
     const recentFrom = R.from > addDays(R.to, -1) ? R.from : addDays(R.to, -1);
@@ -101,7 +101,7 @@ module.exports = async function handler(req, res) {
         const camp = clean(r[4]), adset = clean(r[5]), ad = clean(r[6]), day = r[0]; if (!camp) return;
         const k = [camp, adset, ad, day].join("|~|"), x = mm[k];
         const row = { source_file: "Meta API · " + (r[2] || r[1]) + " · " + acctId(r[1] || job.a.id), campaign: camp, adset, ad, day, day_end: day, spend: r[7], results: r[8], result_indicator: r[9],
-          currency: r[3] || "INR", brand: job.a.brand || kw(camp), impressions: r[10], clicks: r[11], reach: r[12], ad_id: String(r[13] || "") };
+          currency: r[3] || "INR", brand: brandOf(job.a, camp), impressions: r[10], clicks: r[11], reach: r[12], ad_id: String(r[13] || "") };
         if (x) { x.spend = Math.round((x.spend + row.spend) * 100) / 100; x.results += row.results; x.impressions += row.impressions; x.clicks += row.clicks; x.reach = null; if (!x.result_indicator) x.result_indicator = row.result_indicator;
           if (row.ad_id && (", " + x.ad_id + ", ").indexOf(", " + row.ad_id + ", ") < 0) x.ad_id = x.ad_id ? x.ad_id + ", " + row.ad_id : row.ad_id; }
         else mm[k] = row;

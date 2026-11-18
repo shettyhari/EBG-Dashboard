@@ -8,6 +8,7 @@
 // which uses the time it was first received — only sensible for flows that push each lead as it is created.
 // Needs in Vercel: CRM_PUSH_KEY (any long random text, also put in n8n) and SUPABASE_SERVICE_ROLE_KEY.
 const crypto = require("crypto");
+const { makeBrandResolver } = require("./_brand");
 const SB_URL = process.env.SUPABASE_URL || "https://oggmosadlkarwlurxdjk.supabase.co";
 const PUSH_FILE = "TeleCRM · n8n push";
 const MAX_LEADS = 5000;
@@ -112,8 +113,8 @@ module.exports = async function handler(req, res) {
     const st = await sbFetch("team_settings?id=eq.1&select=settings");
     const S = (st && st[0] && st[0].settings) || {}, cc = (S.cols && S.cols.crm) || {};
     const alias = {}; Object.keys(ALIAS).forEach((f) => { alias[f] = [nk(cc[f])].filter(Boolean).concat(ALIAS[f]); });
-    const kws = (S.keywords || []).filter((k) => k && k[0] && k[1]).map((k) => [String(k[0]).toLowerCase(), k[1]]);
-    const kwBrand = (t) => { const s = String(t || "").toLowerCase(); if (!s) return ""; for (const k of kws) if (s.indexOf(k[0]) >= 0) return k[1]; return "Unmapped"; };
+    const brandRes = makeBrandResolver(S);
+    const kwBrand = (t) => { const s = String(t || "").trim(); if (!s) return ""; return brandRes.forCampaign(s); };
     const nowIst = fmt(Date.now() + 330 * 60000);
 
     // read each lead

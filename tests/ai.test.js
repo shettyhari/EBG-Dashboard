@@ -1097,8 +1097,53 @@ async function runTests() {
     console.log('✓ Unit Franchise Leads FTD Target Report & channel classification verified');
   }
 
+  // Test 16: 3-level Campaign -> Brand assignment (Direct Overrides, Ad Account, Keyword Exclude Rules)
+  {
+    console.log('Test 16: 3-level Campaign -> Brand assignment (api/_brand.js & index.html)');
+    const { makeBrandResolver } = require('../api/_brand');
+    const S = {
+      keywords: [
+        ['Shayreen', 'Shayreen by Natuf'],
+        ['Natuf', 'Natuf', 'FW, Franchise World'],
+        ['ACER', 'Acer', 'FW'],
+        ['FW', 'Franchise World']
+      ],
+      campaignBrands: {
+        'natuf franchise special promo': 'Franchise World',
+        'fw | carlton exclusive': 'Carlton'
+      }
+    };
+    const resolver = makeBrandResolver(S);
+
+    // 1. Direct campaign override ALWAYS wins (even over ad account brand and keyword rules)
+    assert.strictEqual(resolver.forAccountCampaign({ brand: 'Natuf' }, 'Natuf Franchise Special Promo'), 'Franchise World');
+    assert.strictEqual(resolver.forAccountCampaign({ brand: 'Franchise World' }, 'FW | Carlton Exclusive'), 'Carlton');
+
+    // 2. Ad account brand wins over keyword rules when no direct override exists
+    assert.strictEqual(resolver.forAccountCampaign({ brand: 'Franchise World' }, 'Natuf Leads Campaign'), 'Franchise World');
+
+    // 3. Keyword exclude rule prevents FW campaigns from matching Natuf/ACER even when FW rule is lower
+    assert.strictEqual(resolver.forAccountCampaign({}, 'FW | Natuf | UF Leads'), 'Franchise World');
+    assert.strictEqual(resolver.forAccountCampaign({}, 'Franchise World - Natuf Promo'), 'Unmapped'); // neither Natuf (excluded) nor FW
+    assert.strictEqual(resolver.forAccountCampaign({}, 'FW - ACER Leads'), 'Franchise World');
+    assert.strictEqual(resolver.forAccountCampaign({}, 'Natuf Regular Leads'), 'Natuf');
+    assert.strictEqual(resolver.forAccountCampaign({}, 'ACER Direct Form'), 'Acer');
+    assert.strictEqual(resolver.forAccountCampaign({}, 'Shayreen Launch'), 'Shayreen by Natuf');
+
+    // Verify frontend helpers & UI controls exist in index.html
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert(indexHtml.includes('function matchBrandRule('), 'matchBrandRule should exist in index.html');
+    assert(indexHtml.includes('function syncCampaignBrandsToDb('), 'syncCampaignBrandsToDb should exist in index.html');
+    assert(indexHtml.includes('Direct campaign → brand assignment'), 'Direct campaign assignment UI card should exist');
+    assert(indexHtml.includes('Test a campaign name'), 'Live campaign rule tester should exist');
+    assert(indexHtml.includes('except if contains'), 'Keyword exclude field should exist');
+    assert(indexHtml.includes('Move to top (Rule #1)'), 'Move to top button should exist');
+
+    console.log('✓ 3-level Campaign -> Brand assignment & exclude rules verified');
+  }
+
   console.log('\n========================================');
-  console.log('ALL 15 AI API INTEGRATION TESTS PASSED!');
+  console.log('ALL 16 AI API INTEGRATION TESTS PASSED!');
   console.log('========================================');
 }
 
