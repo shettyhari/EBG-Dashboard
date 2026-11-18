@@ -1026,8 +1026,42 @@ async function runTests() {
 
     assert(indexHtml.includes('["uf_ftd", "Unit Franchise Leads FTD Target Report'), 'uf_ftd report should be registered in REPORT_TYPES');
     assert(indexHtml.includes('function repUfFtdTable('), 'repUfFtdTable builder should be defined');
+    assert(indexHtml.includes('function repUfDailyTarget('), 'repUfDailyTarget helper should be defined');
     assert(indexHtml.includes('function classifyLeadChannel('), 'classifyLeadChannel helper should be defined');
     assert(indexHtml.includes('.rep-uf-banner'), 'rep-uf-banner styling should be defined');
+
+    // Extract and test repUfDailyTarget (Allocated Daily Budget ÷ Target CPL)
+    const tgMatch = indexHtml.match(/function repUfDailyTarget\(b, from, to\)\{[\s\S]*?\n\}/);
+    assert(tgMatch, 'repUfDailyTarget source should be extractable');
+    const mockSettings = {
+      report: {
+        months: {
+          '2026-11': {
+            brands: {
+              'Adhira & Appa': { budget: 780000, cpl: 400, leads: 999 },
+              'Carlton': { budget: 2280000, cpl: 400 },
+              'Acer': { budget: 720000, cpl: 387 },
+              'FallbackBrand': { leads: 900 }
+            }
+          }
+        }
+      }
+    };
+    const dayFrom = (y, m, d) => Math.floor(Date.UTC(y, m, d) / 86400000);
+    const ymd = (day) => { const x = new Date(day * 86400000); return { y: x.getUTCFullYear(), m: x.getUTCMonth(), d: x.getUTCDate() }; };
+    const monKey = (d) => { const x = ymd(d); return x.y + '-' + String(x.m + 1).padStart(2, '0'); };
+    const monDays = (d) => { const x = ymd(d); return new Date(Date.UTC(x.y, x.m + 1, 0)).getUTCDate(); };
+    const isNum = (v) => typeof v === 'number' && isFinite(v);
+    const repPeriodTgt = (monthly, from, to) => { let s = 0; for (let d = from; d <= to; d++) { const v = monthly(monKey(d)); if (!isNum(v)) return null; s += v / monDays(d); } return s; };
+    const repUfDailyTarget = new Function('state', 'repS', 'repPeriodTgt', 'isNum', 'b', 'from', 'to',
+      tgMatch[0].replace(/^function repUfDailyTarget\(b, from, to\)\{/, '').replace(/\}$/, '')
+    ).bind(null, { settings: mockSettings }, (S) => S.report, repPeriodTgt, isNum);
+
+    const nov17 = dayFrom(2026, 10, 17);
+    assert.strictEqual(repUfDailyTarget('Adhira & Appa', nov17, nov17), 65, '₹26,000/day ÷ ₹400 CPL = 65');
+    assert.strictEqual(repUfDailyTarget('Carlton', nov17, nov17), 190, '₹76,000/day ÷ ₹400 CPL = 190');
+    assert.strictEqual(repUfDailyTarget('Acer', nov17, nov17), 62, '₹24,000/day ÷ ₹387 CPL = 62');
+    assert.strictEqual(repUfDailyTarget('FallbackBrand', nov17, nov17), 30, 'Fallback 900/30 = 30 when CPL missing');
 
     // Extract and test classifyLeadChannel logic directly
     const fnMatch = indexHtml.match(/function classifyLeadChannel\(ind, camp\)\{[\s\S]*?\n\}/);

@@ -3049,12 +3049,23 @@ function repCreativeTable(o){
     info: {compared: ads.length, small: base.length - ads.length, minImp: minImp, minSpend: minSpend, autoSpend: !(+P.minSpend > 0), minDays: minDays, periodDays: periodDays, medCtr: medCtr, medCpl: medCpl, noCtr: !R.hasCtr, noIds: ads.length > 0 && !ads.some(function(a){ return a.adId; })}};
 }
 /* ---------- Unit Franchise Leads FTD Target Report: LeadForm vs WhatsApp split, CPL, spend & daily budget ---------- */
+/* daily target = Allocated Daily Budget ÷ Target CPL from Settings › Report targets (falls back to monthly leads ÷ days in month when CPL isn't set) */
+function repUfDailyTarget(b, from, to){
+  var RP = repS(state.settings);
+  var raw = repPeriodTgt(function(k){
+    var M = RP.months[k], t = M && M.brands && M.brands[b];
+    if (!t) return null;
+    if (isNum(t.budget) && t.budget > 0 && isNum(t.cpl) && t.cpl > 0) return t.budget / t.cpl;
+    return isNum(t.leads) ? t.leads : null;
+  }, from, to);
+  return isNum(raw) ? Math.round(raw) : null;
+}
 function repUfFtdTable(o){
   var P = o.params, R = o.R, label = repDateLabel(o.rg.from, o.rg.to), br = repBrandRow(R), rows = [], picked = [];
   var isSingleDay = o.rg.from === o.rg.to;
   repBrands(P).forEach(function(b){
     var a = br[b], has = !!a && repHasMeta(R, b);
-    var tg = repBrandTgt(b, "leads", o.rg.from, o.rg.to);
+    var tg = repUfDailyTarget(b, o.rg.from, o.rg.to);
     var bg = repBrandTgt(b, "budget", o.rg.from, o.rg.to);
     var ach = has ? a.ui : null;
     var lf = has && a.uiForm > 0 ? a.uiForm : null;
@@ -3162,11 +3173,14 @@ function viewReports(){
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.rep = null; state.repOut = null; render(); }}, "Reset"), exportBtn));
   sec.appendChild(ctr);
   var bRg = repIsRange(P.type) ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff}, tMon = monKey(bRg.to);
-  var missing = repBrands(P).filter(function(b){ return !isNum(repBrandTgt(b, "leads", bRg.from, bRg.to)) || ((P.type === "master" || P.type === "uf_ftd") && !isNum(repBrandTgt(b, "budget", bRg.from, bRg.to))) || (P.type === "master" && !isNum(repTargetCpl(b, bRg.to))); });
+  var missing = repBrands(P).filter(function(b){
+    if (P.type === "uf_ftd") return !isNum(repBrandTgt(b, "budget", bRg.from, bRg.to)) || !isNum(repUfDailyTarget(b, bRg.from, bRg.to));
+    return !isNum(repBrandTgt(b, "leads", bRg.from, bRg.to)) || (P.type === "master" && (!isNum(repTargetCpl(b, bRg.to)) || !isNum(repBrandTgt(b, "budget", bRg.from, bRg.to))));
+  });
   var goTargets = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; setDraft().repMonth = tMon; render(); }}, "Set " + monLabel(tMon) + " targets");
   if (repIsLeader(P.type)){ var noL = !RP.leaders.some(function(L){ return isNum(repLeaderTgt(L.name, bRg.from, bRg.to)); });
     if (noL) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No leader targets set for " + monLabel(tMon) + "; the target columns show “—”. "}), goTargets)); }
-  else if (missing.length && P.type !== "creative" && P.type !== "daily") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : P.type === "uf_ftd" ? "lead target or daily budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
+  else if (missing.length && P.type !== "creative" && P.type !== "daily") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : P.type === "uf_ftd" ? "allocated budget or target CPL" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
   if (!O){ sec.appendChild(el("div", {cls: "empty", text: "Pick the report and dates, then click Generate."})); }
   else if (O.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Loading the data and calculating… (a month of data can take a few seconds)"})); }
   else if (O.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't build the report: " + O.err})); }
@@ -3194,7 +3208,7 @@ function viewReports(){
 }
 function repHowCalc(type){
   if (type === "uf_ftd") return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}), el("table", {cls: "help-gloss"}, el("tbody", null, [
-    ["Target UF-FTD", "Daily lead target per brand = monthly lead target (Settings › Report targets) ÷ days in that month × days in the selected period."],
+    ["Target UF-FTD", "Allocated Daily Budget ÷ Target CPL from Settings › Report targets (rounded to nearest whole lead; falls back to monthly lead target ÷ days in month if Target CPL isn't set)."],
     ["Achieved UF+MF-FTD", "Total Meta leads (LeadForm + WhatsApp conversations + any other lead results such as Website leads) for the brand in the period."],
     ["% Achieved UF+MF-FTD", "Achieved UF+MF-FTD ÷ Target UF-FTD. Green when ≥ 100%, red when < 100%."],
     ["Via LeadForm / Via WhatsApp", "Breakdown of Meta leads by channel from Meta's Result indicator (Leads (form) vs Messaging conversations started, with WhatsApp/CTWA campaign-name fallback). Blank when 0."],
