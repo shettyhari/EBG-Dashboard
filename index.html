@@ -916,6 +916,29 @@ table.sticky-1 tbody tr:hover td:first-child{background:var(--row-hover)}
 .rep-remark input{width:100%;min-width:140px;border:1px solid var(--line-soft);background:transparent;color:var(--ink);padding:4px 6px;font:inherit;font-size:12.5px}
 .rep-how{margin-top:16px}
 tr.total-bottom td{position:static!important;background:#dce3f0!important;color:#111}
+.rep-uf-banner{background:#111111;color:#ffffff;text-align:center;font-weight:700;font-size:14px;padding:10px 14px;border-radius:8px 8px 0 0;letter-spacing:.01em;border:1px solid #111111;border-bottom:1px solid #2c2f36}
+.rep-uf .tbl-wrap{border-top-left-radius:0;border-top-right-radius:0;border-top:0}
+.rep-uf thead th{background:#111111!important;color:#ffffff!important;border-bottom:1px solid #2c2f36;border-right:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:700;padding:9px 10px}
+.rep-uf thead th:last-child{border-right:0}
+.rep-uf tbody td{border-right:1px solid var(--line-soft);padding:7px 10px;font-size:13px}
+.rep-uf tbody td:last-child{border-right:0}
+.rep-uf tbody td.name{font-weight:600;color:var(--ink)}
+.rep-uf tbody td.flag-good{background:#b7e1cd!important;color:#0f5132!important;font-weight:500}
+.rep-uf tbody td.flag-bad{background:#ea9999!important;color:#7f1d1d!important;font-weight:500}
+.rep-uf tbody tr:hover td:not(.flag-good):not(.flag-bad){background:var(--row-hover)}
+.rep-uf tbody tr.total-bottom td{background:#eef1f5!important;color:#111111!important;font-weight:700;border-top:2px solid #9aa0a6}
+.rep-uf tbody tr.total-bottom td.flag-good{background:#b7e1cd!important;color:#0f5132!important;font-weight:700}
+.rep-uf tbody tr.total-bottom td.flag-bad{background:#ea9999!important;color:#7f1d1d!important;font-weight:700}
+:root[data-theme="dark"] .rep-uf tbody td.flag-good{background:rgba(16,185,129,0.22)!important;color:#6ee7b7!important}
+:root[data-theme="dark"] .rep-uf tbody td.flag-bad{background:rgba(239,68,68,0.24)!important;color:#fca5a5!important}
+:root[data-theme="dark"] .rep-uf tbody tr.total-bottom td{background:#23272f!important;color:#f8fafc!important;border-top-color:#4b5563}
+:root[data-theme="dark"] .rep-uf tbody tr.total-bottom td.flag-good{background:rgba(16,185,129,0.32)!important;color:#6ee7b7!important}
+:root[data-theme="dark"] .rep-uf tbody tr.total-bottom td.flag-bad{background:rgba(239,68,68,0.34)!important;color:#fca5a5!important}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .rep-uf tbody td.flag-good{background:rgba(16,185,129,0.22)!important;color:#6ee7b7!important}
+  :root:not([data-theme="light"]) .rep-uf tbody td.flag-bad{background:rgba(239,68,68,0.24)!important;color:#fca5a5!important}
+  :root:not([data-theme="light"]) .rep-uf tbody tr.total-bottom td{background:#23272f!important;color:#f8fafc!important;border-top-color:#4b5563}
+  :root:not([data-theme="light"]) .rep-uf tbody tr.total-bottom td.flag-good{background:rgba(16,185,129,0.32)!important;color:#6ee7b7!important}
+  :root:not([data-theme="light"]) .rep-uf tbody tr.total-bottom td.flag-bad{background:rgba(239,68,68,0.34)!important;color:#fca5a5!important} }
 @media (max-width:640px){ .rep-actions{margin-left:0} }
 
 /* ---------- Ask AI Floating Chatbot & Settings ---------- */
@@ -1391,6 +1414,16 @@ function crmDupInfo(aoa, ch, S){
 function normFbLead(v){ var x = clean(v).replace(/^l:/i, ""); return /^[0-9]{6,}$/.test(x) ? x : ""; }
 /* lead forms and WhatsApp / Messenger conversations count as leads; landing page views, link clicks etc. don't */
 function isLeadIndicator(v){ var t = String(v).toLowerCase(); return t.indexOf("lead") >= 0 || /messaging[ _.]?conversation/.test(t); }
+/* classify a Meta lead row into "form" (LeadForm), "wa" (WhatsApp / Messaging), or "other" (e.g. Website pixel) */
+function classifyLeadChannel(ind, camp){
+  var t = String(ind || "").toLowerCase(), c = String(camp || "");
+  if (/messaging[ _.]?conversation|whatsapp|ctwa/.test(t)) return "wa";
+  if (/website|pixel|offsite|onsite_web/.test(t)) return "other";
+  if (/form|lead_grouped|leadgen/.test(t)) return "form";
+  if (/whatsapp|ctwa|\bwa\b|message|msg|chat/i.test(c)) return "wa";
+  if (/\b(website|web|landing|lp|pixel)\b/i.test(c)) return "other";
+  return "form";
+}
 function prettyIndicator(v){ var s = String(v).replace(/^actions:/i, "").replace(/^offsite_conversion\.fb_pixel_/i, "").replace(/^onsite_conversion\./i, "").replace(/^omni_/i, "").replace(/[_.]+/g, " ").trim();
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : String(v); }
 function levelKey(camp, adset, ad, lvl){ var k = camp.toLowerCase(); if (lvl >= 2) k += "|" + adset.toLowerCase(); if (lvl >= 3) k += "|" + ad.toLowerCase(); return k; }
@@ -1508,10 +1541,12 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
       if (inc){ ci.spend += sp; ci.ui += ui; }
       metaRows++;
       var a = metaAds[key];
-      if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, imp: 0, clk: 0, brand: brandOf(camp)}); metaOrder.push(key); }
+      if (!a){ a = metaAds[key] = newAcc({key: key, src: "M", campaign: camp, adset: adset, ad: ad, spend: 0, ui: 0, uiForm: 0, uiWa: 0, imp: 0, clk: 0, brand: brandOf(camp)}); metaOrder.push(key); }
       if (c.adid >= 0){ var aidv = clean(r[c.adid]); if (aidv) String(aidv).split(/\s*,\s*/).forEach(function(x){ if (x && (!a.adId || (", " + a.adId + ", ").indexOf(", " + x + ", ") < 0)) a.adId = a.adId ? a.adId + ", " + x : x; }); }
       if (inc && rch !== null){ a.reach = (a.reach || 0) + rch; a.reachRows = (a.reachRows || 0) + 1; }
-      if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1; if (sp > 0) a.spendDays = (a.spendDays || 0) + (sD !== null && eD !== null && eD >= sD ? eD - sD + 1 : 1); metaResults += ui; metaRowsIn++; if (ui > 0 && eD !== null && !(a.lastUi >= eD)) a.lastUi = eD; }
+      if (inc){ a.spend += sp; a.ui += ui; a.imp += im; a.clk += ck; a.rowsIn = (a.rowsIn || 0) + 1;
+        if (ui > 0){ var lch = classifyLeadChannel(c.indicator >= 0 ? clean(r[c.indicator]) : "", camp); if (lch === "form") a.uiForm += ui; else if (lch === "wa") a.uiWa += ui; }
+        if (sp > 0) a.spendDays = (a.spendDays || 0) + (sD !== null && eD !== null && eD >= sD ? eD - sD + 1 : 1); metaResults += ui; metaRowsIn++; if (ui > 0 && eD !== null && !(a.lastUi >= eD)) a.lastUi = eD; }
       else if (part){ a.partial = true; partialRows++; }
     }
   }
@@ -1525,7 +1560,7 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
     if (o.manual || o.auto) excl[ck] = 1; });
   var exUi = 0, exSpend = 0, exMetaRows = 0;
   metaOrder.forEach(function(k){ var a = metaAds[k];
-    if (!excl[campKey(a.campaign)]) return; exUi += a.ui; exSpend += a.spend; exMetaRows += a.rowsIn || 0; a.ui = 0; a.uiExcluded = true; });
+    if (!excl[campKey(a.campaign)]) return; exUi += a.ui; exSpend += a.spend; exMetaRows += a.rowsIn || 0; a.ui = 0; a.uiForm = 0; a.uiWa = 0; a.uiExcluded = true; });
   var metaStart = starts.length ? Math.min.apply(null, starts) : null, metaEnd = ends.length ? Math.max.apply(null, ends) : null;
   var fromD = S.from ? parseDT(S.from) : null, toD = S.to ? parseDT(S.to) : null;
   var effFrom = isNum(fromD) ? dayOf(fromD) : (metaStart !== null ? metaStart : -1e9);
@@ -1698,12 +1733,13 @@ function processData(metaAOA, crmAOA, S, range, nowOverride){
   /* ---------- brand summary ---------- */
   var brandList = S.brands.slice(); if (S.showOther){ brandList.push("Unmapped"); brandList.push("No campaign"); }
   var brandRows = brandList.map(function(b){
-    var o = newAcc({brand: b, spend: 0, ui: 0, imp: 0, clk: 0, nAds: 0});
+    var o = newAcc({brand: b, spend: 0, ui: 0, uiForm: 0, uiWa: 0, imp: 0, clk: 0, nAds: 0});
     shown.forEach(function(a){ if (a.brand !== b) return; o.nAds++; if (a.partial) o.partial = true; if (isNum(a.spend)) o.spend += a.spend; if (isNum(a.ui)) o.ui += a.ui;
+      if (isNum(a.uiForm)) o.uiForm += a.uiForm; if (isNum(a.uiWa)) o.uiWa += a.uiWa;
       if (isNum(a.imp) && !a.partial) o.imp += a.imp; if (isNum(a.clk) && !a.partial) o.clk += a.clk;
       mergeLeads(o, a); if (isNum(a.reach) && !a.partial){ o.reach = (o.reach || 0) + a.reach; o.reachRows = (o.reachRows || 0) + (a.reachRows || 0); } });
     if (!hasCtr){ o.imp = null; o.clk = null; }
-    o.noCamp = noCampByBrand[b] || 0; if (o.partial){ o.spend = null; o.ui = null; o.imp = null; o.clk = null; } derive(o); return o;
+    o.noCamp = noCampByBrand[b] || 0; if (o.partial){ o.spend = null; o.ui = null; o.uiForm = null; o.uiWa = null; o.imp = null; o.clk = null; } derive(o); return o;
   });
   /* ---------- checks ---------- */
   var sumShownCrm = 0, sumHiddenCrm = 0, sumShownUi = 0, sumHiddenUi = 0, unmappedAds = 0;
@@ -1814,7 +1850,7 @@ function fDur(v){ if (!isNum(v)) return "N/A"; if (v < 59.95) return v.toFixed(1
 function fMin(v){ return fDur(v); }
 function fShortINR(v){ if (!isNum(v)) return "N/A"; var a = Math.abs(v); if (CUR !== "₹") return fINR(v); if (a >= 1e7) return "₹" + (v / 1e7).toFixed(2) + " Cr"; if (a >= 1e5) return "₹" + (v / 1e5).toFixed(2) + " L"; return fINR(v); }
 function fINR2(v){ return isNum(v) ? (v < 0 ? "-" : "") + CUR + Math.abs(v).toLocaleString("en-IN", {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "N/A"; }
-var FMT = {rpct2: function(v){ return isNum(v) ? (v * 100).toFixed(2) + "%" : "—"; }, rint: function(v){ return isNum(v) ? fInt(v) : "—"; }, rinr: function(v){ return isNum(v) ? fINR(v) : "—"; }, rpct: function(v){ return isNum(v) ? Math.round(v * 100) + "%" : "—"; }, dt: function(v){ return isNum(v) ? fTime(v) : "—"; }, inr2: fINR2, int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
+var FMT = {rpct2: function(v){ return isNum(v) ? (v * 100).toFixed(2) + "%" : "—"; }, rint: function(v){ return isNum(v) ? fInt(v) : "—"; }, rintb: function(v){ return isNum(v) && v > 0 ? fInt(v) : ""; }, rinr: function(v){ return isNum(v) ? fINR(v) : "—"; }, rinr2: function(v){ return isNum(v) ? fINR2(v) : "—"; }, rinr2z: function(v){ return isNum(v) ? (v === 0 ? "-" : fINR2(v)) : "—"; }, rpct: function(v){ return isNum(v) ? Math.round(v * 100) + "%" : "—"; }, dt: function(v){ return isNum(v) ? fTime(v) : "—"; }, inr2: fINR2, int: fInt, inr: fINR, pct: fPct, min: fDur, text: function(v){ return v == null ? "" : String(v); }};
 
 /* ================= DOM helpers ================= */
 function el(tag, attrs){ var e = document.createElement(tag); if (attrs) for (var k in attrs){ var v = attrs[k];
@@ -1829,14 +1865,15 @@ function toast(msg){ var t = document.getElementById("toast"); t.textContent = m
 /* ================= derived views ================= */
 function brandOK(b){ return state.brand === "All" || b === state.brand; }
 function sumRows(rows){
-  var o = newAcc({spend: 0, ui: 0, imp: 0, clk: 0, nAds: 0, nAdsets: 0, metaAds: 0}); var anyMeta = false;
+  var o = newAcc({spend: 0, ui: 0, uiForm: 0, uiWa: 0, imp: 0, clk: 0, nAds: 0, nAdsets: 0, metaAds: 0}); var anyMeta = false;
   var partial = false;
   rows.forEach(function(r){ if (r.partial) partial = true; if (isNum(r.spend)){ o.spend += r.spend; anyMeta = true; } if (isNum(r.ui)) o.ui += r.ui;
+    if (isNum(r.uiForm)) o.uiForm += r.uiForm; if (isNum(r.uiWa)) o.uiWa += r.uiWa;
     if (isNum(r.imp)){ o.imp += r.imp; o.anyImp = true; } if (isNum(r.clk)){ o.clk += r.clk; o.anyClk = true; }
     mergeLeads(o, r); if (isNum(r.reach)){ o.reach = (o.reach || 0) + r.reach; o.reachRows = (o.reachRows || 0) + (r.reachRows || 0); }
     o.nAds += r.nAds || 0; o.nAdsets += r.nAdsets || 0; });
   if (!o.anyImp) o.imp = null; if (!o.anyClk) o.clk = null;
-  if (partial || (!anyMeta && rows.length && rows.every(function(r){ return !isNum(r.ui); }))){ o.spend = null; o.ui = null; o.imp = null; o.clk = null; o.reach = null; o.partial = partial; }
+  if (partial || (!anyMeta && rows.length && rows.every(function(r){ return !isNum(r.ui); }))){ o.spend = null; o.ui = null; o.uiForm = null; o.uiWa = null; o.imp = null; o.clk = null; o.reach = null; o.partial = partial; }
   return derive(o);
 }
 function remarks(r, level){
@@ -1957,7 +1994,7 @@ function table(id, cols, rows, opts){
     var tr = el("tr", {cls: isTotal ? "total" : ((opts.brandRule && prev && prev.brand !== r.brand && !srt ? "brand-start" : "") + (opts.rowCls ? " " + (opts.rowCls(r) || "") : "")).trim()});
     cols.forEach(function(c){
       var v = c.get ? c.get(r, isTotal) : r[c.k], txt = isTotal && c.totalText !== undefined ? c.totalText : (FMT[c.t] || FMT.text)(v);
-      var fl = !isTotal && c.flag ? c.flag(r) : null;
+      var fl = (!isTotal || c.flagTotal) && c.flag ? c.flag(r) : null;
       var cls = [c.t !== "text" ? "r num nowrap" : "", c.cls || "", (v === null || v === undefined || txt === "N/A") && c.t !== "text" ? "na" : "", fl ? "flag-" + fl : ""].join(" ").trim();
       var td = el("td", {cls: cls}); if (c.render && !isTotal) td.appendChild(c.render(r)); else td.textContent = txt; tr.appendChild(td); });
     return tr; }
@@ -2795,10 +2832,10 @@ function reconSection(){
 }
 
 /* ================= Reports: EBG daily / MTD templates ================= */
-var REPORT_TYPES = [["daily", "Daily report · clicks, impressions, CTR, leads, QL, CPL, CPQL, spend"], ["brand_day", "FTD Brand-wise report"], ["leader_day", "FTD Leader-wise report"], ["brand_mtd", "MTD Brand-wise report"],
+var REPORT_TYPES = [["daily", "Daily report · clicks, impressions, CTR, leads, QL, CPL, CPQL, spend"], ["uf_ftd", "Unit Franchise Leads FTD Target Report · LeadForm vs WhatsApp & budget"], ["brand_day", "FTD Brand-wise report"], ["leader_day", "FTD Leader-wise report"], ["brand_mtd", "MTD Brand-wise report"],
   ["leader_mtd", "MTD Leader-wise report"], ["master", "Master report · FTD + MTD (platform, CRM, budget)"], ["creative", "Creative analysis · top & bottom ads by CTR"]];
 /* FTD reports take a day (or a From–To range); MTD and master take a reporting date */
-function repIsRange(t){ return t === "daily" || t === "brand_day" || t === "leader_day" || t === "creative"; }
+function repIsRange(t){ return t === "daily" || t === "uf_ftd" || t === "brand_day" || t === "leader_day" || t === "creative"; }
 function repIsLeader(t){ return t === "leader_day" || t === "leader_mtd"; }
 function repState(){ if (!state.rep){ var y = todayDay() - 1, t = null, av = state.R && state.R.avail;
   /* default = latest complete day that has data (never today, which is still running) */
@@ -2831,8 +2868,8 @@ function repFtdSpendFlag(v){ return !isNum(v) ? null : v >= 0.8 && v <= 1.1 ? "g
 function repMtdSpendFlag(v){ return !isNum(v) ? null : v <= 1 ? "good" : v <= 1.1 ? "warn" : "bad"; }
 var REP_MARK = {good: "✓", warn: "!", bad: "✗"};
 function repCol(k, label, t, flag, extra){ var c = Object.assign({k: k, label: label, t: t, nosort: true, goodFill: true}, extra || {});
-  if (flag){ c.flag = function(r){ return r._total && !c.flagTotal ? flag(r[k]) : flag(r[k]); };
-    c.render = function(r){ var f = flag(r[k]), txt = (FMT[t] || FMT.text)(r[k]); return el("span", {title: f ? {good: "On or above target", warn: "Close to target", bad: "Off target"}[f] : null}, txt, f ? el("span", {cls: "rep-mark", "aria-hidden": "true", text: " " + REP_MARK[f]}) : null); }; }
+  if (flag){ c.flag = function(r){ return r._total && !c.flagTotal ? null : flag(r[k]); };
+    if (!c.noMark) c.render = function(r){ var f = flag(r[k]), txt = (FMT[t] || FMT.text)(r[k]); return el("span", {title: f ? {good: "On or above target", warn: "Close to target", bad: "Off target"}[f] : null}, txt, f ? el("span", {cls: "rep-mark", "aria-hidden": "true", text: " " + REP_MARK[f]}) : null); }; }
   return c; }
 function repRemarkCol(type){
   var canEdit = !sb.cfg || sbCanWrite();
@@ -3011,7 +3048,68 @@ function repCreativeTable(o){
   return {cols: cols, rows: top.concat(bot), total: null, label: label, groups: [{title: gTop, rows: top}, {title: gBot, rows: bot}],
     info: {compared: ads.length, small: base.length - ads.length, minImp: minImp, minSpend: minSpend, autoSpend: !(+P.minSpend > 0), minDays: minDays, periodDays: periodDays, medCtr: medCtr, medCpl: medCpl, noCtr: !R.hasCtr, noIds: ads.length > 0 && !ads.some(function(a){ return a.adId; })}};
 }
-function repBuild(o){ return o.type === "daily" ? repDailyTable(o) : o.type === "master" ? repMasterTable(o) : o.type === "creative" ? repCreativeTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
+/* ---------- Unit Franchise Leads FTD Target Report: LeadForm vs WhatsApp split, CPL, spend & daily budget ---------- */
+function repUfFtdTable(o){
+  var P = o.params, R = o.R, label = repDateLabel(o.rg.from, o.rg.to), br = repBrandRow(R), rows = [], picked = [];
+  var isSingleDay = o.rg.from === o.rg.to;
+  repBrands(P).forEach(function(b){
+    var a = br[b], has = !!a && repHasMeta(R, b);
+    var tg = repBrandTgt(b, "leads", o.rg.from, o.rg.to);
+    var bg = repBrandTgt(b, "budget", o.rg.from, o.rg.to);
+    var ach = has ? a.ui : null;
+    var lf = has && a.uiForm > 0 ? a.uiForm : null;
+    var wa = has && a.uiWa > 0 ? a.uiWa : null;
+    var sp = has ? a.spend : null;
+    var pctAch = isNum(tg) && tg > 0 && isNum(ach) ? ach / tg : null;
+    var pctLf = isNum(ach) && ach > 0 ? (a.uiForm || 0) / ach : null;
+    var pctWa = isNum(ach) && ach > 0 ? (a.uiWa || 0) / ach : null;
+    var cpl = isNum(ach) && ach > 0 && isNum(sp) ? sp / ach : null;
+    var pctSp = isNum(bg) && bg > 0 ? (isNum(sp) ? sp / bg : 0) : null;
+    picked.push({has: has, tg: tg, bg: bg, ach: ach, lf: has ? (a.uiForm || 0) : 0, wa: has ? (a.uiWa || 0) : 0, sp: has ? (a.spend || 0) : 0});
+    rows.push({name: b, _rk: "uf_ftd|" + label + "|" + b, target: tg, achieved: ach, pctAch: pctAch, viaForm: lf, viaWa: wa, pctForm: pctLf, pctWa: pctWa, cpl: cpl, spend: sp, budget: bg, pctSpent: pctSp});
+  });
+  var anyMeta = picked.some(function(x){ return x.has; });
+  var tgSum = 0, anyTg = false, bgSum = 0, anyBg = false, achSum = 0, achWithTg = 0, lfSum = 0, waSum = 0, spSum = 0, spWithBg = 0;
+  picked.forEach(function(x){
+    if (isNum(x.tg)){ tgSum += x.tg; anyTg = true; if (x.has && isNum(x.ach)) achWithTg += x.ach; }
+    if (isNum(x.bg)){ bgSum += x.bg; anyBg = true; if (x.has) spWithBg += x.sp; }
+    if (x.has){ achSum += (x.ach || 0); lfSum += x.lf; waSum += x.wa; spSum += x.sp; }
+  });
+  var total = {_total: true, name: "Total",
+    target: anyTg ? tgSum : null,
+    achieved: anyMeta ? achSum : null,
+    pctAch: anyTg && tgSum > 0 && anyMeta ? achWithTg / tgSum : null,
+    viaForm: anyMeta && lfSum > 0 ? lfSum : null,
+    viaWa: anyMeta && waSum > 0 ? waSum : null,
+    pctForm: anyMeta && achSum > 0 ? lfSum / achSum : null,
+    pctWa: anyMeta && achSum > 0 ? waSum / achSum : null,
+    cpl: anyMeta && achSum > 0 ? spSum / achSum : null,
+    spend: anyMeta ? spSum : null,
+    budget: anyBg ? bgSum : null,
+    pctSpent: anyBg && bgSum > 0 ? spWithBg / bgSum : null};
+  var fPos = function(v){ return isNum(v) && v > 0 ? "good" : null; };
+  var fAch = function(v){ return !isNum(v) ? null : v >= 1 ? "good" : "bad"; };
+  var fLf = function(v){ return !isNum(v) ? null : v >= 0.9 ? "good" : "bad"; };
+  var fWa = function(v){ return !isNum(v) ? null : v <= 0.1 ? "good" : "bad"; };
+  var fSp = function(v){ return !isNum(v) ? null : v <= 1 ? "good" : "bad"; };
+  var ufOpt = {flagTotal: true, noMark: true};
+  var cols = [
+    repCol("name", "Brand", "text", null, {cls: "name", w: 24}),
+    repCol("target", "Target UF-FTD", "rint", null, {w: 14}),
+    repCol("achieved", "Achieved UF+MF-FTD", "rint", null, {w: 18}),
+    repCol("pctAch", "% Achieved UF+MF-FTD", "rpct2", fAch, Object.assign({w: 19}, ufOpt)),
+    repCol("viaForm", "Achieved UF+MF-FTD Via LeadForm", "rintb", fPos, Object.assign({w: 22, naBlank: true}, ufOpt)),
+    repCol("viaWa", "Achieved UF+MF-FTD Via WhatsApp", "rintb", fPos, Object.assign({w: 22, naBlank: true}, ufOpt)),
+    repCol("pctForm", "Achieved UF+MF-FTD % Via LeadForm", "rpct2", fLf, Object.assign({w: 24}, ufOpt)),
+    repCol("pctWa", "Achieved UF+MF-FTD % Via WhatsApp", "rpct2", fWa, Object.assign({w: 24}, ufOpt)),
+    repCol("cpl", "CPL", "rinr2", null, {w: 13}),
+    repCol("spend", "Amount Spent", "rinr2z", null, {w: 16}),
+    repCol("budget", isSingleDay ? "Allocated Daily Budget" : "Allocated Budget", "rinr2", null, {w: 20}),
+    repCol("pctSpent", "% Ad spent", "rpct2", fSp, Object.assign({w: 14}, ufOpt))
+  ];
+  return {cols: cols, rows: rows, total: total, label: label, banner: "Unit Franchise Leads FTD Target Report - " + label};
+}
+function repBuild(o){ return o.type === "daily" ? repDailyTable(o) : o.type === "uf_ftd" ? repUfFtdTable(o) : o.type === "master" ? repMasterTable(o) : o.type === "creative" ? repCreativeTable(o) : repIsLeader(o.type) ? repLeaderTable(o) : repBrandTable(o); }
 function repTypeLabel(t){ return (REPORT_TYPES.filter(function(x){ return x[0] === t; })[0] || ["", ""])[1]; }
 /* a multi-select dropdown (empty = all) */
 function repPicker(label, options, selected, onApply, key){
@@ -3064,19 +3162,22 @@ function viewReports(){
     el("button", {cls: "btn ghost", type: "button", onclick: function(){ state.rep = null; state.repOut = null; render(); }}, "Reset"), exportBtn));
   sec.appendChild(ctr);
   var bRg = repIsRange(P.type) ? {from: Math.min(P.from, P.to), to: Math.max(P.from, P.to)} : {from: monthStartOf(P.cutoff), to: P.cutoff}, tMon = monKey(bRg.to);
-  var missing = repBrands(P).filter(function(b){ return !isNum(repBrandTgt(b, "leads", bRg.from, bRg.to)) || (P.type === "master" && (!isNum(repTargetCpl(b, bRg.to)) || !isNum(repBrandTgt(b, "budget", bRg.from, bRg.to)))); });
+  var missing = repBrands(P).filter(function(b){ return !isNum(repBrandTgt(b, "leads", bRg.from, bRg.to)) || ((P.type === "master" || P.type === "uf_ftd") && !isNum(repBrandTgt(b, "budget", bRg.from, bRg.to))) || (P.type === "master" && !isNum(repTargetCpl(b, bRg.to))); });
   var goTargets = el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "targets"; setDraft().repMonth = tMon; render(); }}, "Set " + monLabel(tMon) + " targets");
   if (repIsLeader(P.type)){ var noL = !RP.leaders.some(function(L){ return isNum(repLeaderTgt(L.name, bRg.from, bRg.to)); });
     if (noL) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No leader targets set for " + monLabel(tMon) + "; the target columns show “—”. "}), goTargets)); }
-  else if (missing.length && P.type !== "creative" && P.type !== "daily") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
+  else if (missing.length && P.type !== "creative" && P.type !== "daily") sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: "No " + monLabel(tMon) + " " + (P.type === "master" ? "lead target, target CPL or budget" : P.type === "uf_ftd" ? "lead target or daily budget" : "lead target") + " for " + missing.length + " brand" + (missing.length > 1 ? "s" : "") + " (" + missing.slice(0, 4).join(", ") + (missing.length > 4 ? "…" : "") + "); their target columns show “—”. "}), goTargets));
   if (!O){ sec.appendChild(el("div", {cls: "empty", text: "Pick the report and dates, then click Generate."})); }
   else if (O.status === "loading"){ sec.appendChild(el("div", {cls: "empty", text: "Loading the data and calculating… (a month of data can take a few seconds)"})); }
   else if (O.status === "error"){ sec.appendChild(el("div", {cls: "msg err", text: "Couldn't build the report: " + O.err})); }
   else {
     var T = repBuild(built);
     if (stale) sec.appendChild(el("div", {cls: "banner"}, el("span", {text: "You changed the options. Click Generate to update the report below. "})));
+    var noteTxt = built.type === "uf_ftd"
+      ? "Generated " + new Date(built.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". Green: ≥100% target, ≥90% LeadForm, ≤10% WhatsApp, ≤100% ad spent · Red: off target or overspent."
+      : "Generated " + new Date(built.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". ✓ on or above target · ! close to target · ✗ off target.";
     sec.appendChild(el("div", {cls: "sec-head"}, el("h2", {text: (built.platform === "Google Ads" ? "Google Ads · " : "") + repTypeLabel(built.type) + " · " + (built.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(built.rg.from, built.rg.to) : T.label)}),
-      el("span", {cls: "note", text: "Generated " + new Date(built.at).toLocaleTimeString("en-IN", {hour: "numeric", minute: "2-digit"}) + ". ✓ on or above target · ! close to target · ✗ off target."})));
+      el("span", {cls: "note", text: noteTxt})));
     var un = built.params.brands.length ? null : repUnmapped(built);
     if (un) sec.appendChild(el("div", {cls: "banner warn"}, el("span", {text: repUnmappedText(un) + " "}), el("button", {cls: "linkbtn", type: "button", onclick: function(){ state.tab = "settings"; state.setTab = "brands"; render(); }}, "Open brand settings")));
     if (!T.rows.length) sec.appendChild(el("div", {cls: "empty", text: "No rows for these options."}));
@@ -3085,12 +3186,22 @@ function viewReports(){
       if (I.noIds) sec.appendChild(el("div", {cls: "banner warn", text: "Ad IDs aren't in the data yet. After creative-report.sql is run, the next Meta sync (every 30 min) fills them in for the synced days; use Settings › Data connections › Sync now for older days."}));
       sec.appendChild(el("p", {cls: "small", text: fInt(I.compared) + " big-spending ads compared over " + I.periodDays + " day" + (I.periodDays === 1 ? "" : "s") + ": spent at least " + fINR(I.minSpend) + (I.autoSpend ? " (Auto = top half by spend)" : "") + ", ran on " + I.minDays + "+ days and had " + fInt(I.minImp) + "+ impressions" + (I.small ? " (" + fInt(I.small) + " smaller or short-running ads left out)" : "") + ". Median CTR " + (isNum(I.medCtr) ? (I.medCtr * 100).toFixed(2) + "%" : "—") + " · median CPL " + (isNum(I.medCpl) ? fINR(I.medCpl) : "—") + ". CTR ✓ = 20%+ above median, ✗ = 20%+ below. Copy an Ad ID and paste it into the Ads Manager search box to open the creative."}));
       T.groups.forEach(function(g){ sec.appendChild(el("h3", {cls: "rep-group-h", text: g.title})); sec.appendChild(g.rows.length ? el("div", {cls: "rep-table"}, table("rep-creative-" + g.title.split(" ")[0], T.cols.filter(function(c){ return c.k !== "group"; }), g.rows, {presorted: true})) : el("div", {cls: "empty", text: "No ads with enough impressions in this period."})); }); }
+    else if (T.banner) sec.appendChild(el("div", {cls: "rep-table rep-uf"}, el("div", {cls: "rep-uf-banner", text: T.banner}), table("rep-" + built.type, T.cols, T.rows, {total: T.total, presorted: true, totalBottom: true})));
     else sec.appendChild(el("div", {cls: "rep-table"}, table("rep-" + built.type, T.cols, T.rows, {total: T.total, presorted: true, totalBottom: true})));
     sec.appendChild(repHowCalc(built.type));
   }
   return sec;
 }
 function repHowCalc(type){
+  if (type === "uf_ftd") return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}), el("table", {cls: "help-gloss"}, el("tbody", null, [
+    ["Target UF-FTD", "Daily lead target per brand = monthly lead target (Settings › Report targets) ÷ days in that month × days in the selected period."],
+    ["Achieved UF+MF-FTD", "Total Meta leads (LeadForm + WhatsApp conversations + any other lead results such as Website leads) for the brand in the period."],
+    ["% Achieved UF+MF-FTD", "Achieved UF+MF-FTD ÷ Target UF-FTD. Green when ≥ 100%, red when < 100%."],
+    ["Via LeadForm / Via WhatsApp", "Breakdown of Meta leads by channel from Meta's Result indicator (Leads (form) vs Messaging conversations started, with WhatsApp/CTWA campaign-name fallback). Blank when 0."],
+    ["% Via LeadForm / % Via WhatsApp", "Share of Achieved leads via each channel. LeadForm: green ≥ 90%, red < 90%. WhatsApp: green ≤ 10%, red > 10%."],
+    ["CPL", "Amount Spent ÷ Achieved UF+MF-FTD."],
+    ["Amount Spent / Allocated Daily Budget / % Ad spent", "Meta spend vs daily share of monthly budget (Settings › Report targets). % Ad spent = Amount Spent ÷ Allocated Daily Budget (green ≤ 100%, red > 100% overspent)."],
+    ["Total", "Sums across all selected brands with % Achieved, % Via LeadForm, % Via WhatsApp, CPL, and % Ad spent recalculated from the totals."]].map(function(x){ return el("tr", null, el("td", {cls: "nowrap"}, el("b", {text: x[0]})), el("td", {text: x[1]})); }))));
   if (type === "daily") return el("details", {cls: "faq rep-how"}, el("summary", {text: "How this report is calculated"}), el("table", {cls: "help-gloss"}, el("tbody", null, [
     ["Clicks / Imp", "Meta link clicks and impressions of the brand's campaigns in the period."],
     ["CTR", "Clicks ÷ impressions."],
@@ -3130,7 +3241,7 @@ function repExport(o){
   var T = repBuild(o), cols = T.cols.map(function(c){ var x = Object.assign({}, c); delete x.render; if (c.k === "remarks") x.w = 30; if (c.k === "name") x.w = 24; return x; });
   var title = (o.platform === "Google Ads" ? "Google Ads · " : "") + repTypeLabel(o.type), when = o.type === "master" ? "FTD " + T.label + " · MTD " + repDateLabel(o.rg.from, o.rg.to) : T.label;
   var un = o.params.brands.length ? null : repUnmapped(o);
-  var spec = {name: title.split(" · ")[0].slice(0, 31), title: title, note: when + (o.type === "daily" ? " · CTR = clicks ÷ impressions · CPL = spend ÷ Meta leads · CPQL = spend ÷ QL" : " · ✓/!/✗ colours: green on or above target, amber close, red off target") + (un ? " · Note: " + repUnmappedText(un) : ""), cols: cols, rows: T.rows, total: T.total, freeze: 2, keepBlank: true};
+  var spec = {name: title.split(" · ")[0].slice(0, 31), title: T.banner || title, bannerTitle: T.banner || null, sheetStyle: o.type === "uf_ftd" ? "uf" : null, note: when + (o.type === "daily" ? " · CTR = clicks ÷ impressions · CPL = spend ÷ Meta leads · CPQL = spend ÷ QL" : o.type === "uf_ftd" ? " · Green: ≥100% target, ≥90% LeadForm, ≤10% WhatsApp, ≤100% ad spent · Red: off target or overspent" : " · ✓/!/✗ colours: green on or above target, amber close, red off target") + (un ? " · Note: " + repUnmappedText(un) : ""), cols: cols, rows: T.rows, total: T.total, freeze: o.type === "uf_ftd" ? 1 : 2, keepBlank: true};
   var specs = T.groups ? T.groups.map(function(g){ return {name: g.title.slice(0, 31), title: title + " · " + g.title, note: when + " · ads with at least " + fInt(T.info.minImp) + " impressions · CTR = link clicks ÷ impressions · search the Ad ID in Ads Manager to open the creative", cols: cols.filter(function(c){ return c.k !== "group"; }), rows: g.rows, total: null, freeze: 2, keepBlank: true}; }) : [spec];
   var sub = "EBG Group · " + when + " · Generated " + new Date().toLocaleString("en-IN", {dateStyle: "medium", timeStyle: "short"});
   var fname = "EBG " + title.replace(/[·\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + " " + (repIsRange(o.type) ? isoDay(o.rg.from) + (o.rg.to !== o.rg.from ? " to " + isoDay(o.rg.to) : "") : isoDay(o.rg.to)) + ".xlsx";
@@ -6451,10 +6562,12 @@ function xlCols(cols){
 function xlVal(c, r){ return c.get ? c.get(r) : r[c.k]; }
 var XL = {ink: "FF111111", headFg: "FFFFFFFF", sub: "FF686868", faint: "FF9A9A9A", line: "FFDDDDDD", zebra: "FFF7F7F5", total: "FFECECE8",
   bad: "FFB42318", badBg: "FFFBE7E5", warn: "FF8A5D0B", warnBg: "FFFBF1DD", good: "FF1F7A4A", goodBg: "FFE6F2EB"};
-function xlNumFmt(t){ var c = (CUR || "₹").trim(); if (t === "rint") return "#,##0"; if (t === "rinr") return "#,##0"; if (t === "rpct") return "0%"; if (t === "rpct2") return "0.00%"; return t === "inr2" ? '"' + c + '"#,##0.00' : t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
+function xlNumFmt(t){ var c = (CUR || "₹").trim(); if (t === "rint" || t === "rintb") return "#,##0"; if (t === "rinr") return "#,##0"; if (t === "rinr2") return '"' + c + '"#,##0.00'; if (t === "rinr2z") return '"' + c + '"#,##0.00;-"' + c + '"#,##0.00;"-"'; if (t === "rpct") return "0%"; if (t === "rpct2") return "0.00%"; return t === "inr2" ? '"' + c + '"#,##0.00' : t === "inr" ? '"' + c + '"#,##0' : t === "int" ? "#,##0" : t === "pct" ? "0.0%" : t === "min" ? "0.0" : t === "dt" ? "dd-mmm-yyyy hh:mm" : null; }
 function xlSolid(argb){ return {type: "pattern", pattern: "solid", fgColor: {argb: argb}}; }
 function xlCellVal(c, v){
   if (c.t === "text") return v == null ? "" : String(v);
+  if (c.t === "rintb") return isNum(v) && v > 0 ? Math.round(v) : "";
+  if (c.t === "rinr2" || c.t === "rinr2z") return isNum(v) ? Math.round(v * 100) / 100 : "—";
   if (c.t === "rint" || c.t === "rinr" || c.t === "rpct" || c.t === "rpct2") return isNum(v) ? (c.t === "rpct" ? Math.round(v * 10000) / 10000 : c.t === "rpct2" ? Math.round(v * 1000000) / 1000000 : Math.round(v)) : "—";
   if (c.t === "dt") return isNum(v) ? new Date(v) : "";
   if (!isNum(v)) return "N/A";
@@ -6463,11 +6576,12 @@ function xlCellVal(c, v){
 /* writes a header + rows (+ total) block at row r0; returns the next free row */
 function xlTable(ws, r0, cols, rows, o, widths){
   o = o || {};
+  var isUf = o.sheetStyle === "uf", gBg = isUf ? "FFB7E1CD" : XL.goodBg, gFg = isUf ? "FF0F5132" : XL.good, bBg = isUf ? "FFEA9999" : XL.badBg, bFg = isUf ? "FF7F1D1D" : XL.bad;
   var n = cols.length, hr = ws.getRow(r0);
   cols.forEach(function(c, i){ var cell = hr.getCell(i + 1); cell.value = c.label;
     cell.font = {bold: true, size: 10, color: {argb: XL.headFg}}; cell.fill = xlSolid(XL.ink);
     cell.alignment = {vertical: "middle", horizontal: c.t === "text" && !c.align ? "left" : "right", wrapText: true};
-    widths[i] = Math.max(widths[i] || 0, Math.min(18, String(c.label).length + 2)); });
+    widths[i] = Math.max(widths[i] || 0, Math.min(24, String(c.label).length + 2)); });
   hr.height = 30;
   var prev = null;
   rows.forEach(function(r, ri){
@@ -6475,16 +6589,17 @@ function xlTable(ws, r0, cols, rows, o, widths){
     if (r._lvl > 1) row.outlineLevel = r._lvl - 1;
     cols.forEach(function(c, i){
       var cell = row.getCell(i + 1), v = xlVal(c, r), val = c.k === "ui" && r.uiExcluded ? "Excluded" : c.naBlank && !isNum(v) ? "" : xlCellVal(c, v), fl = c.flag ? c.flag(r) : null;
-      cell.value = val; var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "") cell.numFmt = fmt;
-      cell.font = {size: 10, color: {argb: val === "N/A" ? XL.faint : XL.ink}};
+      cell.value = val; var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "" && val !== "—") cell.numFmt = fmt;
+      cell.font = {size: 10, bold: isUf && i === 0 ? true : false, color: {argb: val === "N/A" ? XL.faint : XL.ink}};
       cell.alignment = {vertical: "top", horizontal: c.t === "text" && !c.align ? "left" : "right", wrapText: !!c.wrap, indent: c.k === "tree" && r._lvl ? (r._lvl - 1) * 2 : 0};
       if (c.k === "tree" && r._lvl) cell.value = (r._pfx !== undefined ? r._pfx : ["", "", "Ad set: ", "Ad: "][r._lvl]) + (val || (r._lvl === 2 ? "(no ad set name)" : r._lvl === 3 ? "(no ad name)" : ""));
-      if (fl === "bad"){ cell.font = {size: 10, bold: true, color: {argb: XL.bad}}; cell.fill = xlSolid(XL.badBg); }
+      if (fl === "bad"){ cell.font = {size: 10, bold: !isUf, color: {argb: bFg}}; cell.fill = xlSolid(bBg); }
       else if (fl === "warn"){ cell.font = {size: 10, bold: true, color: {argb: XL.warn}}; cell.fill = xlSolid(XL.warnBg); }
-      else if (fl === "good"){ cell.font = {size: 10, color: {argb: XL.good}}; if (c.goodFill) cell.fill = xlSolid(XL.goodBg); }
-      if (!fl && rowFill === "warn") cell.fill = xlSolid(XL.warnBg); else if (!fl && r._lvl === 2) cell.fill = xlSolid(XL.zebra); else if (!fl && r._lvl === 3) cell.fill = xlSolid("FFEEEEEA"); else if (!fl && !r._lvl && ri % 2) cell.fill = xlSolid(XL.zebra);
+      else if (fl === "good"){ cell.font = {size: 10, color: {argb: gFg}}; if (c.goodFill) cell.fill = xlSolid(gBg); }
+      if (!fl && rowFill === "warn") cell.fill = xlSolid(XL.warnBg); else if (!fl && r._lvl === 2) cell.fill = xlSolid(XL.zebra); else if (!fl && r._lvl === 3) cell.fill = xlSolid("FFEEEEEA"); else if (!fl && !r._lvl && !isUf && ri % 2) cell.fill = xlSolid(XL.zebra);
       if (r._lvl === 1 && !fl) cell.font = Object.assign({}, cell.font, {bold: true});
-      cell.border = {bottom: {style: "hair", color: {argb: XL.line}}}; if (brandTop) cell.border.top = {style: "medium", color: {argb: XL.ink}};
+      cell.border = isUf ? {bottom: {style: "thin", color: {argb: XL.line}}, right: {style: "thin", color: {argb: XL.line}}} : {bottom: {style: "hair", color: {argb: XL.line}}};
+      if (brandTop) cell.border.top = {style: "medium", color: {argb: XL.ink}};
       var len = c.t === "dt" ? 17 : val === "" ? 0 : c.t === "text" ? String(val).length : (c.t === "pct" ? 7 : String(Math.round(Math.abs(Number(val) || 0))).length + 4);
       widths[i] = Math.max(widths[i] || 0, Math.min(c.w || (c.t === "text" ? 34 : 16), len + 2));
     });
@@ -6498,8 +6613,10 @@ function xlTable(ws, r0, cols, rows, o, widths){
     cols.forEach(function(c, i){ var cell = tr.getCell(i + 1), v = c.k === "remarks" ? "" : xlVal(c, o.total);
       if (i === 0 && !o.keepBlank) v = v || "TOTAL";
       var val = c.t === "text" ? (v == null ? "" : String(v)) : xlCellVal(c, v); cell.value = val;
-      var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "") cell.numFmt = fmt;
-      cell.font = {bold: true, size: 10, color: {argb: XL.ink}}; cell.fill = xlSolid(XL.total);
+      var fmt = xlNumFmt(c.t); if (fmt && val !== "N/A" && val !== "" && val !== "—") cell.numFmt = fmt;
+      var flT = c.flagTotal && c.flag ? c.flag(o.total) : null;
+      cell.font = {bold: true, size: 10, color: {argb: flT === "bad" ? bFg : flT === "good" ? gFg : XL.ink}};
+      cell.fill = xlSolid(flT === "bad" ? bBg : flT === "good" ? gBg : XL.total);
       cell.alignment = {vertical: "top", horizontal: c.t === "text" && !c.align && !(c.k || "").match(/_txt$/) ? "left" : "right"};
       cell.border = {top: {style: "thin", color: {argb: XL.ink}}, bottom: {style: "double", color: {argb: XL.ink}}}; });
     end++;
@@ -6537,12 +6654,20 @@ function buildWorkbookExcelJS(ExcelJS, specs, sub){
       var tcols = xlCols(sp.table.cols);
       xlTable(ws, r, tcols, sp.table.rows, {total: sp.table.total}, widths);
       widths[0] = Math.max(widths[0], 26); widths[1] = Math.max(widths[1] || 0, 16); widths[2] = Math.max(widths[2] || 0, 16);
+    } else if (sp.bannerTitle){
+      var colsB = xlCols(sp.cols);
+      ws = wb.addWorksheet(sp.name.slice(0, 31), {views: [{state: "frozen", xSplit: sp.freeze || 0, ySplit: 2, showGridLines: true}], pageSetup: page});
+      ws.mergeCells(1, 1, 1, colsB.length);
+      var bc = ws.getCell(1, 1); bc.value = sp.bannerTitle; bc.font = {bold: true, size: 12, color: {argb: XL.headFg}};
+      bc.fill = xlSolid(XL.ink); bc.alignment = {vertical: "middle", horizontal: "center"}; ws.getRow(1).height = 24;
+      xlTable(ws, 2, colsB, sp.rows, {total: sp.total, autoFilter: false, keepBlank: sp.keepBlank, sheetStyle: sp.sheetStyle}, widths);
+      ws.pageSetup.printTitlesRow = "1:2";
     } else {
       ws = wb.addWorksheet(sp.name.slice(0, 31), {views: [{state: "frozen", xSplit: sp.freeze || 0, ySplit: 4, showGridLines: false}], pageSetup: page});
       xlTitle(ws, sp.title, sub, sp.note);
       var cols = xlCols(sp.cols);
       if (sp.tree) ws.properties.outlineProperties = {summaryBelow: false, summaryRight: false};
-      xlTable(ws, 4, cols, sp.rows, {total: sp.total, brandRule: sp.brandRule, rowFill: sp.rowFill, autoFilter: !sp.tree, keepBlank: sp.keepBlank}, widths);
+      xlTable(ws, 4, cols, sp.rows, {total: sp.total, brandRule: sp.brandRule, rowFill: sp.rowFill, autoFilter: !sp.tree, keepBlank: sp.keepBlank, sheetStyle: sp.sheetStyle}, widths);
       ws.pageSetup.printTitlesRow = "4:4";
     }
     widths.forEach(function(w, i){ ws.getColumn(i + 1).width = Math.max(8, w || 10); });

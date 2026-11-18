@@ -1019,8 +1019,52 @@ async function runTests() {
     console.log('✓ Budget Pacing & Month-End Forecast module and formulas verified');
   }
 
+  // Test 15: Unit Franchise Leads FTD Target Report (uf_ftd)
+  {
+    console.log('Test 15: Unit Franchise Leads FTD Target Report (uf_ftd)');
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+
+    assert(indexHtml.includes('["uf_ftd", "Unit Franchise Leads FTD Target Report'), 'uf_ftd report should be registered in REPORT_TYPES');
+    assert(indexHtml.includes('function repUfFtdTable('), 'repUfFtdTable builder should be defined');
+    assert(indexHtml.includes('function classifyLeadChannel('), 'classifyLeadChannel helper should be defined');
+    assert(indexHtml.includes('.rep-uf-banner'), 'rep-uf-banner styling should be defined');
+
+    // Extract and test classifyLeadChannel logic directly
+    const fnMatch = indexHtml.match(/function classifyLeadChannel\(ind, camp\)\{[\s\S]*?\n\}/);
+    assert(fnMatch, 'classifyLeadChannel source should be extractable');
+    const classifyLeadChannel = new Function('ind', 'camp', fnMatch[0].replace(/^function classifyLeadChannel\(ind, camp\)\{/, '').replace(/\}$/, ''));
+
+    assert.strictEqual(classifyLeadChannel('Leads (form)', 'Natuf | UF'), 'form');
+    assert.strictEqual(classifyLeadChannel('actions:onsite_conversion.lead_grouped', 'Acer | Leads'), 'form');
+    assert.strictEqual(classifyLeadChannel('Messaging conversations started', 'Carlton | Leads'), 'wa');
+    assert.strictEqual(classifyLeadChannel('actions:onsite_conversion.messaging_conversation_started_7d', 'Carlton'), 'wa');
+    assert.strictEqual(classifyLeadChannel('Leads (website)', 'Chhota Bheem | Web'), 'other');
+    assert.strictEqual(classifyLeadChannel('actions:offsite_conversion.fb_pixel_lead', 'Chhota Bheem'), 'other');
+    assert.strictEqual(classifyLeadChannel('', 'Carlton | CTWA | Franchise'), 'wa');
+    assert.strictEqual(classifyLeadChannel('', 'Acer | Instant Form'), 'form');
+
+    // Verify all 12 expected column labels exist in repUfFtdTable
+    [
+      'Target UF-FTD',
+      'Achieved UF+MF-FTD',
+      '% Achieved UF+MF-FTD',
+      'Achieved UF+MF-FTD Via LeadForm',
+      'Achieved UF+MF-FTD Via WhatsApp',
+      'Achieved UF+MF-FTD % Via LeadForm',
+      'Achieved UF+MF-FTD % Via WhatsApp',
+      'CPL',
+      'Amount Spent',
+      'Allocated Daily Budget',
+      '% Ad spent'
+    ].forEach(col => {
+      assert(indexHtml.includes(col), 'Missing column label: ' + col);
+    });
+
+    console.log('✓ Unit Franchise Leads FTD Target Report & channel classification verified');
+  }
+
   console.log('\n========================================');
-  console.log('ALL 14 AI API INTEGRATION TESTS PASSED!');
+  console.log('ALL 15 AI API INTEGRATION TESTS PASSED!');
   console.log('========================================');
 }
 
